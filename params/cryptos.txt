@@ -1,0 +1,3 @@
+Bitcoin:BTC
+Litecoin:LTC
+Ethereum:ETH

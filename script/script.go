@@ -2,6 +2,7 @@ package script
 
 import (
 	"encoding/binary"
+	"strings"
 
 	"github.com/btcsuite/btcd/txscript"
 )
@@ -89,4 +90,12 @@ func numBytes(n int64) []byte {
 }
 
 // Disassemble a script into string
-func Disassemble(s []byte) (string, error) { return txscript.DisasmString(s) }
+func DisassembleString(s []byte) (string, error) { return txscript.DisasmString(s) }
+
+func DisassembleStrings(s []byte) ([]string, error) {
+	r, err := DisassembleString(s)
+	if err != nil {
+		return nil, err
+	}
+	return strings.Split(r, " "), nil
+}

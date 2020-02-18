@@ -7,7 +7,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	"transmutate.io/pkg/swapper/script"
+	"transmutate.io/pkg/atomicswap/script"
 )
 
 type Tx struct {

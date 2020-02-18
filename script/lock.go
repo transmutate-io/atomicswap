@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/btcsuite/btcd/txscript"
-	"transmutate.io/pkg/swapper/hash"
+	"transmutate.io/pkg/atomicswap/hash"
 )
 
 func bytesJoin(b ...[]byte) []byte { return bytes.Join(b, []byte{}) }

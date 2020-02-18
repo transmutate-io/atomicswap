@@ -2,8 +2,8 @@ package addr
 
 import (
 	"github.com/btcsuite/btcutil"
-	"transmutate.io/pkg/swapper/hash"
-	"transmutate.io/pkg/swapper/params"
+	"transmutate.io/pkg/atomicswap/hash"
+	"transmutate.io/pkg/atomicswap/params"
 )
 
 // P2PK returns the p2pk address for a key (same as p2pkh)

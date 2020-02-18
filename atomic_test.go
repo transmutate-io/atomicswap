@@ -3,8 +3,11 @@ package atomicswap
 import (
 	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+	"transmutate.io/pkg/atomicswap/hash"
+	"transmutate.io/pkg/atomicswap/script"
 	"transmutate.io/pkg/btccore"
 )
 
@@ -130,4 +133,19 @@ func TestAtomicSwap_BTC_LTC(t *testing.T) {
 	// })
 	// err := eg.Wait()
 	// require.NoError(t, err, "unexpected error")
+}
+
+func TestCheckTradeLockScript(t *testing.T) {
+	now := time.Now().UTC()
+	tokenHash := hash.Hash160([]byte("hello world"))
+	at := &Trade{}
+	err := at.CheckTradeLockScript(script.HTLC(
+		script.LockTimeTime(now),
+		tokenHash,
+		script.P2PKHHash(hash.Hash160([]byte("pubkey1"))),
+		script.P2PKHHash(hash.Hash160([]byte("pubkey2"))),
+	))
+	require.NoError(t, err, "unexpected error")
+	err = at.CheckTradeLockScript([]byte{0, 1, 2, 3, 4, 5, 6})
+	require.Equal(t, ErrInvalidLockScript, err)
 }

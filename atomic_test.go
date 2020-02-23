@@ -53,9 +53,6 @@ func handleTrade(c chan interface{}, t *Trade, printf func(string, ...interface{
 		ownCp, traderCp               *params.Params
 		ownMinerAddr, traderMinerAddr string
 	)
-
-	_ = traderMinerAddr
-
 	if t.Own.Crypto == params.Bitcoin {
 		ownCl = btcClient
 		ownCp = params.BTC_RegressionNet
@@ -75,51 +72,62 @@ func handleTrade(c chan interface{}, t *Trade, printf func(string, ...interface{
 	for {
 		switch t.Stage {
 		case stages.SendPublicKeyHash:
+			// use a channel to exchange data back and forth
 			c <- types.Bytes(t.Own.RedeemKey.Public().Hash160())
 			printf("sent public key hash\n")
 			t.NextStage()
 		case stages.ReceivePublicKeyHash:
+			// use a channel to exchange data back and forth
 			t.Trader.RedeemKeyHash = (<-c).(types.Bytes)
 			printf("received public key hash: %s\n", t.Trader.RedeemKeyHash.Hex())
 			t.NextStage()
 		case stages.SendTokenHash:
-			c <- t.tokenHash
+			// use a channel to exchange data back and forth
+			c <- t.TokenHash()
 			printf("sent token hash\n")
 			t.NextStage()
 		case stages.ReceiveTokenHash:
-			t.tokenHash = (<-c).(types.Bytes)
-			printf("received token hash: %s\n", t.tokenHash.Hex())
+			// use a channel to exchange data back and forth
+			t.SetTokenHash((<-c).(types.Bytes))
+			printf("received token hash: %s\n", t.TokenHash().Hex())
 			t.NextStage()
 		case stages.ReceiveLockScript:
+			// use a channel to exchange data back and forth
 			ls := (<-c).(types.Bytes)
 			ds, err := script.DisassembleString(ls)
 			if err != nil {
 				return err
 			}
+			// calculate a duration depending on prior agreement between traders
 			var dur time.Duration
 			if t.Role == roles.Seller {
 				dur = 23 * time.Hour
 			} else {
 				dur = 47 * time.Hour
 			}
+			// check lock script
 			if err := t.CheckTraderLockScript(ls, dur); err != nil {
 				printf("received invalid lock script: %s %s\n", ls.Hex(), ds)
 				return err
 			}
 			printf("received lock script: %s %s\n", ls.Hex(), ds)
+			// save lock script after checking
 			t.Trader.LockScript = ls
 			t.NextStage()
 		case stages.GenerateLockScript:
+			// generate lock script
 			if err := t.GenerateOwnLockScript(48 * time.Hour); err != nil {
 				return err
 			}
 			printf("generated lock script: %s\n", t.Own.LockScript.Hex())
 			t.NextStage()
 		case stages.SendLockScript:
+			// use a channel to exchange data back and forth
 			c <- t.Own.LockScript
 			printf("sent lock script\n")
 			t.NextStage()
 		case stages.WaitLockTransaction:
+			// use the client to find a deposit
 			txOut, err := waitDeposit(traderCl, traderCp, t.Trader.LastBlockHeight, t.Trader.LockScript.Hash160())
 			if err != nil {
 				return err
@@ -130,6 +138,7 @@ func handleTrade(c chan interface{}, t *Trade, printf func(string, ...interface{
 				txOut.n,
 				txOut.blockHeight,
 			)
+			// save redeeamable output
 			if t.Outputs == nil {
 				t.Outputs = &Outputs{}
 			}
@@ -140,12 +149,14 @@ func handleTrade(c chan interface{}, t *Trade, printf func(string, ...interface{
 			t.Trader.LastBlockHeight = txOut.blockHeight
 			t.NextStage()
 		case stages.LockFunds:
+			// use the client to make a deposit
 			var amt *btccore.Amount
 			if t.Own.Crypto == params.Bitcoin {
 				amt = (*btccore.Amount)(big.NewInt(100000000 + stdFee))
 			} else {
 				amt = (*btccore.Amount)(big.NewInt(1000000000 + stdFee))
 			}
+			// calculate deposit address
 			depositAddr, err := addr.P2SH(t.Own.LockScript.Hash160(), ownCp)
 			if err != nil {
 				return err
@@ -161,6 +172,7 @@ func handleTrade(c chan interface{}, t *Trade, printf func(string, ...interface{
 			if err != nil {
 				return err
 			}
+			// find transaction
 			tx, err := ownCl.GetRawTransaction(b)
 			if err != nil {
 				return err
@@ -168,6 +180,7 @@ func handleTrade(c chan interface{}, t *Trade, printf func(string, ...interface{
 			if t.Outputs == nil {
 				t.Outputs = &Outputs{}
 			}
+			// save recoverable output
 			for _, i := range tx.VOut {
 				if i.ScriptPubKey.Type == "scripthash" && len(i.ScriptPubKey.Addresses) > 0 && i.ScriptPubKey.Addresses[0] == depositAddr {
 					t.Outputs.Recoverable = &Output{TxID: b, N: uint32(i.N)}
@@ -177,14 +190,17 @@ func handleTrade(c chan interface{}, t *Trade, printf func(string, ...interface{
 			printf("funds locked: tx %s\n", txID)
 			t.NextStage()
 		case stages.WaitRedeemTransaction:
+			// use the client to find the trader redeem transaction and extract token
 			token, err := waitRedeem(ownCl, ownCp, t.Own.LastBlockHeight, t.Outputs.Recoverable.TxID, int(t.Outputs.Recoverable.N))
 			if err != nil {
 				return err
 			}
 			printf("redeem transaction found: token %s\n", hex.EncodeToString(token))
-			t.token = token
+			// save token
+			t.SetToken(token)
 			t.NextStage()
 		case stages.RedeemFunds:
+			// create a raw transaction and use the client to send it to redeem the funds
 			var amt int64
 			if t.Trader.Crypto == params.Bitcoin {
 				amt = 100000000
@@ -226,6 +242,8 @@ func handleTrade(c chan interface{}, t *Trade, printf func(string, ...interface{
 }
 
 func bytesJoin(b ...[]byte) []byte { return bytes.Join(b, []byte{}) }
+
+var errClosed = errors.New("closed")
 
 func blockIterator(cl *btccore.Client, startBlockHeight int) (func() (*btccore.Block, error), func()) {
 	cc := make(chan struct{})
@@ -275,6 +293,8 @@ func blockIterator(cl *btccore.Client, startBlockHeight int) (func() (*btccore.B
 				return nil, err
 			case blk := <-blkc:
 				return blk, nil
+			case <-cc:
+				return nil, errClosed
 			}
 		},
 		func() {

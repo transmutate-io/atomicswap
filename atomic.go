@@ -155,7 +155,7 @@ func (t *Trade) generateToken() error {
 
 var ErrNotEnoughBytes = errors.New("not enough bytes")
 
-const TokenSize = 16
+const TokenSize = 32
 
 func readRandom(n int) ([]byte, error) {
 	r := make([]byte, n)

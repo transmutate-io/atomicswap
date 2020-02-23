@@ -278,10 +278,7 @@ func blockIterator(cl *btccore.Client, startBlockHeight int) (func() (*btccore.B
 			}
 		},
 		func() {
-			if cc != nil {
-				close(cc)
-				cc = nil
-			}
+			close(cc)
 		}
 }
 

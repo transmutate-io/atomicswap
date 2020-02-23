@@ -18,10 +18,10 @@ func ParseStage(s string) (Stage, error) {
 	return r, nil
 }
 
-func (s Stage) String() string { return _stages[s] }
+func (s Stage) String() string { return stages[s] }
 
 func (s *Stage) Set(st string) error {
-	ns, ok := _stageNames[st]
+	ns, ok := stageNames[st]
 	if !ok {
 		return InvalidStageError(st)
 	}
@@ -40,10 +40,10 @@ func (s *Stage) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 const (
-	Initialized Stage = iota
-	GenerateSecrets
-	SendPublicKey
-	ReceivePublicKey
+	SendPublicKeyHash Stage = iota
+	ReceivePublicKeyHash
+	SendTokenHash
+	ReceiveTokenHash
 	ReceiveLockScript
 	GenerateLockScript
 	SendLockScript
@@ -55,35 +55,11 @@ const (
 )
 
 var (
-	SellerStages = map[Stage]Stage{
-		Initialized:         GenerateSecrets,
-		GenerateSecrets:     ReceivePublicKey,
-		ReceivePublicKey:    SendPublicKey,
-		SendPublicKey:       GenerateLockScript,
-		GenerateLockScript:  SendLockScript,
-		SendLockScript:      ReceiveLockScript,
-		ReceiveLockScript:   LockFunds,
-		LockFunds:           WaitLockTransaction,
-		WaitLockTransaction: RedeemFunds,
-		RedeemFunds:         Done,
-	}
-	BuyerStages = map[Stage]Stage{
-		Initialized:           GenerateSecrets,
-		GenerateSecrets:       SendPublicKey,
-		SendPublicKey:         ReceivePublicKey,
-		ReceivePublicKey:      ReceiveLockScript,
-		ReceiveLockScript:     GenerateLockScript,
-		GenerateLockScript:    SendLockScript,
-		SendLockScript:        WaitLockTransaction,
-		WaitLockTransaction:   LockFunds,
-		LockFunds:             WaitRedeemTransaction,
-		WaitRedeemTransaction: RedeemFunds,
-		RedeemFunds:           Done,
-	}
-	_stages = map[Stage]string{
-		GenerateSecrets:       "generate",
-		SendPublicKey:         "send-key",
-		ReceivePublicKey:      "receive-key",
+	stages = map[Stage]string{
+		SendPublicKeyHash:     "send-key-hash",
+		ReceivePublicKeyHash:  "receive-key-hash",
+		SendTokenHash:         "send-token-hash",
+		ReceiveTokenHash:      "receive-token-hash",
 		ReceiveLockScript:     "receive-lock",
 		GenerateLockScript:    "generate-lock",
 		SendLockScript:        "send-lock",
@@ -91,13 +67,14 @@ var (
 		LockFunds:             "lock-funds",
 		WaitRedeemTransaction: "wait-redeem-funds",
 		RedeemFunds:           "redeem",
+		Done:                  "done",
 	}
-	_stageNames map[string]Stage
+	stageNames map[string]Stage
 )
 
 func init() {
-	_stageNames = make(map[string]Stage, len(_stages))
-	for k, v := range _stages {
-		_stageNames[v] = k
+	stageNames = make(map[string]Stage, len(stages))
+	for k, v := range stages {
+		stageNames[v] = k
 	}
 }

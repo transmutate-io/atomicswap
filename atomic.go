@@ -1,7 +1,9 @@
 package atomicswap
 
 import (
+	"bytes"
 	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"time"
 
@@ -19,34 +21,63 @@ type Trade struct {
 	Role      roles.Role       // role
 	token     types.Bytes      // secret token
 	tokenHash types.Bytes      // secret token hash
+	Outputs   *Outputs         // output data
 	Own       *OwnTradeInfo    // own trade data
 	Trader    *TraderTradeInfo // trader trade data
 }
 
+func newTrade(role roles.Role, stage stages.Stage, ownCrypto, tradeCrypto params.Crypto) (*Trade, error) {
+	r := &Trade{
+		Role:   role,
+		Stage:  stage,
+		Own:    &OwnTradeInfo{Crypto: ownCrypto},
+		Trader: &TraderTradeInfo{Crypto: tradeCrypto},
+	}
+	if err := r.generateKeys(); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+func NewBuyerTrade(ownCrypto, tradeCrypto params.Crypto) (*Trade, error) {
+	return newTrade(roles.Buyer, stages.SendPublicKeyHash, ownCrypto, tradeCrypto)
+}
+
+func NewSellerTrade(ownCrypto, tradeCrypto params.Crypto) (*Trade, error) {
+	r, err := newTrade(roles.Seller, stages.ReceivePublicKeyHash, ownCrypto, tradeCrypto)
+	if err != nil {
+		return nil, err
+	}
+	if err = r.generateToken(); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+type Output struct {
+	TxID types.Bytes
+	N    uint32
+}
+
+type Outputs struct {
+	Redeemable  *Output
+	Recoverable *Output
+}
+
 type OwnTradeInfo struct {
-	// owned crypto
-	Crypto params.Crypto `yaml:"own_crypto"`
-	// own redeem private key
-	RedeemKey *key.Private `yaml:"redeem_key,omitempty"`
-	// own recovery key
-	RecoveryKey *key.Private `yaml:"recover_key,omitempty"`
-	// own lock script
-	LockScript types.Bytes `yaml:"own_lock_script,omitempty"`
+	Crypto          params.Crypto `yaml:"crypto"`
+	LastBlockHeight int           `yaml:"last_block_height"`
+	RedeemKey       *key.Private  `yaml:"redeem_key,omitempty"`
+	RecoveryKey     *key.Private  `yaml:"recover_key,omitempty"`
+	LockScript      types.Bytes   `yaml:"lock_script,omitempty"`
 }
 
 type TraderTradeInfo struct {
-	// crypto to acquire
-	Crypto params.Crypto `yaml:"trader_crypto"`
-	// trade redeem key hash
-	RedeemKeyHash types.Bytes `yaml:"trader_recover_key_hash,omitempty"`
-	// trade recover key hash
-	RecoveryKeyHash types.Bytes `yaml:"trader_recover_key_hash,omitempty"`
-	// trade lock script
-	LockScript types.Bytes `yaml:"trader_lock_script,omitempty"`
+	Crypto          params.Crypto `yaml:"crypto"`
+	LastBlockHeight int           `yaml:"last_block_height"`
+	RedeemKeyHash   types.Bytes   `yaml:"recover_key_hash,omitempty"`
+	LockScript      types.Bytes   `yaml:"lock_script,omitempty"`
 }
-
-func NewSellerTrade() *Trade { return &Trade{Role: roles.Seller} }
-func NewBuyerTrade() *Trade  { return &Trade{Role: roles.Seller} }
 
 func (t *Trade) TokenHash() types.Bytes {
 	if t.token != nil {
@@ -59,18 +90,44 @@ func (t *Trade) Token() types.Bytes                 { return t.token }
 func (t *Trade) SetTokenHash(tokenHash types.Bytes) { t.tokenHash = tokenHash }
 func (t *Trade) SetToken(token types.Bytes)         { t.token = token }
 
+var (
+	sellerStages = map[stages.Stage]stages.Stage{
+		stages.ReceivePublicKeyHash: stages.SendPublicKeyHash,
+		stages.SendPublicKeyHash:    stages.SendTokenHash,
+		stages.SendTokenHash:        stages.GenerateLockScript,
+		stages.GenerateLockScript:   stages.SendLockScript,
+		stages.SendLockScript:       stages.ReceiveLockScript,
+		stages.ReceiveLockScript:    stages.LockFunds,
+		stages.LockFunds:            stages.WaitLockTransaction,
+		stages.WaitLockTransaction:  stages.RedeemFunds,
+		stages.RedeemFunds:          stages.Done,
+	}
+	buyerStages = map[stages.Stage]stages.Stage{
+		stages.SendPublicKeyHash:     stages.ReceivePublicKeyHash,
+		stages.ReceivePublicKeyHash:  stages.ReceiveTokenHash,
+		stages.ReceiveTokenHash:      stages.ReceiveLockScript,
+		stages.ReceiveLockScript:     stages.GenerateLockScript,
+		stages.GenerateLockScript:    stages.SendLockScript,
+		stages.SendLockScript:        stages.WaitLockTransaction,
+		stages.WaitLockTransaction:   stages.LockFunds,
+		stages.LockFunds:             stages.WaitRedeemTransaction,
+		stages.WaitRedeemTransaction: stages.RedeemFunds,
+		stages.RedeemFunds:           stages.Done,
+	}
+)
+
 func (t *Trade) NextStage() stages.Stage {
 	var stageMap map[stages.Stage]stages.Stage
 	if t.Role == roles.Seller {
-		stageMap = stages.SellerStages
+		stageMap = sellerStages
 	} else {
-		stageMap = stages.BuyerStages
+		stageMap = buyerStages
 	}
 	t.Stage = stageMap[t.Stage]
 	return t.Stage
 }
 
-func (t *Trade) GenerateSecrets() error {
+func (t *Trade) generateKeys() error {
 	var err error
 	if t.Own.RecoveryKey, err = key.NewPrivate(); err != nil {
 		return err
@@ -83,6 +140,16 @@ func (t *Trade) GenerateSecrets() error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (t *Trade) generateToken() error {
+	rt, err := readRandomToken()
+	if err != nil {
+		return err
+	}
+	t.token = rt
+	t.tokenHash = hash.Hash160(t.token)
 	return nil
 }
 
@@ -102,47 +169,123 @@ func readRandom(n int) ([]byte, error) {
 
 func readRandomToken() ([]byte, error) { return readRandom(TokenSize) }
 
-func (t *Trade) GenerateOwnLockScript(lockTime time.Time) (types.Bytes, error) {
-	return script.Validate(script.HTLC(
+func (t *Trade) GenerateOwnLockScript(lockDuration time.Duration) error {
+	var lockTime time.Time
+	if t.Trader.LockScript == nil {
+		lockTime = time.Now().UTC().Add(lockDuration)
+	} else {
+		lst, err := t.Trader.LockScriptTime()
+		if err != nil {
+			return err
+		}
+		lockTime = lst.Add(-(lockDuration / 2))
+	}
+	r, err := script.Validate(script.HTLC(
 		script.LockTimeTime(lockTime),
-		nil, // tokenHash,
-		nil, // tlsc,
-		nil, // hlsc,
+		t.tokenHash,
+		script.P2PKHPublicBytes(t.Own.RecoveryKey.PubKey().SerializeCompressed()),
+		script.P2PKHHash(t.Trader.RedeemKeyHash),
 	))
+	if err != nil {
+		return err
+	}
+	t.Own.LockScript = r
+	return nil
+}
+
+func (tti *TraderTradeInfo) LockScriptTime() (time.Time, error) {
+	lsd, err := ParseLockScript(tti.LockScript)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return lsd.timeLock, nil
 }
 
 var ErrInvalidLockScript = errors.New("invalid lock script")
 
 var expHTLC = []string{
-	"OP_IF", "", "OP_CHECKLOCKTIMEVERIFY", "OP_DUP", "OP_HASH160", "",
-	"OP_EQUALVERIFY", "OP_CHECKSIG", "OP_ELSE", "OP_HASH160", "", "OP_EQUALVERIFY",
+	"OP_IF",
+	"", "OP_CHECKLOCKTIMEVERIFY",
+	"OP_DUP", "OP_HASH160", "", "OP_EQUALVERIFY", "OP_CHECKSIG",
+	"OP_ELSE",
+	"OP_HASH160", "", "OP_EQUALVERIFY",
 	"OP_DUP", "OP_HASH160", "", "OP_EQUALVERIFY", "OP_CHECKSIG", "OP_ENDIF",
 }
 
-func (t *Trade) CheckTradeLockScript(tradeLockScript []byte) error {
-	inst, err := script.DisassembleStrings(tradeLockScript)
+type LockScriptData struct {
+	timeLock        time.Time
+	tokenHash       []byte
+	redeemKeyHash   []byte
+	recoveryKeyHash []byte
+}
+
+func ParseLockScript(ls []byte) (*LockScriptData, error) {
+	r := &LockScriptData{}
+	// check contract format
+	inst, err := script.DisassembleStrings(ls)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(inst) != len(expHTLC) {
-		return ErrInvalidLockScript
+		return nil, ErrInvalidLockScript
 	}
 	for i, op := range inst {
 		if expHTLC[i] == "" {
 			continue
 		}
 		if op != expHTLC[i] {
-			return ErrInvalidLockScript
+			return nil, ErrInvalidLockScript
 		}
+	}
+	// time lock
+	b, err := hex.DecodeString(inst[1])
+	if err != nil {
+		return nil, err
+	}
+	n, err := script.ParseInt64(b)
+	if err != nil {
+		return nil, err
+	}
+	r.timeLock = time.Unix(n, 0)
+	// token hash
+	if r.tokenHash, err = hex.DecodeString(inst[10]); err != nil {
+		return nil, err
+	}
+	// redeem key hash
+	if r.redeemKeyHash, err = hex.DecodeString(inst[14]); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+func (t *Trade) CheckTraderLockScript(tradeLockScript []byte, lockDuration time.Duration) error {
+	lsd, err := ParseLockScript(tradeLockScript)
+	if err != nil {
+		return err
+	}
+	if lockDuration != 0 && time.Now().UTC().Add(lockDuration).After(lsd.timeLock) {
+		return ErrInvalidLockScript
+	}
+	if !bytes.Equal(lsd.tokenHash, t.tokenHash) {
+		return ErrInvalidLockScript
+	}
+	if !bytes.Equal(lsd.redeemKeyHash, t.Own.RedeemKey.Public().Hash160()) {
+		return ErrInvalidLockScript
 	}
 	return nil
 }
 
-func (t *Trade) GenerateRedeemScript() ([]byte, error) {
-	s, err := script.DisassembleStrings(t.Trader.LockScript)
-	if err != nil {
-		return nil, err
-	}
-	_ = s
-	return nil, nil
+func (t *Trade) GenerateRedeemScript() types.Bytes {
+	return bytes.Join([][]byte{
+		script.Data(t.token),
+		script.Int64(0),
+		script.Data(t.Trader.LockScript),
+	}, []byte{})
+}
+
+func (t *Trade) GenerateRecoveryScript() types.Bytes {
+	return bytes.Join([][]byte{
+		script.Int64(1),
+		script.Data(t.Trader.LockScript),
+	}, []byte{})
 }

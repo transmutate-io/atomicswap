@@ -3,6 +3,8 @@ package types
 import (
 	"encoding/base64"
 	"encoding/hex"
+
+	"transmutate.io/pkg/atomicswap/hash"
 )
 
 type Bytes []byte
@@ -21,9 +23,9 @@ func ParseBase64(b64 string) (Bytes, error) {
 	return parse(b64, base64.RawStdEncoding.DecodeString)
 }
 
-func (h Bytes) Hex() string    { return hex.EncodeToString(h) }
-func (h Bytes) Base64() string { return base64.RawStdEncoding.EncodeToString(h) }
-
+func (h Bytes) Hex() string                       { return hex.EncodeToString(h) }
+func (h Bytes) Base64() string                    { return base64.RawStdEncoding.EncodeToString(h) }
+func (h Bytes) Hash160() Bytes                    { return hash.Hash160(h) }
 func (h Bytes) MarshalYAML() (interface{}, error) { return h.Base64(), nil }
 
 func (h *Bytes) UnmarshalYAML(unmarshal func(interface{}) error) error {

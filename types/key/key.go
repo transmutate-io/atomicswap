@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 
 	"github.com/btcsuite/btcd/btcec"
+	"transmutate.io/pkg/atomicswap/hash"
 )
 
 type Private struct{ *btcec.PrivateKey }
@@ -33,6 +34,8 @@ func (k *Private) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+func (k *Private) Public() *Public { return &Public{k.PubKey()} }
+
 type Public struct{ *btcec.PublicKey }
 
 func NewPublic(b []byte) (*Public, error) {
@@ -59,3 +62,5 @@ func (k *Public) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	k.PublicKey, _ = btcec.ParsePubKey(b, btcec.S256())
 	return nil
 }
+
+func (k *Public) Hash160() []byte { return hash.Hash160(k.SerializeCompressed()) }

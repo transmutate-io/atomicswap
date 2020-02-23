@@ -1,7 +1,6 @@
 package script
 
 import (
-	"encoding/binary"
 	"strings"
 
 	"github.com/btcsuite/btcd/txscript"
@@ -25,68 +24,14 @@ func If(i, e []byte) []byte {
 
 // Data adds bytes as data
 func Data(b []byte) []byte {
-	r := make([]byte, 0, len(b)+8)
-	sz := len(b)
-	if sz == 0 || sz == 1 && b[0] == 0 {
-		return append(r, txscript.OP_0)
-	} else if sz == 1 && b[0] <= 16 {
-		return append(r, (txscript.OP_1-1)+b[0])
-	} else if sz == 1 && b[0] == 0x81 {
-		return append(r, byte(txscript.OP_1NEGATE))
-	}
-	if sz < txscript.OP_PUSHDATA1 {
-		r = append(r, byte((txscript.OP_DATA_1-1)+sz))
-	} else if sz <= 0xff {
-		r = append(r, txscript.OP_PUSHDATA1, byte(sz))
-	} else if sz <= 0xffff {
-		buf := make([]byte, 2)
-		binary.LittleEndian.PutUint16(buf, uint16(sz))
-		r = append(r, txscript.OP_PUSHDATA2)
-		r = append(r, buf...)
-	} else {
-		buf := make([]byte, 4)
-		binary.LittleEndian.PutUint32(buf, uint32(sz))
-		r = append(r, txscript.OP_PUSHDATA4)
-		r = append(r, buf...)
-	}
-	return append(r, b...)
+	r, _ := txscript.NewScriptBuilder().AddData(b).Script()
+	return r
 }
 
 // Int64 add an int64 as data
-func Int64(i int64) []byte {
-	if i == 0 {
-		return []byte{txscript.OP_0}
-	}
-	if i == -1 || (i >= 1 && i <= 16) {
-		return []byte{byte((txscript.OP_1 - 1) + i)}
-	}
-	return Data(numBytes(i))
-}
-
-func numBytes(n int64) []byte {
-	if n == 0 {
-		return nil
-	}
-	isNegative := n < 0
-	if isNegative {
-		n = -n
-	}
-	result := make([]byte, 0, 9)
-	for n > 0 {
-		result = append(result, byte(n&0xff))
-		n >>= 8
-	}
-	if result[len(result)-1]&0x80 != 0 {
-		extraByte := byte(0x00)
-		if isNegative {
-			extraByte = 0x80
-		}
-		result = append(result, extraByte)
-
-	} else if isNegative {
-		result[len(result)-1] |= 0x80
-	}
-	return result
+func Int64(n int64) []byte {
+	b, _ := txscript.NewScriptBuilder().AddInt64(n).Script()
+	return b
 }
 
 // Disassemble a script into string
@@ -98,4 +43,19 @@ func DisassembleStrings(s []byte) ([]string, error) {
 		return nil, err
 	}
 	return strings.Split(r, " "), nil
+}
+
+func ParseInt64(v []byte) (int64, error) {
+	if len(v) == 0 {
+		return 0, nil
+	}
+	var result int64
+	for i, val := range v {
+		result |= int64(val) << uint8(8*i)
+	}
+	if v[len(v)-1]&0x80 != 0 {
+		result &= ^(int64(0x80) << uint8(8*(len(v)-1)))
+		return -result, nil
+	}
+	return result, nil
 }

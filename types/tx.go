@@ -27,7 +27,12 @@ func (tx *Tx) AddOutput(value int64, script []byte) {
 	tx.tx.AddTxOut(wire.NewTxOut(value, script))
 }
 
-func (tx *Tx) AddInput(txHash []byte, idx uint32, script []byte) error {
+func (tx *Tx) AddInput(txID []byte, idx uint32, script []byte) error {
+	sz := len(txID)
+	txHash := make([]byte, sz)
+	for i := 0; i < sz; i++ {
+		txHash[i] = txID[sz-1-i]
+	}
 	h, err := chainhash.NewHash(txHash)
 	if err != nil {
 		return err
@@ -72,17 +77,21 @@ func (tx *Tx) SignP2PKHInput(idx int, hashType txscript.SigHashType, privKey *bt
 	return nil
 }
 
-func (tx *Tx) SignP2SHInput(idx int, sig []byte) error {
-	s, err := script.Validate(bytesConcat(
-		script.Data(sig),
-		script.Data(tx.inputScripts[idx]),
-	))
+func (tx *Tx) SetP2SHInputPrefixes(idx int, pref ...[]byte) error {
+	b := make([]byte, 0, 1024)
+	for _, i := range pref {
+		b = append(b, script.Data(i)...)
+	}
+	b = append(b, tx.inputScripts[idx]...)
+	b, err := script.Validate(b)
 	if err != nil {
 		return err
 	}
-	tx.tx.TxIn[idx].SignatureScript = s
+	tx.tx.TxIn[idx].SignatureScript = b
 	return nil
 }
+
+func (tx *Tx) SetP2SHInputSignatureScript(idx int, ss []byte) { tx.tx.TxIn[idx].SignatureScript = ss }
 
 func (tx *Tx) Serialize() ([]byte, error) {
 	r := bytes.NewBuffer(make([]byte, 0, 1024))

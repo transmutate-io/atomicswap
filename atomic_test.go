@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"math/big"
-	"os/exec"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -23,31 +23,9 @@ import (
 	"transmutate.io/pkg/btccore"
 )
 
-func initTest(t *testing.T) {
-	cmds := [][]string{
-		{"kill", "bitcoin-core-testnet"},
-		{"kill", "litecoin-testnet"},
-		{"run", "--rm", "-d", "--name", "bitcoin-core-testnet", "bitcoin-core:0.19.0.1",
-			"-rpcuser=admin", "-rpcpassword=pass",
-			"-rpcbind=0.0.0.0:3333", "-rpcallowip=172.0.0.1/8",
-			"-txindex", "-server", "-regtest",
-		},
-		{"run", "--rm", "-d", "--name", "litecoin-testnet", "litecoin:0.17.1",
-			"litecoind",
-			"-rpcuser=admin", "-rpcpassword=pass",
-			"-rpcbind=0.0.0.0:2222", "-rpcallowip=172.0.0.1/8",
-			"-txindex", "-server", "-regtest",
-		},
-	}
-	// kill and restart containers
-	for _, i := range cmds {
-		exec.Command("docker", i...).CombinedOutput()
-	}
-}
-
 const stdFee = 1000
 
-func handleTrade(c chan interface{}, t *Trade, printf func(string, ...interface{})) error {
+func handleTradeFail(c chan interface{}, t *Trade, printf func(string, ...interface{}), failStage stages.Stage) error {
 	var (
 		ownCl, traderCl               *btccore.Client
 		ownCp, traderCp               *params.Params
@@ -70,6 +48,9 @@ func handleTrade(c chan interface{}, t *Trade, printf func(string, ...interface{
 	}
 
 	for {
+		if t.Stage != stages.Done && t.Stage == failStage {
+			break
+		}
 		switch t.Stage {
 		case stages.SendPublicKeyHash:
 			// use a channel to exchange data back and forth
@@ -239,6 +220,22 @@ func handleTrade(c chan interface{}, t *Trade, printf func(string, ...interface{
 			return errors.New("invalid stage")
 		}
 	}
+	switch t.Stage {
+	case stages.SendPublicKeyHash:
+	case stages.ReceivePublicKeyHash:
+	case stages.SendTokenHash:
+	case stages.ReceiveTokenHash:
+	case stages.ReceiveLockScript:
+	case stages.GenerateLockScript:
+	case stages.SendLockScript:
+	case stages.WaitLockTransaction:
+	case stages.LockFunds:
+	case stages.WaitRedeemTransaction:
+	case stages.RedeemFunds:
+	case stages.Done:
+	default:
+	}
+	return nil
 }
 
 func bytesJoin(b ...[]byte) []byte { return bytes.Join(b, []byte{}) }
@@ -372,48 +369,98 @@ func newLogf(t *testing.T, name string) func(string, ...interface{}) {
 	}
 }
 
+func envOr(envName string, defaultValue string) string {
+	e, ok := os.LookupEnv(envName)
+	if !ok {
+		return defaultValue
+	}
+	return e
+}
+
 var (
 	btcClient = &btccore.Client{
-		Address:  "bitcoin-core-testnet.docker:3333",
+		Address:  envOr("BTC_CLIENT", "bitcoin-core-testnet.docker:3333"),
 		Username: "admin",
 		Password: "pass",
 	}
 	ltcClient = &btccore.Client{
-		Address:  "litecoin-testnet.docker:2222",
+		Address:  envOr("LTC_CLIENT", "litecoin-testnet.docker:2222"),
 		Username: "admin",
 		Password: "pass",
 	}
 	btcMinerAddr, ltcMinerAddr string
 )
 
+func setupMinerAddress(cl *btccore.Client, minerAddr *string) error {
+	if minerAddr == nil {
+		return errors.New("need a miner address")
+	}
+	if *minerAddr != "" {
+		return nil
+	}
+	// find existing addresses
+	funds, err := cl.ListReceivedByAddress(0, true, false, nil)
+	if err != nil {
+		return err
+	}
+	if len(funds) > 0 {
+		*minerAddr = funds[0].Address
+	} else {
+		// generate new address
+		addr, err := cl.GetNewAddress()
+		if err != nil {
+			return err
+		}
+		*minerAddr = addr
+	}
+	return nil
+}
+
+func generateFunds(cl *btccore.Client, minerAddr *string, minValue int64) error {
+	for {
+		// check balance
+		amt, err := cl.GetBalance(0, false, nil)
+		if err != nil {
+			return err
+		}
+		if amt.BigInt().Int64() >= minValue {
+			break
+		}
+		_, err = cl.GenerateToAddress(1, *minerAddr)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func newSetupAddressFunds(cl *btccore.Client, minerAddr *string, minValue int64) func() error {
+	return func() error {
+		if err := setupMinerAddress(cl, minerAddr); err != nil {
+			return err
+		}
+		return generateFunds(cl, minerAddr, minValue)
+	}
+}
+
 func TestAtomicSwap_BTC_LTC(t *testing.T) {
-	// sanity check
-	bc, err := btcClient.GetBlockCount()
-	require.NoError(t, err, "can't get block count for BTC")
-	require.Zero(t, bc, "expecting 0 BTC blocks")
-	bc, err = ltcClient.GetBlockCount()
-	require.NoError(t, err, "can't get block count for LTC")
-	require.Zero(t, bc, "expecting 0 LTC blocks")
-	// generate miners addresses and miner 101 blocks
-	btcMinerAddr, err = btcClient.GetNewAddress()
-	require.NoError(t, err, "can't generate new BTC address")
-	_, err = btcClient.GenerateToAddress(101, btcMinerAddr)
-	require.NoError(t, err, "can't generate BTC for the miner")
-	ltcMinerAddr, err = ltcClient.GetNewAddress()
-	require.NoError(t, err, "can't generate new LTC address")
-	_, err = ltcClient.GenerateToAddress(101, ltcMinerAddr)
-	require.NoError(t, err, "can't generate LTC for the miner")
+	// generate blocks until there is available funds
+	eg := &errgroup.Group{}
+	eg.Go(newSetupAddressFunds(btcClient, &btcMinerAddr, 110000000))
+	eg.Go(newSetupAddressFunds(ltcClient, &ltcMinerAddr, 1100000000))
+	err := eg.Wait()
+	require.NoError(t, err, "can't fund accounts")
 	// generate communication channel
 	a2b := make(chan interface{})
 	defer close(a2b)
-	eg := &errgroup.Group{}
+	eg = &errgroup.Group{}
 	// alice (LTC)
 	eg.Go(func() error {
 		at, err := NewSellerTrade(params.Litecoin, params.Bitcoin)
 		if err != nil {
 			return err
 		}
-		return handleTrade(a2b, at, newLogf(t, "alice (seller)"))
+		return handleTradeFail(a2b, at, newLogf(t, "alice (seller)"), stages.Done)
 	})
 	// bob (BTC)
 	eg.Go(func() error {
@@ -421,7 +468,7 @@ func TestAtomicSwap_BTC_LTC(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		return handleTrade(a2b, at, newLogf(t, "bob (buyer)"))
+		return handleTradeFail(a2b, at, newLogf(t, "bob (buyer)"), stages.Done)
 	})
 	err = eg.Wait()
 	require.NoError(t, err, "unexpected error")

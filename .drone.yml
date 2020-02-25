@@ -1,0 +1,52 @@
+---
+
+kind: secret
+name: gitCredentials
+data: 0YsMqd6K9BC1Zd4kmmPb0n9uNxUM3CdPQgqVO6pVQBigVhHpPXy7JqhY7Hsg35H7Ng3CFNp0VoytZnyAUZhH9SjvtF1bBub8JcsdjLL5NCw=
+
+---
+
+kind: pipeline
+type: kubernetes
+name: test-build-deploy
+
+platform: { os: linux, arch: amd64 }
+
+steps:
+- name: bitcoin-core-regtest
+  image: transmutateio/bitcoin-core:0.19.0.1
+  detach: true
+  commands:
+  - bitcoind
+  - -rpcuser=admin
+  - -rpcpassword=pass
+  - -rpcbind=0.0.0.0:3333
+  - -rpcallowip=127.0.0.1
+  - -txindex
+  - -server
+  - -regtest
+- name: litcoin-core-regtest
+  image: transmutateio/litcoin:0.17.1
+  detach: true
+  commands:
+  - litecoind
+  - -rpcuser=admin
+  - -rpcpassword=pass
+  - -rpcbind=0.0.0.0:2222
+  - -rpcallowip=127.0.0.1
+  - -txindex
+  - -server
+  - -regtest
+- name: test
+  image: golang:1.13.8-alpine3.11
+  environment:
+    GOPROXY: direct
+    GOSUMDB: "off"
+    GIT_CREDS:
+      from_secret: gitCredentials
+  commands:
+  - apk add gcc libc-dev git
+  - git fetch --tags
+  - git config credential.helper cache
+  - echo "$GIT_CREDS" > $HOME/.git-credentials
+  - go test -v

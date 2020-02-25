@@ -16,10 +16,9 @@ type Tx struct {
 }
 
 func NewTx() *Tx {
-	const defaultSize = 8
 	return &Tx{
 		tx:           wire.NewMsgTx(wire.TxVersion),
-		inputScripts: make([][]byte, 0, defaultSize),
+		inputScripts: make([][]byte, 0, 8),
 	}
 }
 
@@ -82,7 +81,7 @@ func (tx *Tx) SetP2SHInputPrefixes(idx int, pref ...[]byte) error {
 	for _, i := range pref {
 		b = append(b, script.Data(i)...)
 	}
-	b = append(b, tx.inputScripts[idx]...)
+	b = append(b, script.Data(tx.inputScripts[idx])...)
 	b, err := script.Validate(b)
 	if err != nil {
 		return err
@@ -100,3 +99,5 @@ func (tx *Tx) Serialize() ([]byte, error) {
 	}
 	return r.Bytes(), nil
 }
+
+func (tx *Tx) Tx() *wire.MsgTx { return tx.tx }

@@ -46,7 +46,7 @@ func P2SHScript(s []byte) []byte { return P2SHHash(hash.Hash160(s)) }
 func LockTimeInt(lock int64) []byte {
 	return bytesJoin(
 		Int64(lock),
-		[]byte{txscript.OP_CHECKLOCKTIMEVERIFY},
+		[]byte{txscript.OP_CHECKLOCKTIMEVERIFY, txscript.OP_DROP},
 	)
 }
 

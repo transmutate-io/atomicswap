@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/btcsuite/btcd/wire"
 	"transmutate.io/pkg/atomicswap/hash"
 	"transmutate.io/pkg/atomicswap/params"
 	"transmutate.io/pkg/atomicswap/script"
@@ -19,6 +20,7 @@ import (
 type Trade struct {
 	Stage     stages.Stage     // stage of the trade
 	Role      roles.Role       // role
+	Duration  time.Duration    // trade contract duration
 	token     types.Bytes      // secret token
 	tokenHash types.Bytes      // secret token hash
 	Outputs   *Outputs         // output data
@@ -88,7 +90,11 @@ func (t *Trade) TokenHash() types.Bytes {
 
 func (t *Trade) Token() types.Bytes                 { return t.token }
 func (t *Trade) SetTokenHash(tokenHash types.Bytes) { t.tokenHash = tokenHash }
-func (t *Trade) SetToken(token types.Bytes)         { t.token = token }
+
+func (t *Trade) SetToken(token types.Bytes) {
+	t.token = token
+	t.tokenHash = hash.Hash160(token)
+}
 
 var (
 	sellerStages = map[stages.Stage]stages.Stage{
@@ -155,7 +161,7 @@ func (t *Trade) generateToken() error {
 
 var ErrNotEnoughBytes = errors.New("not enough bytes")
 
-const TokenSize = 32
+const tokenSize = 32
 
 func readRandom(n int) ([]byte, error) {
 	r := make([]byte, n)
@@ -167,23 +173,23 @@ func readRandom(n int) ([]byte, error) {
 	return r, nil
 }
 
-func readRandomToken() ([]byte, error) { return readRandom(TokenSize) }
+func readRandomToken() ([]byte, error) { return readRandom(tokenSize) }
 
-func (t *Trade) GenerateOwnLockScript(lockDuration time.Duration) error {
+func (t *Trade) GenerateOwnLockScript() error {
 	var lockTime time.Time
 	if t.Trader.LockScript == nil {
-		lockTime = time.Now().UTC().Add(lockDuration)
+		lockTime = time.Now().UTC().Add(t.Duration)
 	} else {
 		lst, err := t.Trader.LockScriptTime()
 		if err != nil {
 			return err
 		}
-		lockTime = lst.Add(-(lockDuration / 2))
+		lockTime = lst.Add(-(t.Duration / 2))
 	}
 	r, err := script.Validate(script.HTLC(
 		script.LockTimeTime(lockTime),
 		t.tokenHash,
-		script.P2PKHPublicBytes(t.Own.RecoveryKey.PubKey().SerializeCompressed()),
+		script.P2PKHHash(t.Own.RecoveryKey.Public().Hash160()),
 		script.P2PKHHash(t.Trader.RedeemKeyHash),
 	))
 	if err != nil {
@@ -194,7 +200,7 @@ func (t *Trade) GenerateOwnLockScript(lockDuration time.Duration) error {
 }
 
 func (tti *TraderTradeInfo) LockScriptTime() (time.Time, error) {
-	lsd, err := ParseLockScript(tti.LockScript)
+	lsd, err := parseLockScript(tti.LockScript)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -205,22 +211,22 @@ var ErrInvalidLockScript = errors.New("invalid lock script")
 
 var expHTLC = []string{
 	"OP_IF",
-	"", "OP_CHECKLOCKTIMEVERIFY",
+	"", "OP_CHECKLOCKTIMEVERIFY", "OP_DROP",
 	"OP_DUP", "OP_HASH160", "", "OP_EQUALVERIFY", "OP_CHECKSIG",
 	"OP_ELSE",
 	"OP_HASH160", "", "OP_EQUALVERIFY",
 	"OP_DUP", "OP_HASH160", "", "OP_EQUALVERIFY", "OP_CHECKSIG", "OP_ENDIF",
 }
 
-type LockScriptData struct {
+type lockScriptData struct {
 	timeLock        time.Time
 	tokenHash       []byte
 	redeemKeyHash   []byte
 	recoveryKeyHash []byte
 }
 
-func ParseLockScript(ls []byte) (*LockScriptData, error) {
-	r := &LockScriptData{}
+func parseLockScript(ls []byte) (*lockScriptData, error) {
+	r := &lockScriptData{}
 	// check contract format
 	inst, err := script.DisassembleStrings(ls)
 	if err != nil {
@@ -248,22 +254,22 @@ func ParseLockScript(ls []byte) (*LockScriptData, error) {
 	}
 	r.timeLock = time.Unix(n, 0)
 	// token hash
-	if r.tokenHash, err = hex.DecodeString(inst[10]); err != nil {
+	if r.tokenHash, err = hex.DecodeString(inst[11]); err != nil {
 		return nil, err
 	}
 	// redeem key hash
-	if r.redeemKeyHash, err = hex.DecodeString(inst[14]); err != nil {
+	if r.redeemKeyHash, err = hex.DecodeString(inst[15]); err != nil {
 		return nil, err
 	}
 	return r, nil
 }
 
-func (t *Trade) CheckTraderLockScript(tradeLockScript []byte, lockDuration time.Duration) error {
-	lsd, err := ParseLockScript(tradeLockScript)
+func (t *Trade) CheckTraderLockScript(tradeLockScript []byte) error {
+	lsd, err := parseLockScript(tradeLockScript)
 	if err != nil {
 		return err
 	}
-	if lockDuration != 0 && time.Now().UTC().Add(lockDuration).After(lsd.timeLock) {
+	if t.Duration != 0 && time.Now().UTC().Add(t.Duration).After(lsd.timeLock) {
 		return ErrInvalidLockScript
 	}
 	if !bytes.Equal(lsd.tokenHash, t.tokenHash) {
@@ -275,17 +281,48 @@ func (t *Trade) CheckTraderLockScript(tradeLockScript []byte, lockDuration time.
 	return nil
 }
 
-func (t *Trade) GenerateRedeemScript() types.Bytes {
-	return bytes.Join([][]byte{
+func bytesJoin(b ...[]byte) []byte { return bytes.Join(b, []byte{}) }
+
+func (t *Trade) GenerateRedeemTransaction(amount int64) (*types.Tx, error) {
+	r := types.NewTx()
+	redeemScript, err := script.Validate(bytesJoin(
 		script.Data(t.token),
 		script.Int64(0),
 		script.Data(t.Trader.LockScript),
-	}, []byte{})
+	))
+	if err != nil {
+		return nil, err
+	}
+	r.AddOutput(amount, script.P2PKHHash(t.Own.RecoveryKey.Public().Hash160()))
+	r.AddInput(t.Outputs.Redeemable.TxID, t.Outputs.Redeemable.N, t.Trader.LockScript)
+	sig, err := r.InputSignature(0, 1, t.Own.RedeemKey.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+	r.SetP2SHInputSignatureScript(0, bytesJoin(script.Data(sig), script.Data(t.Own.RedeemKey.Public().SerializeCompressed()), redeemScript))
+	return r, nil
 }
 
-func (t *Trade) GenerateRecoveryScript() types.Bytes {
-	return bytes.Join([][]byte{
-		script.Int64(1),
-		script.Data(t.Trader.LockScript),
-	}, []byte{})
+const stdFee = 1000
+
+func (t *Trade) GenerateRecoveryTransaction(amount int64) (*types.Tx, error) {
+	r := types.NewTx()
+	r.AddOutput(amount-stdFee, script.P2PKHHash(t.Own.RecoveryKey.Public().Hash160()))
+	r.AddInput(t.Outputs.Recoverable.TxID, t.Outputs.Recoverable.N, t.Own.LockScript)
+	lst, err := t.Trader.LockScriptTime()
+	if err != nil {
+		return nil, err
+	}
+	r.Tx().LockTime = uint32(lst.UTC().Unix())
+	r.Tx().TxIn[0].Sequence = wire.MaxTxInSequenceNum - 1
+	sig, err := r.InputSignature(0, 1, t.Own.RecoveryKey.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+	r.SetP2SHInputPrefixes(0,
+		sig,
+		t.Own.RecoveryKey.Public().SerializeCompressed(),
+		[]byte{1},
+	)
+	return r, nil
 }

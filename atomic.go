@@ -20,7 +20,7 @@ import (
 type Trade struct {
 	Stage     stages.Stage     // stage of the trade
 	Role      roles.Role       // role
-	Duration  time.Duration    // trade contract duration
+	Duration  types.Duration   // trade contract duration
 	token     types.Bytes      // secret token
 	tokenHash types.Bytes      // secret token hash
 	Outputs   *Outputs         // output data
@@ -178,13 +178,13 @@ func readRandomToken() ([]byte, error) { return readRandom(tokenSize) }
 func (t *Trade) GenerateOwnLockScript() error {
 	var lockTime time.Time
 	if t.Trader.LockScript == nil {
-		lockTime = time.Now().UTC().Add(t.Duration)
+		lockTime = time.Now().UTC().Add(time.Duration(t.Duration))
 	} else {
 		lst, err := t.Trader.LockScriptTime()
 		if err != nil {
 			return err
 		}
-		lockTime = lst.Add(-(t.Duration / 2))
+		lockTime = lst.Add(-(time.Duration(t.Duration) / 2))
 	}
 	r, err := script.Validate(script.HTLC(
 		script.LockTimeTime(lockTime),
@@ -269,7 +269,7 @@ func (t *Trade) CheckTraderLockScript(tradeLockScript []byte) error {
 	if err != nil {
 		return err
 	}
-	if t.Duration != 0 && time.Now().UTC().Add(t.Duration).After(lsd.timeLock) {
+	if t.Duration != 0 && time.Now().UTC().Add(time.Duration(t.Duration)).After(lsd.timeLock) {
 		return ErrInvalidLockScript
 	}
 	if !bytes.Equal(lsd.tokenHash, t.tokenHash) {
@@ -283,7 +283,7 @@ func (t *Trade) CheckTraderLockScript(tradeLockScript []byte) error {
 
 func bytesJoin(b ...[]byte) []byte { return bytes.Join(b, []byte{}) }
 
-func (t *Trade) GenerateRedeemTransaction(amount int64) (*types.Tx, error) {
+func (t *Trade) RedeemTransaction(amount int64) (*types.Tx, error) {
 	r := types.NewTx()
 	redeemScript, err := script.Validate(bytesJoin(
 		script.Data(t.token),
@@ -303,11 +303,9 @@ func (t *Trade) GenerateRedeemTransaction(amount int64) (*types.Tx, error) {
 	return r, nil
 }
 
-const stdFee = 1000
-
-func (t *Trade) GenerateRecoveryTransaction(amount int64) (*types.Tx, error) {
+func (t *Trade) RecoveryTransaction(amount int64) (*types.Tx, error) {
 	r := types.NewTx()
-	r.AddOutput(amount-stdFee, script.P2PKHHash(t.Own.RecoveryKey.Public().Hash160()))
+	r.AddOutput(amount, script.P2PKHHash(t.Own.RecoveryKey.Public().Hash160()))
 	r.AddInput(t.Outputs.Recoverable.TxID, t.Outputs.Recoverable.N, t.Own.LockScript)
 	lst, err := t.Trader.LockScriptTime()
 	if err != nil {

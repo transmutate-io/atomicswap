@@ -238,7 +238,7 @@ func handleTrade(c chan interface{}, t *atomicswap.Trade, printf printfFunc, fai
 			} else {
 				amt = 1000000000
 			}
-			redeemTx, err := t.GenerateRedeemTransaction(amt)
+			redeemTx, err := t.RedeemTransaction(amt)
 			b, err := redeemTx.Serialize()
 			if err != nil {
 				return err
@@ -461,7 +461,7 @@ func recoverFunds(trade *atomicswap.Trade, printf printfFunc) error {
 		ownMinerAddr = ltcMinerAddr
 		ownAmount = 1000000000
 	}
-	tx, err := trade.GenerateRecoveryTransaction(ownAmount)
+	tx, err := trade.RecoveryTransaction(ownAmount - stdFee)
 	if err != nil {
 		return err
 	}

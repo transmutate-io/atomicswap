@@ -24,12 +24,12 @@ import (
 
 var (
 	btcClient = &btccore.Client{
-		Address:  envOr("BTC_CLIENT", "bitcoin-core-testnet.docker:3333"),
+		Address:  envOr("BTC_HOST", "bitcoin-core-testnet.docker:3333"),
 		Username: "admin",
 		Password: "pass",
 	}
 	ltcClient = &btccore.Client{
-		Address:  envOr("LTC_CLIENT", "litecoin-testnet.docker:2222"),
+		Address:  envOr("LTC_HOST", "litecoin-testnet.docker:2222"),
 		Username: "admin",
 		Password: "pass",
 	}

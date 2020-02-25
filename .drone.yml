@@ -17,29 +17,17 @@ steps:
   image: transmutateio/bitcoin-core:0.19.0.1
   detach: true
   commands:
-  - bitcoind
-  - -rpcuser=admin
-  - -rpcpassword=pass
-  - -rpcbind=0.0.0.0:3333
-  - -rpcallowip=127.0.0.1
-  - -txindex
-  - -server
-  - -regtest
+  - bitcoind -rpcuser=admin -rpcpassword=pass -rpcbind=0.0.0.0:3333 -rpcallowip=127.0.0.1 -txindex -server -regtest
 - name: litcoin-core-regtest
-  image: transmutateio/litcoin:0.17.1
+  image: transmutateio/litecoin:0.17.1
   detach: true
   commands:
-  - litecoind
-  - -rpcuser=admin
-  - -rpcpassword=pass
-  - -rpcbind=0.0.0.0:2222
-  - -rpcallowip=127.0.0.1
-  - -txindex
-  - -server
-  - -regtest
+  - litecoind -rpcuser=admin -rpcpassword=pass -rpcbind=0.0.0.0:2222 -rpcallowip=127.0.0.1 -txindex -server -regtest
 - name: test
   image: golang:1.13.8-alpine3.11
   environment:
+    BTC_HOST: "127.0.0.1:3333"
+    LTC_HOST: "127.0.0.1:2222"
     GOPROXY: direct
     GOSUMDB: "off"
     GIT_CREDS:

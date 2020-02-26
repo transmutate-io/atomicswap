@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"reflect"
 	"time"
 
 	"github.com/btcsuite/btcd/wire"
@@ -18,14 +19,25 @@ import (
 )
 
 type Trade struct {
-	Stage     stages.Stage     // stage of the trade
-	Role      roles.Role       // role
-	Duration  types.Duration   // trade contract duration
-	token     types.Bytes      // secret token
-	tokenHash types.Bytes      // secret token hash
-	Outputs   *Outputs         // output data
-	Own       *OwnTradeInfo    // own trade data
-	Trader    *TraderTradeInfo // trader trade data
+	Stage     stages.Stage
+	Role      roles.Role
+	Duration  types.Duration
+	token     types.Bytes
+	tokenHash types.Bytes
+	Outputs   *Outputs
+	Own       *OwnTradeInfo
+	Trader    *TraderTradeInfo
+}
+
+type tradeData struct {
+	Stage     stages.Stage     `yaml:"stage"`
+	Role      roles.Role       `yaml:"role"`
+	Duration  types.Duration   `yaml:"duration"`
+	Outputs   *Outputs         `yaml:"outputs,omitempty"`
+	Own       *OwnTradeInfo    `yaml:"own,omitempty"`
+	Trader    *TraderTradeInfo `yaml:"trader,omitempty"`
+	Token     types.Bytes      `yaml:"token,omitempty"`
+	TokenHash types.Bytes      `yaml:"token_hash,omitempty"`
 }
 
 func newTrade(role roles.Role, stage stages.Stage, ownCrypto, tradeCrypto params.Crypto) (*Trade, error) {
@@ -57,13 +69,13 @@ func NewSellerTrade(ownCrypto, tradeCrypto params.Crypto) (*Trade, error) {
 }
 
 type Output struct {
-	TxID types.Bytes
-	N    uint32
+	TxID types.Bytes `yaml:"txid,omitempty"`
+	N    uint32      `yaml:"n"`
 }
 
 type Outputs struct {
-	Redeemable  *Output
-	Recoverable *Output
+	Redeemable  *Output `yaml:"redeemable,omitempty"`
+	Recoverable *Output `yaml:"recoverable,omitempty"`
 }
 
 type OwnTradeInfo struct {
@@ -323,4 +335,62 @@ func (t *Trade) RecoveryTransaction(amount int64) (*types.Tx, error) {
 		[]byte{1},
 	)
 	return r, nil
+}
+
+var (
+	errNilPointer        = errors.New("nil pointer")
+	errNotAStructPointer = errors.New("not a struct pointer")
+)
+
+// copy fields by name
+func copyFieldsByName(src, dst interface{}) error {
+	if src == nil || dst == nil {
+		return errNilPointer
+	}
+	vs := reflect.ValueOf(src)
+	vd := reflect.ValueOf(dst)
+	if vs.Kind() != reflect.Ptr || vd.Kind() != reflect.Ptr {
+		return errNotAStructPointer
+	}
+	if vs.IsNil() || vd.IsNil() {
+		return errNilPointer
+	}
+	vs = vs.Elem()
+	vd = vd.Elem()
+	if vs.Kind() != reflect.Struct || vd.Kind() != reflect.Struct {
+		return errNotAStructPointer
+	}
+	vst := vs.Type()
+	vdt := vd.Type()
+	for i := 0; i < vst.NumField(); i++ {
+		sfld := vst.Field(i)
+		dfld, ok := vdt.FieldByName(sfld.Name)
+		if !ok {
+			continue
+		}
+		if sfld.Type != dfld.Type {
+			continue
+		}
+		vd.FieldByName(sfld.Name).Set(vs.Field(i))
+	}
+	return nil
+}
+
+func (t *Trade) MarshalYAML() (interface{}, error) {
+	r := &tradeData{}
+	if err := copyFieldsByName(t, r); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+func (t *Trade) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	td := &tradeData{}
+	if err := unmarshal(&td); err != nil {
+		return err
+	}
+	if err := copyFieldsByName(td, t); err != nil {
+		return err
+	}
+	return nil
 }

@@ -37,3 +37,18 @@ func ParseTicker(t string) (Crypto, error) {
 	}
 	return r, nil
 }
+
+func (c Crypto) MarshalYAML() (interface{}, error) { return c.String(), nil }
+
+func (c *Crypto) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var r string
+	if err := unmarshal(&r); err != nil {
+		return err
+	}
+	nc, err := ParseCrypto(r)
+	if err != nil {
+		return err
+	}
+	*c = nc
+	return nil
+}

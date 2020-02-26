@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+	"gopkg.in/yaml.v2"
 	"transmutate.io/pkg/atomicswap"
 	"transmutate.io/pkg/atomicswap/addr"
 	"transmutate.io/pkg/atomicswap/params"
@@ -432,7 +434,24 @@ func TestAtomicSwap_BTC_LTC_Redeem(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		return handleTrade(a2b, at, newPrintf(t.Logf, "alice (seller)"), false, htlcDuration)
+		pf := newPrintf(t.Logf, "alice (seller)")
+		err = handleTrade(a2b, at, pf, false, htlcDuration)
+		if err != nil {
+			return err
+		}
+		b, err := yaml.Marshal(at)
+		if err != nil {
+			return err
+		}
+		pf("trade data:\n%s\n", string(b))
+		at2 := &atomicswap.Trade{}
+		if err = yaml.Unmarshal(b, at2); err != nil {
+			return err
+		}
+		if !reflect.DeepEqual(at, at) {
+			return errors.New("marshal/unmarshal error")
+		}
+		return nil
 	})
 	// bob (BTC)
 	eg.Go(func() error {
@@ -440,7 +459,27 @@ func TestAtomicSwap_BTC_LTC_Redeem(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		return handleTrade(a2b, at, newPrintf(t.Logf, "bob (buyer)"), false, htlcDuration)
+		pf := newPrintf(t.Logf, "bob (buyer)")
+		err = handleTrade(a2b, at, pf, false, htlcDuration)
+		if err != nil {
+			return err
+		}
+		if err != nil {
+			return err
+		}
+		b, err := yaml.Marshal(at)
+		if err != nil {
+			return err
+		}
+		pf("trade data:\n%s\n", string(b))
+		at2 := &atomicswap.Trade{}
+		if err = yaml.Unmarshal(b, at2); err != nil {
+			return err
+		}
+		if !reflect.DeepEqual(at, at) {
+			return errors.New("marshal/unmarshal error")
+		}
+		return nil
 	})
 	err := eg.Wait()
 	require.NoError(t, err, "unexpected error")

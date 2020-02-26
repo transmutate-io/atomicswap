@@ -40,13 +40,13 @@ func (s *Stage) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 const (
-	SendPublicKeyHash Stage = iota
+	SharePublicKeyHash Stage = iota
 	ReceivePublicKeyHash
-	SendTokenHash
+	ShareTokenHash
 	ReceiveTokenHash
 	ReceiveLockScript
 	GenerateLockScript
-	SendLockScript
+	ShareLockScript
 	WaitLockTransaction
 	LockFunds
 	WaitRedeemTransaction
@@ -56,13 +56,13 @@ const (
 
 var (
 	stages = map[Stage]string{
-		SendPublicKeyHash:     "send-key-hash",
+		SharePublicKeyHash:    "share-key-hash",
 		ReceivePublicKeyHash:  "receive-key-hash",
-		SendTokenHash:         "send-token-hash",
+		ShareTokenHash:        "share-token-hash",
 		ReceiveTokenHash:      "receive-token-hash",
 		ReceiveLockScript:     "receive-lock",
 		GenerateLockScript:    "generate-lock",
-		SendLockScript:        "send-lock",
+		ShareLockScript:       "share-lock",
 		WaitLockTransaction:   "wait-locked-funds",
 		LockFunds:             "lock-funds",
 		WaitRedeemTransaction: "wait-redeem-funds",

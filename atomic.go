@@ -54,7 +54,7 @@ func newTrade(role roles.Role, stage stages.Stage, ownCrypto, tradeCrypto params
 }
 
 func NewBuyerTrade(ownCrypto, tradeCrypto params.Crypto) (*Trade, error) {
-	return newTrade(roles.Buyer, stages.SendPublicKeyHash, ownCrypto, tradeCrypto)
+	return newTrade(roles.Buyer, stages.SharePublicKeyHash, ownCrypto, tradeCrypto)
 }
 
 func NewSellerTrade(ownCrypto, tradeCrypto params.Crypto) (*Trade, error) {
@@ -110,23 +110,23 @@ func (t *Trade) SetToken(token types.Bytes) {
 
 var (
 	sellerStages = map[stages.Stage]stages.Stage{
-		stages.ReceivePublicKeyHash: stages.SendPublicKeyHash,
-		stages.SendPublicKeyHash:    stages.SendTokenHash,
-		stages.SendTokenHash:        stages.GenerateLockScript,
-		stages.GenerateLockScript:   stages.SendLockScript,
-		stages.SendLockScript:       stages.ReceiveLockScript,
+		stages.ReceivePublicKeyHash: stages.SharePublicKeyHash,
+		stages.SharePublicKeyHash:   stages.ShareTokenHash,
+		stages.ShareTokenHash:       stages.GenerateLockScript,
+		stages.GenerateLockScript:   stages.ShareLockScript,
+		stages.ShareLockScript:      stages.ReceiveLockScript,
 		stages.ReceiveLockScript:    stages.LockFunds,
 		stages.LockFunds:            stages.WaitLockTransaction,
 		stages.WaitLockTransaction:  stages.RedeemFunds,
 		stages.RedeemFunds:          stages.Done,
 	}
 	buyerStages = map[stages.Stage]stages.Stage{
-		stages.SendPublicKeyHash:     stages.ReceivePublicKeyHash,
+		stages.SharePublicKeyHash:    stages.ReceivePublicKeyHash,
 		stages.ReceivePublicKeyHash:  stages.ReceiveTokenHash,
 		stages.ReceiveTokenHash:      stages.ReceiveLockScript,
 		stages.ReceiveLockScript:     stages.GenerateLockScript,
-		stages.GenerateLockScript:    stages.SendLockScript,
-		stages.SendLockScript:        stages.WaitLockTransaction,
+		stages.GenerateLockScript:    stages.ShareLockScript,
+		stages.ShareLockScript:       stages.WaitLockTransaction,
 		stages.WaitLockTransaction:   stages.LockFunds,
 		stages.LockFunds:             stages.WaitRedeemTransaction,
 		stages.WaitRedeemTransaction: stages.RedeemFunds,

@@ -108,7 +108,7 @@ func handleTrade(c chan interface{}, t *atomicswap.Trade, printf printfFunc, fai
 
 	for {
 		switch t.Stage {
-		case stages.SendPublicKeyHash:
+		case stages.SharePublicKeyHash:
 			// use a channel to exchange data back and forth
 			c <- types.Bytes(t.Own.RedeemKey.Public().Hash160())
 			printf("sent public key hash\n")
@@ -118,7 +118,7 @@ func handleTrade(c chan interface{}, t *atomicswap.Trade, printf printfFunc, fai
 			t.Trader.RedeemKeyHash = (<-c).(types.Bytes)
 			printf("received public key hash: %s\n", t.Trader.RedeemKeyHash.Hex())
 			t.NextStage()
-		case stages.SendTokenHash:
+		case stages.ShareTokenHash:
 			// use a channel to exchange data back and forth
 			c <- t.TokenHash()
 			printf("sent token hash\n")
@@ -151,7 +151,7 @@ func handleTrade(c chan interface{}, t *atomicswap.Trade, printf printfFunc, fai
 			}
 			printf("generated lock script: %s\n", t.Own.LockScript.Hex())
 			t.NextStage()
-		case stages.SendLockScript:
+		case stages.ShareLockScript:
 			// use a channel to exchange data back and forth
 			c <- t.Own.LockScript
 			printf("sent lock script\n")

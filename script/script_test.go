@@ -90,5 +90,5 @@ func TestLockTime(t *testing.T) {
 	require.NoError(t, err, "unexpected error")
 	b := make([]byte, 4)
 	binary.LittleEndian.PutUint32(b, uint32(n.Unix()))
-	require.Equal(t, hex.EncodeToString(b)+" OP_CHECKLOCKTIMEVERIFY", s, "mismatching script code")
+	require.Equal(t, hex.EncodeToString(b)+" OP_CHECKLOCKTIMEVERIFY OP_DROP", s, "mismatching script code")
 }

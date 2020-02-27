@@ -1,0 +1,6 @@
+type: Role
+filename: roles.gen.go
+package: roles
+consts:
+  - Buyer
+  - Seller

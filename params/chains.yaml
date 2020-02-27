@@ -1,0 +1,8 @@
+type: Chain
+filename: chains.gen.go
+package: params
+consts:
+  MainNet: mainnet
+  TestNet: testnet
+  SimNet: simnet
+  RegressionNet: regnet

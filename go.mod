@@ -14,3 +14,5 @@ require (
 	gopkg.in/yaml.v2 v2.2.2
 	transmutate.io/pkg/btccore v0.0.0-20200225214617-043e78c86284
 )
+
+replace transmutate.io/pkg/btccore => ../btccore

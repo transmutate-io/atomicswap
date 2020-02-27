@@ -1,0 +1,28 @@
+type: Stage
+filename: stages.gen.go
+package: stages
+consts:
+  - name: SharePublicKeyHash
+    value: share-key-hash
+  - name: ReceivePublicKeyHash
+    value: receive-key-hash
+  - name: ShareTokenHash
+    value: share-token-hash
+  - name: ReceiveTokenHash
+    value: receive-token-hash
+  - name: ReceiveLockScript
+    value: receive-lock
+  - name: GenerateLockScript
+    value: generate-lock
+  - name: ShareLockScript
+    value: share-lock
+  - name: WaitLockTransaction
+    value: wait-locked-funds
+  - name: LockFunds
+    value: lock-funds
+  - name: WaitRedeemTransaction
+    value: wait-redeem-funds
+  - name: RedeemFunds
+    value: redeem
+  - name: Done
+    value: done

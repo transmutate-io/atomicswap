@@ -1,8 +1,6 @@
 package stages
 
-import (
-	"fmt"
-)
+import "fmt"
 
 type InvalidStageError string
 
@@ -18,44 +16,44 @@ func ParseStage(s string) (Stage, error) {
 	return r, nil
 }
 
-func (s Stage) String() string { return stages[s] }
+func (v Stage) String() string { return _Stage[v] }
 
-func (s *Stage) Set(st string) error {
-	ns, ok := stageNames[st]
+func (v *Stage) Set(sv string) error {
+	nv, ok := _StageNames[sv]
 	if !ok {
-		return InvalidStageError(st)
+		return InvalidStageError(sv)
 	}
-	*s = ns
+	*v = nv
 	return nil
 }
 
-func (s Stage) MarshalYAML() (interface{}, error) { return s.String(), nil }
+func (v Stage) MarshalYAML() (interface{}, error) { return v.String(), nil }
 
-func (s *Stage) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (v *Stage) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var r string
 	if err := unmarshal(&r); err != nil {
 		return err
 	}
-	return s.Set(r)
+	return v.Set(r)
 }
 
 const (
-	SharePublicKeyHash Stage = iota
-	ReceivePublicKeyHash
-	ShareTokenHash
-	ReceiveTokenHash
-	ReceiveLockScript
-	GenerateLockScript
-	ShareLockScript
-	WaitLockTransaction
-	LockFunds
-	WaitRedeemTransaction
-	RedeemFunds
-	Done
+ 	SharePublicKeyHash Stage = iota
+ 	ReceivePublicKeyHash
+ 	ShareTokenHash
+ 	ReceiveTokenHash
+ 	ReceiveLockScript
+ 	GenerateLockScript
+ 	ShareLockScript
+ 	WaitLockTransaction
+ 	LockFunds
+ 	WaitRedeemTransaction
+ 	RedeemFunds
+ 	Done
 )
 
 var (
-	stages = map[Stage]string{
+	_Stage = map[Stage]string{
 		SharePublicKeyHash:    "share-key-hash",
 		ReceivePublicKeyHash:  "receive-key-hash",
 		ShareTokenHash:        "share-token-hash",
@@ -69,12 +67,12 @@ var (
 		RedeemFunds:           "redeem",
 		Done:                  "done",
 	}
-	stageNames map[string]Stage
+	_StageNames map[string]Stage
 )
 
 func init() {
-	stageNames = make(map[string]Stage, len(stages))
-	for k, v := range stages {
-		stageNames[v] = k
+	_StageNames = make(map[string]Stage, len(_Stage))
+	for k, v := range _Stage {
+		_StageNames[v] = k
 	}
 }

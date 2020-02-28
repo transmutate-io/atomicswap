@@ -3,11 +3,11 @@ package types
 import (
 	"bytes"
 
-	"github.com/btcsuite/btcd/btcec"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"transmutate.io/pkg/atomicswap/script"
+	"transmutate.io/pkg/atomicswap/types/key"
 )
 
 type Tx struct {
@@ -41,11 +41,11 @@ func (tx *Tx) AddInput(txID []byte, idx uint32, script []byte) error {
 	return nil
 }
 
-func (tx *Tx) InputSignature(idx int, hashType txscript.SigHashType, privKey *btcec.PrivateKey) ([]byte, error) {
-	return txscript.RawTxInSignature(tx.tx, idx, tx.inputScripts[idx], hashType, privKey)
+func (tx *Tx) InputSignature(idx int, hashType txscript.SigHashType, privKey *key.Private) ([]byte, error) {
+	return txscript.RawTxInSignature(tx.tx, idx, tx.inputScripts[idx], hashType, privKey.PrivateKey)
 }
 
-func (tx *Tx) SignP2PKInput(idx int, hashType txscript.SigHashType, privKey *btcec.PrivateKey) error {
+func (tx *Tx) SignP2PKInput(idx int, hashType txscript.SigHashType, privKey *key.Private) error {
 	sig, err := tx.InputSignature(idx, hashType, privKey)
 	if err != nil {
 		return err
@@ -60,7 +60,7 @@ func (tx *Tx) SignP2PKInput(idx int, hashType txscript.SigHashType, privKey *btc
 
 func bytesConcat(b ...[]byte) []byte { return bytes.Join(b, []byte{}) }
 
-func (tx *Tx) SignP2PKHInput(idx int, hashType txscript.SigHashType, privKey *btcec.PrivateKey) error {
+func (tx *Tx) SignP2PKHInput(idx int, hashType txscript.SigHashType, privKey *key.Private) error {
 	sig, err := tx.InputSignature(idx, hashType, privKey)
 	if err != nil {
 		return err

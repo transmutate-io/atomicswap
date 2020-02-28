@@ -333,7 +333,7 @@ func (t *Trade) RedeemTransaction(amount uint64) (*types.Tx, error) {
 		if err = r.AddInput(i.TxID, i.N, t.Trader.LockScript); err != nil {
 			return nil, err
 		}
-		sig, err := r.InputSignature(ni, 1, t.Own.RedeemKey.PrivateKey)
+		sig, err := r.InputSignature(ni, 1, t.Own.RedeemKey)
 		if err != nil {
 			return nil, err
 		}
@@ -371,7 +371,7 @@ func (t *Trade) RecoveryTransaction(amount uint64) (*types.Tx, error) {
 	}
 	r.Tx().LockTime = uint32(lst.UTC().Unix())
 	r.Tx().TxIn[0].Sequence = wire.MaxTxInSequenceNum - 1
-	sig, err := r.InputSignature(0, 1, t.Own.RecoveryKey.PrivateKey)
+	sig, err := r.InputSignature(0, 1, t.Own.RecoveryKey)
 	if err != nil {
 		return nil, err
 	}

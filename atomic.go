@@ -16,6 +16,7 @@ import (
 	"transmutate.io/pkg/atomicswap/types/key"
 	"transmutate.io/pkg/atomicswap/types/roles"
 	"transmutate.io/pkg/atomicswap/types/stages"
+	"transmutate.io/pkg/btccore"
 )
 
 type Trade struct {
@@ -40,12 +41,18 @@ type tradeData struct {
 	TokenHash types.Bytes      `yaml:"token_hash,omitempty"`
 }
 
-func newTrade(role roles.Role, stage stages.Stage, ownCrypto, tradeCrypto params.Crypto) (*Trade, error) {
+func newTrade(role roles.Role, stage stages.Stage, ownAmount btccore.Amount, ownCrypto params.Crypto, tradeAmount btccore.Amount, tradeCrypto params.Crypto) (*Trade, error) {
 	r := &Trade{
-		Role:   role,
-		Stage:  stage,
-		Own:    &OwnTradeInfo{Crypto: ownCrypto},
-		Trader: &TraderTradeInfo{Crypto: tradeCrypto},
+		Role:  role,
+		Stage: stage,
+		Own: &OwnTradeInfo{
+			Crypto: ownCrypto,
+			Amount: ownAmount,
+		},
+		Trader: &TraderTradeInfo{
+			Crypto: tradeCrypto,
+			Amount: tradeAmount,
+		},
 	}
 	if err := r.generateKeys(); err != nil {
 		return nil, err
@@ -53,12 +60,26 @@ func newTrade(role roles.Role, stage stages.Stage, ownCrypto, tradeCrypto params
 	return r, nil
 }
 
-func NewBuyerTrade(ownCrypto, tradeCrypto params.Crypto) (*Trade, error) {
-	return newTrade(roles.Buyer, stages.SharePublicKeyHash, ownCrypto, tradeCrypto)
+func NewBuyerTrade(ownAmount btccore.Amount, ownCrypto params.Crypto, tradeAmount btccore.Amount, tradeCrypto params.Crypto) (*Trade, error) {
+	return newTrade(
+		roles.Buyer,
+		stages.SharePublicKeyHash,
+		ownAmount,
+		ownCrypto,
+		tradeAmount,
+		tradeCrypto,
+	)
 }
 
-func NewSellerTrade(ownCrypto, tradeCrypto params.Crypto) (*Trade, error) {
-	r, err := newTrade(roles.Seller, stages.ReceivePublicKeyHash, ownCrypto, tradeCrypto)
+func NewSellerTrade(ownAmount btccore.Amount, ownCrypto params.Crypto, tradeAmount btccore.Amount, tradeCrypto params.Crypto) (*Trade, error) {
+	r, err := newTrade(
+		roles.Seller,
+		stages.ReceivePublicKeyHash,
+		ownAmount,
+		ownCrypto,
+		tradeAmount,
+		tradeCrypto,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -79,18 +100,20 @@ type Outputs struct {
 }
 
 type OwnTradeInfo struct {
-	Crypto          params.Crypto `yaml:"crypto"`
-	LastBlockHeight int           `yaml:"last_block_height"`
-	RedeemKey       *key.Private  `yaml:"redeem_key,omitempty"`
-	RecoveryKey     *key.Private  `yaml:"recover_key,omitempty"`
-	LockScript      types.Bytes   `yaml:"lock_script,omitempty"`
+	Crypto          params.Crypto  `yaml:"crypto"`
+	Amount          btccore.Amount `yaml:"amount"`
+	LastBlockHeight int            `yaml:"last_block_height"`
+	RedeemKey       *key.Private   `yaml:"redeem_key,omitempty"`
+	RecoveryKey     *key.Private   `yaml:"recover_key,omitempty"`
+	LockScript      types.Bytes    `yaml:"lock_script,omitempty"`
 }
 
 type TraderTradeInfo struct {
-	Crypto          params.Crypto `yaml:"crypto"`
-	LastBlockHeight int           `yaml:"last_block_height"`
-	RedeemKeyHash   types.Bytes   `yaml:"recover_key_hash,omitempty"`
-	LockScript      types.Bytes   `yaml:"lock_script,omitempty"`
+	Crypto          params.Crypto  `yaml:"crypto"`
+	Amount          btccore.Amount `yaml:"amount"`
+	LastBlockHeight int            `yaml:"last_block_height"`
+	RedeemKeyHash   types.Bytes    `yaml:"recover_key_hash,omitempty"`
+	LockScript      types.Bytes    `yaml:"lock_script,omitempty"`
 }
 
 func (t *Trade) TokenHash() types.Bytes {
@@ -295,7 +318,7 @@ func (t *Trade) CheckTraderLockScript(tradeLockScript []byte) error {
 
 func bytesJoin(b ...[]byte) []byte { return bytes.Join(b, []byte{}) }
 
-func (t *Trade) RedeemTransaction(amount int64) (*types.Tx, error) {
+func (t *Trade) RedeemTransaction(amount uint64) (*types.Tx, error) {
 	r := types.NewTx()
 	redeemScript, err := script.Validate(bytesJoin(
 		script.Data(t.token),
@@ -315,7 +338,7 @@ func (t *Trade) RedeemTransaction(amount int64) (*types.Tx, error) {
 	return r, nil
 }
 
-func (t *Trade) RecoveryTransaction(amount int64) (*types.Tx, error) {
+func (t *Trade) RecoveryTransaction(amount uint64) (*types.Tx, error) {
 	r := types.NewTx()
 	r.AddOutput(amount, script.P2PKHHash(t.Own.RecoveryKey.Public().Hash160()))
 	r.AddInput(t.Outputs.Recoverable.TxID, t.Outputs.Recoverable.N, t.Own.LockScript)

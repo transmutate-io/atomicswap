@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/big"
 	"os"
 	"reflect"
 	"strings"
@@ -63,7 +62,7 @@ func setupMinerAddress(cl *btccore.Client, minerAddr *string) error {
 	return nil
 }
 
-func setupMiner(cl *btccore.Client, minerAddr *string, minValue int64) error {
+func setupMiner(cl *btccore.Client, minerAddr *string, minValue btccore.Amount) error {
 	if err := setupMinerAddress(cl, minerAddr); err != nil {
 		return err
 	}
@@ -74,10 +73,10 @@ func setupMiner(cl *btccore.Client, minerAddr *string, minValue int64) error {
 }
 
 func init() {
-	if err := setupMiner(btcClient, &btcMinerAddr, 500000000); err != nil {
+	if err := setupMiner(btcClient, &btcMinerAddr, bobAmount+stdFee*2); err != nil {
 		panic(err)
 	}
-	if err := setupMiner(ltcClient, &ltcMinerAddr, 5000000000); err != nil {
+	if err := setupMiner(ltcClient, &ltcMinerAddr, aliceAmount+stdFee*2); err != nil {
 		panic(err)
 	}
 }
@@ -179,19 +178,12 @@ func handleTrade(c chan interface{}, t *atomicswap.Trade, printf printfFunc, fai
 			t.Trader.LastBlockHeight = txOut.blockHeight
 			t.NextStage()
 		case stages.LockFunds:
-			// use the client to make a deposit
-			var amt *btccore.Amount
-			if t.Own.Crypto == params.Bitcoin {
-				amt = (*btccore.Amount)(big.NewInt(100000000 + stdFee))
-			} else {
-				amt = (*btccore.Amount)(big.NewInt(1000000000 + stdFee))
-			}
 			// calculate deposit address
 			depositAddr, err := addr.P2SH(t.Own.LockScript.Hash160(), ownCp)
 			if err != nil {
 				return err
 			}
-			txID, err := ownCl.SendToAddress(depositAddr, amt)
+			txID, err := ownCl.SendToAddress(depositAddr, t.Own.Amount+stdFee)
 			if err != nil {
 				return err
 			}
@@ -217,6 +209,9 @@ func handleTrade(c chan interface{}, t *atomicswap.Trade, printf printfFunc, fai
 					break
 				}
 			}
+			if t.Outputs.Recoverable == nil {
+				return errors.New("recoverable output not found")
+			}
 			printf("funds locked: tx %s\n", txID)
 			t.NextStage()
 			if failAfterLock {
@@ -233,14 +228,7 @@ func handleTrade(c chan interface{}, t *atomicswap.Trade, printf printfFunc, fai
 			t.SetToken(token)
 			t.NextStage()
 		case stages.RedeemFunds:
-			// create a raw transaction and use the client to send it to redeem the funds
-			var amt int64
-			if t.Trader.Crypto == params.Bitcoin {
-				amt = 100000000
-			} else {
-				amt = 1000000000
-			}
-			redeemTx, err := t.RedeemTransaction(amt)
+			redeemTx, err := t.RedeemTransaction(uint64(t.Trader.Amount))
 			b, err := redeemTx.Serialize()
 			if err != nil {
 				return err
@@ -404,14 +392,14 @@ func envOr(envName string, defaultValue string) string {
 	return e
 }
 
-func generateFunds(cl *btccore.Client, minerAddr *string, minValue int64) error {
+func generateFunds(cl *btccore.Client, minerAddr *string, minValue btccore.Amount) error {
 	for {
 		// check balance
 		amt, err := cl.GetBalance(0, false, nil)
 		if err != nil {
 			return err
 		}
-		if amt.BigInt().Int64() >= minValue {
+		if amt >= minValue {
 			break
 		}
 		_, err = cl.GenerateToAddress(1, *minerAddr)
@@ -422,6 +410,11 @@ func generateFunds(cl *btccore.Client, minerAddr *string, minValue int64) error 
 	return nil
 }
 
+const (
+	aliceAmount btccore.Amount = 1000000000
+	bobAmount   btccore.Amount = 100000000
+)
+
 func TestAtomicSwap_BTC_LTC_Redeem(t *testing.T) {
 	// generate communication channel
 	a2b := make(chan interface{})
@@ -430,7 +423,7 @@ func TestAtomicSwap_BTC_LTC_Redeem(t *testing.T) {
 	htlcDuration := 48 * time.Hour
 	// alice (LTC)
 	eg.Go(func() error {
-		at, err := atomicswap.NewSellerTrade(params.Litecoin, params.Bitcoin)
+		at, err := atomicswap.NewSellerTrade(aliceAmount, params.Litecoin, bobAmount, params.Bitcoin)
 		if err != nil {
 			return err
 		}
@@ -455,7 +448,7 @@ func TestAtomicSwap_BTC_LTC_Redeem(t *testing.T) {
 	})
 	// bob (BTC)
 	eg.Go(func() error {
-		at, err := atomicswap.NewBuyerTrade(params.Bitcoin, params.Litecoin)
+		at, err := atomicswap.NewBuyerTrade(bobAmount, params.Bitcoin, aliceAmount, params.Litecoin)
 		if err != nil {
 			return err
 		}
@@ -489,18 +482,15 @@ func recoverFunds(trade *atomicswap.Trade, printf printfFunc) error {
 	var (
 		ownCl        *btccore.Client
 		ownMinerAddr string
-		ownAmount    int64
 	)
 	if trade.Own.Crypto == params.Bitcoin {
 		ownCl = btcClient
 		ownMinerAddr = btcMinerAddr
-		ownAmount = 100000000
 	} else {
 		ownCl = ltcClient
 		ownMinerAddr = ltcMinerAddr
-		ownAmount = 1000000000
 	}
-	tx, err := trade.RecoveryTransaction(ownAmount - stdFee)
+	tx, err := trade.RecoveryTransaction(uint64(trade.Own.Amount))
 	if err != nil {
 		return err
 	}
@@ -526,7 +516,7 @@ func TestAtomicSwap_BTC_LTC_Recover(t *testing.T) {
 	const htlcDuration = 0
 	// alice (LTC)
 	eg.Go(func() error {
-		at, err := atomicswap.NewSellerTrade(params.Litecoin, params.Bitcoin)
+		at, err := atomicswap.NewSellerTrade(aliceAmount, params.Litecoin, bobAmount, params.Bitcoin)
 		if err != nil {
 			return err
 		}
@@ -539,7 +529,7 @@ func TestAtomicSwap_BTC_LTC_Recover(t *testing.T) {
 	})
 	// bob (BTC)
 	eg.Go(func() error {
-		at, err := atomicswap.NewBuyerTrade(params.Bitcoin, params.Litecoin)
+		at, err := atomicswap.NewBuyerTrade(bobAmount, params.Bitcoin, aliceAmount, params.Litecoin)
 		if err != nil {
 			return err
 		}

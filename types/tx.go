@@ -22,8 +22,8 @@ func NewTx() *Tx {
 	}
 }
 
-func (tx *Tx) AddOutput(value int64, script []byte) {
-	tx.tx.AddTxOut(wire.NewTxOut(value, script))
+func (tx *Tx) AddOutput(value uint64, script []byte) {
+	tx.tx.AddTxOut(wire.NewTxOut(int64(value), script))
 }
 
 func (tx *Tx) AddInput(txID []byte, idx uint32, script []byte) error {

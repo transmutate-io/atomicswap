@@ -168,13 +168,10 @@ func handleTrade(c chan interface{}, t *atomicswap.Trade, printf printfFunc, fai
 				txOut.blockHeight,
 			)
 			// save redeeamable output
-			if t.Outputs == nil {
-				t.Outputs = &atomicswap.Outputs{}
-			}
-			t.Outputs.Redeemable = &atomicswap.Output{
+			t.AddRedeemableOutput(&atomicswap.Output{
 				TxID: txOut.txID,
 				N:    txOut.n,
-			}
+			})
 			t.Trader.LastBlockHeight = txOut.blockHeight
 			t.NextStage()
 		case stages.LockFunds:
@@ -199,17 +196,14 @@ func handleTrade(c chan interface{}, t *atomicswap.Trade, printf printfFunc, fai
 			if err != nil {
 				return err
 			}
-			if t.Outputs == nil {
-				t.Outputs = &atomicswap.Outputs{}
-			}
 			// save recoverable output
 			for _, i := range tx.VOut {
 				if i.ScriptPubKey.Type == "scripthash" && len(i.ScriptPubKey.Addresses) > 0 && i.ScriptPubKey.Addresses[0] == depositAddr {
-					t.Outputs.Recoverable = &atomicswap.Output{TxID: b, N: uint32(i.N)}
+					t.SetRecoverableOutput(&atomicswap.Output{TxID: b, N: uint32(i.N)})
 					break
 				}
 			}
-			if t.Outputs.Recoverable == nil {
+			if t.Outputs == nil || t.Outputs.Recoverable == nil {
 				return errors.New("recoverable output not found")
 			}
 			printf("funds locked: tx %s\n", txID)
@@ -250,8 +244,6 @@ func handleTrade(c chan interface{}, t *atomicswap.Trade, printf printfFunc, fai
 		}
 	}
 }
-
-func bytesJoin(b ...[]byte) []byte { return bytes.Join(b, []byte{}) }
 
 var errClosed = errors.New("closed")
 

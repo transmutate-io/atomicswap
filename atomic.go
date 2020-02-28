@@ -95,8 +95,8 @@ type Output struct {
 }
 
 type Outputs struct {
-	Redeemable  *Output `yaml:"redeemable,omitempty"`
-	Recoverable *Output `yaml:"recoverable,omitempty"`
+	Redeemable  []*Output `yaml:"redeemable,omitempty"`
+	Recoverable *Output   `yaml:"recoverable,omitempty"`
 }
 
 type OwnTradeInfo struct {
@@ -329,13 +329,32 @@ func (t *Trade) RedeemTransaction(amount uint64) (*types.Tx, error) {
 		return nil, err
 	}
 	r.AddOutput(amount, script.P2PKHHash(t.Own.RecoveryKey.Public().Hash160()))
-	r.AddInput(t.Outputs.Redeemable.TxID, t.Outputs.Redeemable.N, t.Trader.LockScript)
-	sig, err := r.InputSignature(0, 1, t.Own.RedeemKey.PrivateKey)
-	if err != nil {
-		return nil, err
+	for ni, i := range t.Outputs.Redeemable {
+		r.AddInput(i.TxID, i.N, t.Trader.LockScript)
+		sig, err := r.InputSignature(ni, 1, t.Own.RedeemKey.PrivateKey)
+		if err != nil {
+			return nil, err
+		}
+		r.SetP2SHInputSignatureScript(ni, bytesJoin(script.Data(sig), script.Data(t.Own.RedeemKey.Public().SerializeCompressed()), redeemScript))
 	}
-	r.SetP2SHInputSignatureScript(0, bytesJoin(script.Data(sig), script.Data(t.Own.RedeemKey.Public().SerializeCompressed()), redeemScript))
 	return r, nil
+}
+
+func (t *Trade) AddRedeemableOutput(out *Output) {
+	if t.Outputs == nil {
+		t.Outputs = &Outputs{}
+	}
+	if t.Outputs.Redeemable == nil {
+		t.Outputs.Redeemable = make([]*Output, 0, 4)
+	}
+	t.Outputs.Redeemable = append(t.Outputs.Redeemable, out)
+}
+
+func (t *Trade) SetRecoverableOutput(out *Output) {
+	if t.Outputs == nil {
+		t.Outputs = &Outputs{}
+	}
+	t.Outputs.Recoverable = out
 }
 
 func (t *Trade) RecoveryTransaction(amount uint64) (*types.Tx, error) {

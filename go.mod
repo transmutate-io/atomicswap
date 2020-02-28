@@ -12,7 +12,7 @@ require (
 	golang.org/x/crypto v0.0.0-20200214034016-1d94cc7ab1c6
 	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f
 	gopkg.in/yaml.v2 v2.2.2
-	transmutate.io/pkg/btccore v0.0.0-20200225214617-043e78c86284
+	transmutate.io/pkg/btccore v0.0.0-00010101000000-000000000000
 )
 
 replace transmutate.io/pkg/btccore => ../btccore

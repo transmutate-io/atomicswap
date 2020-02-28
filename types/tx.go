@@ -90,6 +90,14 @@ func (tx *Tx) SetP2SHInputPrefixes(idx int, pref ...[]byte) error {
 	return nil
 }
 
+func (tx *Tx) AddP2SHInputPrefix(idx int, p []byte) {
+	var ss []byte
+	if ss = tx.tx.TxIn[idx].SignatureScript; ss == nil {
+		ss = []byte{}
+	}
+	tx.tx.TxIn[idx].SignatureScript = append(script.Data(p), ss...)
+}
+
 func (tx *Tx) SetP2SHInputSignatureScript(idx int, ss []byte) { tx.tx.TxIn[idx].SignatureScript = ss }
 
 func (tx *Tx) Serialize() ([]byte, error) {

@@ -330,7 +330,9 @@ func (t *Trade) RedeemTransaction(amount uint64) (*types.Tx, error) {
 	}
 	r.AddOutput(amount, script.P2PKHHash(t.Own.RecoveryKey.Public().Hash160()))
 	for ni, i := range t.Outputs.Redeemable {
-		r.AddInput(i.TxID, i.N, t.Trader.LockScript)
+		if err = r.AddInput(i.TxID, i.N, t.Trader.LockScript); err != nil {
+			return nil, err
+		}
 		sig, err := r.InputSignature(ni, 1, t.Own.RedeemKey.PrivateKey)
 		if err != nil {
 			return nil, err
@@ -360,7 +362,9 @@ func (t *Trade) SetRecoverableOutput(out *Output) {
 func (t *Trade) RecoveryTransaction(amount uint64) (*types.Tx, error) {
 	r := types.NewTx()
 	r.AddOutput(amount, script.P2PKHHash(t.Own.RecoveryKey.Public().Hash160()))
-	r.AddInput(t.Outputs.Recoverable.TxID, t.Outputs.Recoverable.N, t.Own.LockScript)
+	if err := r.AddInput(t.Outputs.Recoverable.TxID, t.Outputs.Recoverable.N, t.Own.LockScript); err != nil {
+		return nil, err
+	}
 	lst, err := t.Trader.LockScriptTime()
 	if err != nil {
 		return nil, err

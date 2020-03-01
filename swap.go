@@ -11,23 +11,30 @@ import (
 	"github.com/btcsuite/btcd/wire"
 	"transmutate.io/pkg/atomicswap/hash"
 	"transmutate.io/pkg/atomicswap/params"
+	"transmutate.io/pkg/atomicswap/roles"
 	"transmutate.io/pkg/atomicswap/script"
+	"transmutate.io/pkg/atomicswap/stages"
 	"transmutate.io/pkg/atomicswap/types"
 	"transmutate.io/pkg/atomicswap/types/key"
-	"transmutate.io/pkg/atomicswap/types/roles"
-	"transmutate.io/pkg/atomicswap/types/stages"
 	"transmutate.io/pkg/btccore"
 )
 
+// Trade represents an atomic swap trade
 type Trade struct {
-	Stage     stages.Stage
-	Role      roles.Role
+	// Stage of the trade
+	Stage stages.Stage
+	// Role on the trade
+	Role roles.Role
+	// Duration represents the trade lock time
 	Duration  types.Duration
 	token     types.Bytes
 	tokenHash types.Bytes
-	Outputs   *Outputs
-	Own       *OwnTradeInfo
-	Trader    *TraderTradeInfo
+	// Outputs contains the outputs involved
+	Outputs *Outputs
+	// Own contains own user data and keys
+	Own *OwnTradeInfo
+	// Trader contrains the trader data
+	Trader *TraderTradeInfo
 }
 
 type tradeData struct {
@@ -60,6 +67,7 @@ func newTrade(role roles.Role, stage stages.Stage, ownAmount btccore.Amount, own
 	return r, nil
 }
 
+// NewBuyerTrade starts a trade as a buyer
 func NewBuyerTrade(ownAmount btccore.Amount, ownCrypto params.Crypto, tradeAmount btccore.Amount, tradeCrypto params.Crypto) (*Trade, error) {
 	return newTrade(
 		roles.Buyer,
@@ -71,6 +79,7 @@ func NewBuyerTrade(ownAmount btccore.Amount, ownCrypto params.Crypto, tradeAmoun
 	)
 }
 
+// NewSellerTrade starts a trade as a seller
 func NewSellerTrade(ownAmount btccore.Amount, ownCrypto params.Crypto, tradeAmount btccore.Amount, tradeCrypto params.Crypto) (*Trade, error) {
 	r, err := newTrade(
 		roles.Seller,
@@ -89,33 +98,40 @@ func NewSellerTrade(ownAmount btccore.Amount, ownCrypto params.Crypto, tradeAmou
 	return r, nil
 }
 
-type Output struct {
-	TxID types.Bytes `yaml:"txid,omitempty"`
-	N    uint32      `yaml:"n"`
-}
+type (
+	// Output represents an output
+	Output struct {
+		TxID types.Bytes `yaml:"txid,omitempty"`
+		N    uint32      `yaml:"n"`
+	}
 
-type Outputs struct {
-	Redeemable  []*Output `yaml:"redeemable,omitempty"`
-	Recoverable *Output   `yaml:"recoverable,omitempty"`
-}
+	// Outputs represents the outputs involved
+	Outputs struct {
+		Redeemable  []*Output `yaml:"redeemable,omitempty"`
+		Recoverable *Output   `yaml:"recoverable,omitempty"`
+	}
 
-type OwnTradeInfo struct {
-	Crypto          params.Crypto  `yaml:"crypto"`
-	Amount          btccore.Amount `yaml:"amount"`
-	LastBlockHeight int            `yaml:"last_block_height"`
-	RedeemKey       *key.Private   `yaml:"redeem_key,omitempty"`
-	RecoveryKey     *key.Private   `yaml:"recover_key,omitempty"`
-	LockScript      types.Bytes    `yaml:"lock_script,omitempty"`
-}
+	// OwnTradeInfo represents the own user trade info
+	OwnTradeInfo struct {
+		Crypto          params.Crypto  `yaml:"crypto"`
+		Amount          btccore.Amount `yaml:"amount"`
+		LastBlockHeight int            `yaml:"last_block_height"`
+		RedeemKey       *key.Private   `yaml:"redeem_key,omitempty"`
+		RecoveryKey     *key.Private   `yaml:"recover_key,omitempty"`
+		LockScript      types.Bytes    `yaml:"lock_script,omitempty"`
+	}
 
-type TraderTradeInfo struct {
-	Crypto          params.Crypto  `yaml:"crypto"`
-	Amount          btccore.Amount `yaml:"amount"`
-	LastBlockHeight int            `yaml:"last_block_height"`
-	RedeemKeyHash   types.Bytes    `yaml:"recover_key_hash,omitempty"`
-	LockScript      types.Bytes    `yaml:"lock_script,omitempty"`
-}
+	// TraderTradeInfo represents the trader trade info
+	TraderTradeInfo struct {
+		Crypto          params.Crypto  `yaml:"crypto"`
+		Amount          btccore.Amount `yaml:"amount"`
+		LastBlockHeight int            `yaml:"last_block_height"`
+		RedeemKeyHash   types.Bytes    `yaml:"recover_key_hash,omitempty"`
+		LockScript      types.Bytes    `yaml:"lock_script,omitempty"`
+	}
+)
 
+// TokenHash returns the token hash if set, otherwise nil
 func (t *Trade) TokenHash() types.Bytes {
 	if t.token != nil {
 		return hash.Hash160(t.token)
@@ -123,9 +139,13 @@ func (t *Trade) TokenHash() types.Bytes {
 	return t.tokenHash
 }
 
-func (t *Trade) Token() types.Bytes                 { return t.token }
+// Token returns the token if set, otherwise nil
+func (t *Trade) Token() types.Bytes { return t.token }
+
+// SetTokenHash sets the token hash
 func (t *Trade) SetTokenHash(tokenHash types.Bytes) { t.tokenHash = tokenHash }
 
+// SetToken sets the token
 func (t *Trade) SetToken(token types.Bytes) {
 	t.token = token
 	t.tokenHash = hash.Hash160(token)
@@ -157,6 +177,7 @@ var (
 	}
 )
 
+// NextStage advance the trade to the next stage
 func (t *Trade) NextStage() stages.Stage {
 	var stageMap map[stages.Stage]stages.Stage
 	if t.Role == roles.Seller {
@@ -194,6 +215,7 @@ func (t *Trade) generateToken() error {
 	return nil
 }
 
+// ErrNotEnoughBytes is returned the is not possible to read enough random bytes
 var ErrNotEnoughBytes = errors.New("not enough bytes")
 
 const tokenSize = 32
@@ -210,6 +232,7 @@ func readRandom(n int) ([]byte, error) {
 
 func readRandomToken() ([]byte, error) { return readRandom(tokenSize) }
 
+// GenerateOwnLockScript generates the user own lock script
 func (t *Trade) GenerateOwnLockScript() error {
 	var lockTime time.Time
 	if t.Trader.LockScript == nil {
@@ -234,6 +257,7 @@ func (t *Trade) GenerateOwnLockScript() error {
 	return nil
 }
 
+// LockScriptTime returns the lock time from the trader lock script
 func (tti *TraderTradeInfo) LockScriptTime() (time.Time, error) {
 	lsd, err := parseLockScript(tti.LockScript)
 	if err != nil {
@@ -242,6 +266,7 @@ func (tti *TraderTradeInfo) LockScriptTime() (time.Time, error) {
 	return lsd.timeLock, nil
 }
 
+// ErrInvalidLockScript is returns when the lock script is invalid
 var ErrInvalidLockScript = errors.New("invalid lock script")
 
 var expHTLC = []string{
@@ -299,6 +324,7 @@ func parseLockScript(ls []byte) (*lockScriptData, error) {
 	return r, nil
 }
 
+// CheckTraderLockScript verifies the trader lock script
 func (t *Trade) CheckTraderLockScript(tradeLockScript []byte) error {
 	lsd, err := parseLockScript(tradeLockScript)
 	if err != nil {
@@ -318,6 +344,7 @@ func (t *Trade) CheckTraderLockScript(tradeLockScript []byte) error {
 
 func bytesJoin(b ...[]byte) []byte { return bytes.Join(b, []byte{}) }
 
+// RedeemTransaction returns the redeem transaction for the locked funds
 func (t *Trade) RedeemTransaction(amount uint64) (*types.Tx, error) {
 	r := types.NewTx()
 	redeemScript, err := script.Validate(bytesJoin(
@@ -342,6 +369,7 @@ func (t *Trade) RedeemTransaction(amount uint64) (*types.Tx, error) {
 	return r, nil
 }
 
+// AddRedeemableOutput adds a redeemable output to the trade
 func (t *Trade) AddRedeemableOutput(out *Output) {
 	if t.Outputs == nil {
 		t.Outputs = &Outputs{}
@@ -352,6 +380,7 @@ func (t *Trade) AddRedeemableOutput(out *Output) {
 	t.Outputs.Redeemable = append(t.Outputs.Redeemable, out)
 }
 
+// SetRecoverableOutput sets the recoverable output field
 func (t *Trade) SetRecoverableOutput(out *Output) {
 	if t.Outputs == nil {
 		t.Outputs = &Outputs{}
@@ -359,6 +388,7 @@ func (t *Trade) SetRecoverableOutput(out *Output) {
 	t.Outputs.Recoverable = out
 }
 
+// RecoveryTransaction returns the recovery transaction for the locked funds
 func (t *Trade) RecoveryTransaction(amount uint64) (*types.Tx, error) {
 	r := types.NewTx()
 	r.AddOutput(amount, script.P2PKHHash(t.Own.RecoveryKey.Public().Hash160()))
@@ -422,6 +452,7 @@ func copyFieldsByName(src, dst interface{}) error {
 	return nil
 }
 
+// MarshalYAML implements yaml.Marshaler
 func (t *Trade) MarshalYAML() (interface{}, error) {
 	r := &tradeData{}
 	if err := copyFieldsByName(t, r); err != nil {
@@ -430,6 +461,7 @@ func (t *Trade) MarshalYAML() (interface{}, error) {
 	return r, nil
 }
 
+// UnmarshalYAML implements yaml.Unmarshaler
 func (t *Trade) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	td := &tradeData{}
 	if err := unmarshal(&td); err != nil {

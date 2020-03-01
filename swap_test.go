@@ -18,8 +18,8 @@ import (
 	"transmutate.io/pkg/atomicswap/addr"
 	"transmutate.io/pkg/atomicswap/params"
 	"transmutate.io/pkg/atomicswap/script"
+	"transmutate.io/pkg/atomicswap/stages"
 	"transmutate.io/pkg/atomicswap/types"
-	"transmutate.io/pkg/atomicswap/types/stages"
 	"transmutate.io/pkg/btccore"
 )
 

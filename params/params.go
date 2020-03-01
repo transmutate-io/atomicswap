@@ -4,8 +4,10 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 )
 
+// Networks contains all available cryptos/networks
 var Networks = make(map[Crypto]map[Chain]*Params, 64)
 
+// Params represents a network parameter set
 type Params struct {
 	// // Name defines a human-readable identifier for the network.
 	// Name string
@@ -97,6 +99,7 @@ type Params struct {
 	// WitnessScriptHashAddrID byte // First byte of a P2WSH address
 }
 
+// Params returns the chain params as a *chaincfg.Params
 func (p Params) Params() *chaincfg.Params {
 	return &chaincfg.Params{
 		PubKeyHashAddrID: p.pubKeyHashAddrID,

@@ -34,9 +34,10 @@ func Int64(n int64) []byte {
 	return b
 }
 
-// Disassemble a script into string
+// Disassemble a script into a string
 func DisassembleString(s []byte) (string, error) { return txscript.DisasmString(s) }
 
+// DisassembleStrings disassembles a script into a string slice
 func DisassembleStrings(s []byte) ([]string, error) {
 	r, err := DisassembleString(s)
 	if err != nil {
@@ -45,6 +46,7 @@ func DisassembleStrings(s []byte) ([]string, error) {
 	return strings.Split(r, " "), nil
 }
 
+// ParseInt64 parses an int64
 func ParseInt64(v []byte) (int64, error) {
 	if len(v) == 0 {
 		return 0, nil

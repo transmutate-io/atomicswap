@@ -1,6 +1,7 @@
 package params
 
 var (
+	// BTC_MainNet represents the bitcoin main net
 	BTC_MainNet = &Params{
 		// Name:        "mainnet",
 		// Net:         wire.MainNet,
@@ -99,6 +100,7 @@ var (
 		// // address generation.
 		// HDCoinType: 0,
 	}
+	// BTC_TestNet represents the bitcoin test net
 	BTC_TestNet = &Params{
 		// Name:        "testnet3",
 		// Net:         wire.TestNet3,
@@ -183,6 +185,7 @@ var (
 		// // address generation.
 		// HDCoinType: 1,
 	}
+	// BTC_RegressionNet represents the bitcoin regression test net
 	BTC_RegressionNet = &Params{
 		// Name:        "regtest",
 		// Net:         wire.TestNet,
@@ -245,6 +248,7 @@ var (
 		// // address generation.
 		// HDCoinType: 1,
 	}
+	// BTC_SimNet represents the bitcoin simulation net
 	BTC_SimNet = &Params{
 		// Name:        "simnet",
 		// Net:         wire.SimNet,

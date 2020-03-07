@@ -40,12 +40,14 @@ func (v *Crypto) UnmarshalYAML(unmarshal func(interface{}) error) error {
 const (
  	Bitcoin Crypto = iota
  	Litecoin
+ 	Dogecoin
 )
 
 var (
 	_Crypto = map[Crypto]string{
 		Bitcoin:  "bitcoin",
 		Litecoin: "litecoin",
+		Dogecoin: "dogecoin",
 	}
 	_CryptoNames map[string]Crypto
 )

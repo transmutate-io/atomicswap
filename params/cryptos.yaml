@@ -4,3 +4,4 @@ package: params
 consts:
   - Bitcoin
   - Litecoin
+  - Dogecoin

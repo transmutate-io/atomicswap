@@ -16,7 +16,7 @@ import (
 	"transmutate.io/pkg/atomicswap/stages"
 	"transmutate.io/pkg/atomicswap/types"
 	"transmutate.io/pkg/atomicswap/types/key"
-	"transmutate.io/pkg/btccore"
+	bctypes "transmutate.io/pkg/btccore/types"
 )
 
 // Trade represents an atomic swap trade
@@ -27,8 +27,8 @@ type Trade struct {
 	Role roles.Role
 	// Duration represents the trade lock time
 	Duration  types.Duration
-	token     types.Bytes
-	tokenHash types.Bytes
+	token     bctypes.Bytes
+	tokenHash bctypes.Bytes
 	// Outputs contains the outputs involved
 	Outputs *Outputs
 	// Own contains own user data and keys
@@ -44,21 +44,23 @@ type tradeData struct {
 	Outputs   *Outputs         `yaml:"outputs,omitempty"`
 	Own       *OwnTradeInfo    `yaml:"own,omitempty"`
 	Trader    *TraderTradeInfo `yaml:"trader,omitempty"`
-	Token     types.Bytes      `yaml:"token,omitempty"`
-	TokenHash types.Bytes      `yaml:"token_hash,omitempty"`
+	Token     bctypes.Bytes    `yaml:"token,omitempty"`
+	TokenHash bctypes.Bytes    `yaml:"token_hash,omitempty"`
 }
 
-func newTrade(role roles.Role, stage stages.Stage, ownAmount btccore.Amount, ownCrypto params.Crypto, tradeAmount btccore.Amount, tradeCrypto params.Crypto) (*Trade, error) {
+func newTrade(role roles.Role, stage stages.Stage, ownAmount bctypes.Amount, ownCrypto params.Crypto, tradeAmount bctypes.Amount, tradeCrypto params.Crypto) (*Trade, error) {
 	r := &Trade{
 		Role:  role,
 		Stage: stage,
 		Own: &OwnTradeInfo{
-			Crypto: ownCrypto,
-			Amount: ownAmount,
+			Crypto:          ownCrypto,
+			Amount:          ownAmount,
+			LastBlockHeight: 1,
 		},
 		Trader: &TraderTradeInfo{
-			Crypto: tradeCrypto,
-			Amount: tradeAmount,
+			Crypto:          tradeCrypto,
+			Amount:          tradeAmount,
+			LastBlockHeight: 1,
 		},
 	}
 	if err := r.generateKeys(); err != nil {
@@ -68,7 +70,7 @@ func newTrade(role roles.Role, stage stages.Stage, ownAmount btccore.Amount, own
 }
 
 // NewBuyerTrade starts a trade as a buyer
-func NewBuyerTrade(ownAmount btccore.Amount, ownCrypto params.Crypto, tradeAmount btccore.Amount, tradeCrypto params.Crypto) (*Trade, error) {
+func NewBuyerTrade(ownAmount bctypes.Amount, ownCrypto params.Crypto, tradeAmount bctypes.Amount, tradeCrypto params.Crypto) (*Trade, error) {
 	return newTrade(
 		roles.Buyer,
 		stages.SharePublicKeyHash,
@@ -80,7 +82,7 @@ func NewBuyerTrade(ownAmount btccore.Amount, ownCrypto params.Crypto, tradeAmoun
 }
 
 // NewSellerTrade starts a trade as a seller
-func NewSellerTrade(ownAmount btccore.Amount, ownCrypto params.Crypto, tradeAmount btccore.Amount, tradeCrypto params.Crypto) (*Trade, error) {
+func NewSellerTrade(ownAmount bctypes.Amount, ownCrypto params.Crypto, tradeAmount bctypes.Amount, tradeCrypto params.Crypto) (*Trade, error) {
 	r, err := newTrade(
 		roles.Seller,
 		stages.ReceivePublicKeyHash,
@@ -101,8 +103,8 @@ func NewSellerTrade(ownAmount btccore.Amount, ownCrypto params.Crypto, tradeAmou
 type (
 	// Output represents an output
 	Output struct {
-		TxID types.Bytes `yaml:"txid,omitempty"`
-		N    uint32      `yaml:"n"`
+		TxID bctypes.Bytes `yaml:"txid,omitempty"`
+		N    uint32        `yaml:"n"`
 	}
 
 	// Outputs represents the outputs involved
@@ -114,25 +116,25 @@ type (
 	// OwnTradeInfo represents the own user trade info
 	OwnTradeInfo struct {
 		Crypto          params.Crypto  `yaml:"crypto"`
-		Amount          btccore.Amount `yaml:"amount"`
-		LastBlockHeight int            `yaml:"last_block_height"`
+		Amount          bctypes.Amount `yaml:"amount"`
+		LastBlockHeight uint64         `yaml:"last_block_height"`
 		RedeemKey       *key.Private   `yaml:"redeem_key,omitempty"`
 		RecoveryKey     *key.Private   `yaml:"recover_key,omitempty"`
-		LockScript      types.Bytes    `yaml:"lock_script,omitempty"`
+		LockScript      bctypes.Bytes  `yaml:"lock_script,omitempty"`
 	}
 
 	// TraderTradeInfo represents the trader trade info
 	TraderTradeInfo struct {
 		Crypto          params.Crypto  `yaml:"crypto"`
-		Amount          btccore.Amount `yaml:"amount"`
-		LastBlockHeight int            `yaml:"last_block_height"`
-		RedeemKeyHash   types.Bytes    `yaml:"recover_key_hash,omitempty"`
-		LockScript      types.Bytes    `yaml:"lock_script,omitempty"`
+		Amount          bctypes.Amount `yaml:"amount"`
+		LastBlockHeight uint64         `yaml:"last_block_height"`
+		RedeemKeyHash   bctypes.Bytes  `yaml:"recover_key_hash,omitempty"`
+		LockScript      bctypes.Bytes  `yaml:"lock_script,omitempty"`
 	}
 )
 
 // TokenHash returns the token hash if set, otherwise nil
-func (t *Trade) TokenHash() types.Bytes {
+func (t *Trade) TokenHash() bctypes.Bytes {
 	if t.token != nil {
 		return hash.Hash160(t.token)
 	}
@@ -140,13 +142,13 @@ func (t *Trade) TokenHash() types.Bytes {
 }
 
 // Token returns the token if set, otherwise nil
-func (t *Trade) Token() types.Bytes { return t.token }
+func (t *Trade) Token() bctypes.Bytes { return t.token }
 
 // SetTokenHash sets the token hash
-func (t *Trade) SetTokenHash(tokenHash types.Bytes) { t.tokenHash = tokenHash }
+func (t *Trade) SetTokenHash(tokenHash bctypes.Bytes) { t.tokenHash = tokenHash }
 
 // SetToken sets the token
-func (t *Trade) SetToken(token types.Bytes) {
+func (t *Trade) SetToken(token bctypes.Bytes) {
 	t.token = token
 	t.tokenHash = hash.Hash160(token)
 }

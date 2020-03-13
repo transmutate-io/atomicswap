@@ -16,28 +16,31 @@ import (
 	"gopkg.in/yaml.v2"
 	"transmutate.io/pkg/atomicswap"
 	"transmutate.io/pkg/atomicswap/addr"
+	"transmutate.io/pkg/atomicswap/hash"
 	"transmutate.io/pkg/atomicswap/params"
 	"transmutate.io/pkg/atomicswap/script"
 	"transmutate.io/pkg/atomicswap/stages"
-	"transmutate.io/pkg/atomicswap/types"
 	"transmutate.io/pkg/btccore"
+	bctypes "transmutate.io/pkg/btccore/types"
 )
 
 var (
-	btcClient = &btccore.Client{
-		Address:  envOr("BTC_HOST", "bitcoin-core-testnet.docker:3333"),
-		Username: "admin",
-		Password: "pass",
-	}
-	ltcClient = &btccore.Client{
-		Address:  envOr("LTC_HOST", "litecoin-testnet.docker:2222"),
-		Username: "admin",
-		Password: "pass",
-	}
+	btcClient = btccore.NewClientBTC(
+		envOr("BTC_HOST", "bitcoin-core-testnet.docker:4444"),
+		"admin",
+		"pass",
+		false,
+	)
+	ltcClient = btccore.NewClientLTC(
+		envOr("LTC_HOST", "litecoin-testnet.docker:4444"),
+		"admin",
+		"pass",
+		false,
+	)
 	btcMinerAddr, ltcMinerAddr string
 )
 
-func setupMinerAddress(cl *btccore.Client, minerAddr *string) error {
+func setupMinerAddress(cl btccore.Client, minerAddr *string) error {
 	if minerAddr == nil {
 		return errors.New("need a miner address")
 	}
@@ -45,7 +48,7 @@ func setupMinerAddress(cl *btccore.Client, minerAddr *string) error {
 		return nil
 	}
 	// find existing addresses
-	funds, err := cl.ListReceivedByAddress(0, true, false, nil)
+	funds, err := cl.ReceivedByAddress(0, true, nil)
 	if err != nil {
 		return err
 	}
@@ -53,7 +56,7 @@ func setupMinerAddress(cl *btccore.Client, minerAddr *string) error {
 		*minerAddr = funds[0].Address
 	} else {
 		// generate new address
-		addr, err := cl.GetNewAddress()
+		addr, err := cl.NewAddress()
 		if err != nil {
 			return err
 		}
@@ -62,7 +65,7 @@ func setupMinerAddress(cl *btccore.Client, minerAddr *string) error {
 	return nil
 }
 
-func setupMiner(cl *btccore.Client, minerAddr *string, minValue btccore.Amount) error {
+func setupMiner(cl btccore.Client, minerAddr *string, minValue bctypes.Amount) error {
 	if err := setupMinerAddress(cl, minerAddr); err != nil {
 		return err
 	}
@@ -73,19 +76,19 @@ func setupMiner(cl *btccore.Client, minerAddr *string, minValue btccore.Amount) 
 }
 
 func init() {
-	if err := setupMiner(btcClient, &btcMinerAddr, bobAmount+stdFee*2); err != nil {
+	if err := setupMiner(btcClient, &btcMinerAddr, bctypes.NewAmount(bobAmount.UInt64(8)+stdFee*2, 8)); err != nil {
 		panic(err)
 	}
-	if err := setupMiner(ltcClient, &ltcMinerAddr, aliceAmount+stdFee*2); err != nil {
+	if err := setupMiner(ltcClient, &ltcMinerAddr, bctypes.NewAmount(aliceAmount.UInt64(8)+stdFee*2, 8)); err != nil {
 		panic(err)
 	}
 }
 
-const stdFee = 1000
+const stdFee uint64 = 1000
 
 func handleTrade(c chan interface{}, t *atomicswap.Trade, printf printfFunc, failAfterLock bool, contractDuration time.Duration) error {
 	var (
-		ownCl, traderCl               *btccore.Client
+		ownCl, traderCl               btccore.Client
 		ownCp, traderCp               *params.Params
 		ownMinerAddr, traderMinerAddr string
 	)
@@ -109,12 +112,12 @@ func handleTrade(c chan interface{}, t *atomicswap.Trade, printf printfFunc, fai
 		switch t.Stage {
 		case stages.SharePublicKeyHash:
 			// use a channel to exchange data back and forth
-			c <- types.Bytes(t.Own.RedeemKey.Public().Hash160())
+			c <- bctypes.Bytes(hash.Hash160(t.Own.RedeemKey.Public().SerializeCompressed()))
 			printf("sent public key hash\n")
 			t.NextStage()
 		case stages.ReceivePublicKeyHash:
 			// use a channel to exchange data back and forth
-			t.Trader.RedeemKeyHash = (<-c).(types.Bytes)
+			t.Trader.RedeemKeyHash = (<-c).(bctypes.Bytes)
 			printf("received public key hash: %s\n", t.Trader.RedeemKeyHash.Hex())
 			t.NextStage()
 		case stages.ShareTokenHash:
@@ -124,12 +127,12 @@ func handleTrade(c chan interface{}, t *atomicswap.Trade, printf printfFunc, fai
 			t.NextStage()
 		case stages.ReceiveTokenHash:
 			// use a channel to exchange data back and forth
-			t.SetTokenHash((<-c).(types.Bytes))
+			t.SetTokenHash((<-c).(bctypes.Bytes))
 			printf("received token hash: %s\n", t.TokenHash().Hex())
 			t.NextStage()
 		case stages.ReceiveLockScript:
 			// use a channel to exchange data back and forth
-			ls := (<-c).(types.Bytes)
+			ls := (<-c).(bctypes.Bytes)
 			ds, err := script.DisassembleString(ls)
 			if err != nil {
 				return err
@@ -157,7 +160,7 @@ func handleTrade(c chan interface{}, t *atomicswap.Trade, printf printfFunc, fai
 			t.NextStage()
 		case stages.WaitLockTransaction:
 			// use the client to find a deposit
-			txOut, err := waitDeposit(traderCl, traderCp, t.Trader.LastBlockHeight, t.Trader.LockScript.Hash160())
+			txOut, err := waitDeposit(traderCl, traderCp, t.Trader.LastBlockHeight, hash.Hash160(t.Trader.LockScript))
 			if err != nil {
 				return err
 			}
@@ -176,37 +179,33 @@ func handleTrade(c chan interface{}, t *atomicswap.Trade, printf printfFunc, fai
 			t.NextStage()
 		case stages.LockFunds:
 			// calculate deposit address
-			depositAddr, err := addr.P2SH(t.Own.LockScript.Hash160(), ownCp)
+			depositAddr, err := addr.P2SH(hash.Hash160(t.Own.LockScript), ownCp)
 			if err != nil {
 				return err
 			}
-			txID, err := ownCl.SendToAddress(depositAddr, t.Own.Amount+stdFee)
+			txID, err := ownCl.SendToAddress(depositAddr, bctypes.NewAmount(t.Own.Amount.UInt64(8)+stdFee, 8))
 			if err != nil {
 				return err
 			}
 			if _, err = ownCl.GenerateToAddress(101, ownMinerAddr); err != nil {
 				return err
 			}
-			b, err := hex.DecodeString(txID)
-			if err != nil {
-				return err
-			}
 			// find transaction
-			tx, err := ownCl.GetRawTransaction(b)
+			tx, err := ownCl.Transaction(txID)
 			if err != nil {
 				return err
 			}
 			// save recoverable output
-			for _, i := range tx.VOut {
-				if i.ScriptPubKey.Type == "scripthash" && len(i.ScriptPubKey.Addresses) > 0 && i.ScriptPubKey.Addresses[0] == depositAddr {
-					t.SetRecoverableOutput(&atomicswap.Output{TxID: b, N: uint32(i.N)})
+			for _, i := range tx.Outputs {
+				if i.UnlockScript.Type == "scripthash" && len(i.UnlockScript.Addresses) > 0 && i.UnlockScript.Addresses[0] == depositAddr {
+					t.SetRecoverableOutput(&atomicswap.Output{TxID: txID, N: uint32(i.N)})
 					break
 				}
 			}
 			if t.Outputs == nil || t.Outputs.Recoverable == nil {
 				return errors.New("recoverable output not found")
 			}
-			printf("funds locked: tx %s\n", txID)
+			printf("funds locked: tx %s\n", txID.Hex())
 			t.NextStage()
 			if failAfterLock {
 				return nil
@@ -222,19 +221,19 @@ func handleTrade(c chan interface{}, t *atomicswap.Trade, printf printfFunc, fai
 			t.SetToken(token)
 			t.NextStage()
 		case stages.RedeemFunds:
-			redeemTx, err := t.RedeemTransaction(uint64(t.Trader.Amount))
+			redeemTx, err := t.RedeemTransaction(t.Trader.Amount.UInt64(8))
 			b, err := redeemTx.Serialize()
 			if err != nil {
 				return err
 			}
-			txID, err := traderCl.SendRawTransaction(b, nil)
+			txID, err := traderCl.SendRawTransaction(b)
 			if err != nil {
 				return err
 			}
 			if _, err = traderCl.GenerateToAddress(101, traderMinerAddr); err != nil {
 				return err
 			}
-			printf("funds redeemed: tx %s\n", txID)
+			printf("funds redeemed: tx %s\n", txID.Hex())
 			t.NextStage()
 		case stages.Done:
 			printf("stage: %s\n", stages.Done)
@@ -247,22 +246,22 @@ func handleTrade(c chan interface{}, t *atomicswap.Trade, printf printfFunc, fai
 
 var errClosed = errors.New("closed")
 
-func blockIterator(cl *btccore.Client, startBlockHeight int) (func() (*btccore.Block, error), func()) {
+func blockIterator(cl btccore.Client, startBlockHeight uint64) (func() (*bctypes.Block, error), func()) {
 	cc := make(chan struct{})
 	errc := make(chan error, 1)
-	blkc := make(chan *btccore.Block)
+	blkc := make(chan *bctypes.Block)
 	go func() {
 		defer close(blkc)
 		defer close(errc)
 		var (
-			bh  btccore.HexBytes
+			bh  bctypes.Bytes
 			err error
 		)
 		for {
 			if bh == nil {
-				bh, err = cl.GetBlockHash(startBlockHeight)
+				bh, err = cl.BlockHash(startBlockHeight)
 				if err != nil {
-					e, ok := err.(*btccore.WalletError)
+					e, ok := err.(*btccore.ClientError)
 					if !ok || e.Code != -8 {
 						errc <- err
 						return
@@ -271,7 +270,7 @@ func blockIterator(cl *btccore.Client, startBlockHeight int) (func() (*btccore.B
 					continue
 				}
 			}
-			blk, err := cl.GetBlock(bh, true)
+			blk, err := cl.Block(bh)
 			if err != nil {
 				errc <- err
 				return
@@ -289,7 +288,7 @@ func blockIterator(cl *btccore.Client, startBlockHeight int) (func() (*btccore.B
 			}
 		}
 	}()
-	return func() (*btccore.Block, error) {
+	return func() (*bctypes.Block, error) {
 			select {
 			case err := <-errc:
 				return nil, err
@@ -305,12 +304,12 @@ func blockIterator(cl *btccore.Client, startBlockHeight int) (func() (*btccore.B
 }
 
 type txOut struct {
-	blockHeight int
+	blockHeight uint64
 	txID        []byte
 	n           uint32
 }
 
-func waitDeposit(cl *btccore.Client, chainParams *params.Params, startBlockHeight int, scriptHash []byte) (*txOut, error) {
+func waitDeposit(cl btccore.Client, chainParams *params.Params, startBlockHeight uint64, scriptHash []byte) (*txOut, error) {
 	depositAddr, err := addr.P2SH(scriptHash, chainParams)
 	if err != nil {
 		return nil, err
@@ -323,25 +322,29 @@ func waitDeposit(cl *btccore.Client, chainParams *params.Params, startBlockHeigh
 			return nil, err
 		}
 		startBlockHeight++
-		for _, i := range blk.Transactions.Raw() {
-			for _, j := range i.VOut {
-				if j.ScriptPubKey.Type != "scripthash" {
+		for _, i := range blk.Transactions {
+			tx, err := cl.Transaction(i)
+			if err != nil {
+				return nil, err
+			}
+			for _, j := range tx.Outputs {
+				if j.UnlockScript.Type != "scripthash" {
 					continue
 				}
-				if len(j.ScriptPubKey.Addresses) < 1 {
+				if len(j.UnlockScript.Addresses) < 1 {
 					continue
 				}
-				if j.ScriptPubKey.Addresses[0] != depositAddr {
+				if j.UnlockScript.Addresses[0] != depositAddr {
 					continue
 				}
-				return &txOut{blockHeight: startBlockHeight, txID: i.ID, n: uint32(j.N)}, nil
+				return &txOut{blockHeight: startBlockHeight, txID: tx.ID, n: uint32(j.N)}, nil
 			}
 		}
 
 	}
 }
 
-func waitRedeem(cl *btccore.Client, chainParams *params.Params, startBlockHeight int, txID []byte, idx int) ([]byte, error) {
+func waitRedeem(cl btccore.Client, chainParams *params.Params, startBlockHeight uint64, txID []byte, idx int) ([]byte, error) {
 	next, close := blockIterator(cl, startBlockHeight)
 	defer close()
 	for {
@@ -349,12 +352,16 @@ func waitRedeem(cl *btccore.Client, chainParams *params.Params, startBlockHeight
 		if err != nil {
 			return nil, err
 		}
-		for _, i := range blk.Transactions.Raw() {
-			for _, j := range i.VIn {
-				if !bytes.Equal(j.TransactionID, txID) || j.VOut != idx {
+		for _, i := range blk.Transactions {
+			tx, err := cl.Transaction(i)
+			if err != nil {
+				return nil, err
+			}
+			for _, j := range tx.Inputs {
+				if !bytes.Equal(j.TransactionID, txID) || j.N != idx {
 					continue
 				}
-				inst := strings.Split(j.ScriptSig.Asm, " ")
+				inst := strings.Split(j.LockScript.Asm, " ")
 				if len(inst) != 5 || !strings.HasSuffix(inst[0], "[ALL]") || inst[3] != "0" {
 					continue
 				}
@@ -384,10 +391,10 @@ func envOr(envName string, defaultValue string) string {
 	return e
 }
 
-func generateFunds(cl *btccore.Client, minerAddr *string, minValue btccore.Amount) error {
+func generateFunds(cl btccore.Client, minerAddr *string, minValue bctypes.Amount) error {
 	for {
 		// check balance
-		amt, err := cl.GetBalance(0, false, nil)
+		amt, err := cl.Balance(0)
 		if err != nil {
 			return err
 		}
@@ -403,8 +410,8 @@ func generateFunds(cl *btccore.Client, minerAddr *string, minValue btccore.Amoun
 }
 
 const (
-	aliceAmount btccore.Amount = 1000000000
-	bobAmount   btccore.Amount = 100000000
+	aliceAmount = bctypes.Amount("10")
+	bobAmount   = bctypes.Amount("1")
 )
 
 func TestAtomicSwap_BTC_LTC_Redeem(t *testing.T) {
@@ -472,7 +479,7 @@ func TestAtomicSwap_BTC_LTC_Redeem(t *testing.T) {
 
 func recoverFunds(trade *atomicswap.Trade, printf printfFunc) error {
 	var (
-		ownCl        *btccore.Client
+		ownCl        btccore.Client
 		ownMinerAddr string
 	)
 	if trade.Own.Crypto == params.Bitcoin {
@@ -482,7 +489,7 @@ func recoverFunds(trade *atomicswap.Trade, printf printfFunc) error {
 		ownCl = ltcClient
 		ownMinerAddr = ltcMinerAddr
 	}
-	tx, err := trade.RecoveryTransaction(uint64(trade.Own.Amount))
+	tx, err := trade.RecoveryTransaction(trade.Own.Amount.UInt64(8))
 	if err != nil {
 		return err
 	}
@@ -491,11 +498,11 @@ func recoverFunds(trade *atomicswap.Trade, printf printfFunc) error {
 		return err
 	}
 	printf("generate recovery transaction: %s\n", hex.EncodeToString(b))
-	txID, err := ownCl.SendRawTransaction(b, nil)
+	txID, err := ownCl.SendRawTransaction(b)
 	if err != nil {
 		return err
 	}
-	printf("funds recovered: tx: %s\n", txID)
+	printf("funds recovered: tx: %s\n", txID.Hex())
 	_, err = ownCl.GenerateToAddress(1, ownMinerAddr)
 	return err
 }
@@ -534,20 +541,4 @@ func TestAtomicSwap_BTC_LTC_Recover(t *testing.T) {
 	})
 	err := eg.Wait()
 	require.NoError(t, err, "unexpected error")
-}
-
-func getLastBlock(cl *btccore.Client) (btccore.HexBytes, error) {
-	bc, err := cl.GetBlockCount()
-	if err != nil {
-		return nil, err
-	}
-	bh, err := cl.GetBlockHash(int(bc))
-	if err != nil {
-		return nil, err
-	}
-	blk, err := cl.GetBlockHex(bh)
-	if err != nil {
-		return nil, err
-	}
-	return blk, nil
 }

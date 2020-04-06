@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -393,6 +394,7 @@ func (t *Trade) SetRecoverableOutput(out *Output) {
 // RecoveryTransaction returns the recovery transaction for the locked funds
 func (t *Trade) RecoveryTransaction(amount uint64) (*types.Tx, error) {
 	r := types.NewTx()
+	fmt.Printf(">>> %#v\n", t.Outputs)
 	r.AddOutput(amount, script.P2PKHHash(t.Own.RecoveryKey.Public().Hash160()))
 	if err := r.AddInput(t.Outputs.Recoverable.TxID, t.Outputs.Recoverable.N, t.Own.LockScript); err != nil {
 		return nil, err

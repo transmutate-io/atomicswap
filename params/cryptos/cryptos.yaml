@@ -1,0 +1,28 @@
+package: cryptos
+main_file: cryptos.gen.go
+interface_type: Crypto
+type_prefix: crypto
+main_template:
+  template: cryptos.go.tpl
+  out: cryptos.gen.go
+templates:
+- template: crypto.go.tpl
+  out: crypto_btc.gen.go
+  values:
+    name: bitcoin
+    short: BTC
+- template: crypto.go.tpl
+  out: crypto_ltc.gen.go
+  values:
+    name: litecoin
+    short: LTC
+- template: crypto.go.tpl
+  out: crypto_doge.gen.go
+  values:
+    name: dogecoin
+    short: DOGE
+- template: crypto.go.tpl
+  out: crypto_bch.gen.go
+  values:
+    name: bitcoin-cash
+    short: BCH

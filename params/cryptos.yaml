@@ -1,7 +1,0 @@
-type: Crypto
-filename: cryptos.gen.go
-package: params
-consts:
-  - Bitcoin
-  - Litecoin
-  - Dogecoin

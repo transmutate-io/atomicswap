@@ -1,6 +1,6 @@
 package key
 
-import "transmutate.io/pkg/atomicswap/types"
+import "transmutate.io/pkg/atomicswap/yamltypes"
 
 type (
 	NewPrivateFunc = func() (Private, error)
@@ -11,7 +11,7 @@ type (
 	Private interface {
 		Public() Public
 		Sign(b []byte) ([]byte, error)
-		types.YAMLMarshalerUnmarshaler
+		yamltypes.MarshalerUnmarshaler
 		Serialize() []byte
 		Keyer
 	}
@@ -19,7 +19,7 @@ type (
 	Public interface {
 		Hash160() []byte
 		Verify(sig, msg []byte) error
-		types.YAMLMarshalerUnmarshaler
+		yamltypes.MarshalerUnmarshaler
 		SerializeCompressed() []byte
 		Keyer
 	}

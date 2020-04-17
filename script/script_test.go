@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ltcsuite/ltcd/btcec"
+	"github.com/btcsuite/btcd/btcec"
 	"github.com/stretchr/testify/require"
 	"transmutate.io/pkg/atomicswap/hash"
 )

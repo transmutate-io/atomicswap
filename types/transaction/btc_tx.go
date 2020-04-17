@@ -1,4 +1,4 @@
-package types
+package transaction
 
 import (
 	"bytes"
@@ -17,8 +17,8 @@ type btcTx struct {
 	inputScripts [][]byte
 }
 
-// NewTxBTC creates a new *btcTx
-func NewTxBTC() Tx {
+// NewBTC creates a new *btcTx
+func NewBTC() Tx {
 	return &btcTx{
 		tx:           wire.NewMsgTx(wire.TxVersion),
 		inputScripts: make([][]byte, 0, 8),
@@ -150,3 +150,11 @@ func (tx *btcTx) Serialize() ([]byte, error) {
 }
 
 func (tx *btcTx) SerializedSize() uint64 { return uint64(tx.tx.SerializeSize()) }
+
+func (tx *btcTx) Type() TransactionType { return UTXO }
+
+func (tx *btcTx) SetLockTime(lt uint32) { tx.tx.LockTime = lt }
+
+func (tx *btcTx) SetInputSequence(idx int, seq uint32) { tx.tx.TxIn[idx].Sequence = seq }
+
+func (tx *btcTx) TxUTXO() TxUTXO { return tx }

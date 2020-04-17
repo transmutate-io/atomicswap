@@ -1,0 +1,6 @@
+type: TransactionType
+filename: tx_types.gen.go
+package: transaction
+consts:
+  UTXO: utxo
+  StateBased: state-based

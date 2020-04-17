@@ -1,12 +1,12 @@
-package types
+package transaction
 
 import "github.com/btcsuite/btcd/wire"
 
-type dogeTx = btcTx
+type ltcTx = btcTx
 
-// NewTxDOGE creates a new *dogeTx
-func NewTxDOGE() Tx {
-	return &dogeTx{
+// NewLTC creates a new *ltcTx
+func NewLTC() Tx {
+	return &ltcTx{
 		tx:           wire.NewMsgTx(wire.TxVersion),
 		inputScripts: make([][]byte, 0, 8),
 	}

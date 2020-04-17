@@ -1,4 +1,4 @@
-package types
+package transaction
 
 import (
 	"bytes"
@@ -11,35 +11,35 @@ import (
 	"transmutate.io/pkg/atomicswap/types/key"
 )
 
-type btcCashTx struct {
+type bchTx struct {
 	tx           *wire.MsgTx
 	inputScripts [][]byte
 }
 
-// NewTxBTCCash creates a new *btcCashTx
-func NewTxBTCCash() Tx {
-	return &btcCashTx{
+// NewBCH creates a new *bchTx
+func NewBCH() Tx {
+	return &bchTx{
 		tx:           wire.NewMsgTx(wire.TxVersion),
 		inputScripts: make([][]byte, 0, 8),
 	}
 }
 
-func (tx *btcCashTx) Tx() interface{} { return tx.tx }
+func (tx *bchTx) Tx() interface{} { return tx.tx }
 
-func (tx *btcCashTx) Copy() Tx {
-	return &btcCashTx{
+func (tx *bchTx) Copy() Tx {
+	return &bchTx{
 		tx:           tx.tx.Copy(),
 		inputScripts: copyInputScripts(tx.inputScripts),
 	}
 }
 
 // AddOutput adds an output to the transaction
-func (tx *btcCashTx) AddOutput(value uint64, script []byte) {
+func (tx *bchTx) AddOutput(value uint64, script []byte) {
 	tx.tx.AddTxOut(wire.NewTxOut(int64(value), script))
 }
 
 // AddInput adds an input to the transaction
-func (tx *btcCashTx) AddInput(txID []byte, idx uint32, script []byte) error {
+func (tx *bchTx) AddInput(txID []byte, idx uint32, script []byte) error {
 	txHash := bytesReverse(txID)
 	h, err := chainhash.NewHash(txHash)
 	if err != nil {
@@ -51,18 +51,19 @@ func (tx *btcCashTx) AddInput(txID []byte, idx uint32, script []byte) error {
 }
 
 // InputSignature signature for an existing input
-func (tx *btcCashTx) InputSignature(idx int, hashType uint32, privKey key.Private) ([]byte, error) {
+func (tx *bchTx) InputSignature(idx int, hashType uint32, privKey key.Private) ([]byte, error) {
+	key := privKey.Key().(*bchec.PrivateKey)
 	return txscript.LegacyTxInSignature(
 		tx.tx,
 		idx,
 		tx.inputScripts[idx],
 		txscript.SigHashType(hashType)|txscript.SigHashForkID,
-		privKey.Key().(*bchec.PrivateKey),
+		key,
 	)
 }
 
 // SignP2PKInput signs an p2pk input
-func (tx *btcCashTx) SignP2PKInput(idx int, hashType uint32, privKey key.Private) error {
+func (tx *bchTx) SignP2PKInput(idx int, hashType uint32, privKey key.Private) error {
 	sig, err := tx.InputSignature(idx, hashType, privKey)
 	if err != nil {
 		return err
@@ -76,7 +77,7 @@ func (tx *btcCashTx) SignP2PKInput(idx int, hashType uint32, privKey key.Private
 }
 
 // SignP2PKHInput signs a p2pkh input
-func (tx *btcCashTx) SignP2PKHInput(idx int, hashType uint32, privKey key.Private) error {
+func (tx *bchTx) SignP2PKHInput(idx int, hashType uint32, privKey key.Private) error {
 	sig, err := tx.InputSignature(idx, hashType, privKey)
 	if err != nil {
 		return err
@@ -93,7 +94,7 @@ func (tx *btcCashTx) SignP2PKHInput(idx int, hashType uint32, privKey key.Privat
 }
 
 // SetP2SHInputPrefixes sets the prefix data for a p2sh input
-func (tx *btcCashTx) SetP2SHInputPrefixes(idx int, pref ...[]byte) error {
+func (tx *bchTx) SetP2SHInputPrefixes(idx int, pref ...[]byte) error {
 	b := make([]byte, 0, 1024)
 	for _, i := range pref {
 		b = append(b, script.Data(i)...)
@@ -108,7 +109,7 @@ func (tx *btcCashTx) SetP2SHInputPrefixes(idx int, pref ...[]byte) error {
 }
 
 // AddP2SHInputPrefix add a prefix to a p2sh input
-func (tx *btcCashTx) AddP2SHInputPrefix(idx int, p []byte) {
+func (tx *bchTx) AddP2SHInputPrefix(idx int, p []byte) {
 	var ss []byte
 	if ss = tx.tx.TxIn[idx].SignatureScript; ss == nil {
 		ss = []byte{}
@@ -117,12 +118,12 @@ func (tx *btcCashTx) AddP2SHInputPrefix(idx int, p []byte) {
 }
 
 // SetP2SHInputSignatureScript sets the signatureScript field of a p2sh input
-func (tx *btcCashTx) SetP2SHInputSignatureScript(idx int, ss []byte) {
+func (tx *bchTx) SetP2SHInputSignatureScript(idx int, ss []byte) {
 	tx.tx.TxIn[idx].SignatureScript = ss
 }
 
 // Serialize serializes the transaction
-func (tx *btcCashTx) Serialize() ([]byte, error) {
+func (tx *bchTx) Serialize() ([]byte, error) {
 	r := bytes.NewBuffer(make([]byte, 0, 1024))
 	if err := tx.tx.Serialize(r); err != nil {
 		return nil, err
@@ -130,4 +131,12 @@ func (tx *btcCashTx) Serialize() ([]byte, error) {
 	return r.Bytes(), nil
 }
 
-func (tx *btcCashTx) SerializedSize() uint64 { return uint64(tx.tx.SerializeSize()) }
+func (tx *bchTx) SerializedSize() uint64 { return uint64(tx.tx.SerializeSize()) }
+
+func (tx *bchTx) Type() TransactionType { return UTXO }
+
+func (tx *bchTx) SetLockTime(lt uint32) { tx.tx.LockTime = lt }
+
+func (tx *bchTx) SetInputSequence(idx int, seq uint32) { tx.tx.TxIn[idx].Sequence = seq }
+
+func (tx *bchTx) TxUTXO() TxUTXO { return tx }

@@ -1,8 +1,8 @@
 package {{ .All.Package | default "main" }}
 
 import (
-	"transmutate.io/pkg/atomicswap/types/key"
-	"transmutate.io/pkg/atomicswap/types/transaction"
+	"transmutate.io/pkg/atomicswap/key"
+	"transmutate.io/pkg/atomicswap/transaction"
 )
 
 func newCrypto{{ .Self.short }}() Crypto {

@@ -3,9 +3,9 @@ package cryptos
 import (
 	"fmt"
 
+	"transmutate.io/pkg/atomicswap/key"
+	"transmutate.io/pkg/atomicswap/transaction"
 	"transmutate.io/pkg/atomicswap/types"
-	"transmutate.io/pkg/atomicswap/types/key"
-	"transmutate.io/pkg/atomicswap/types/transaction"
 )
 
 type (

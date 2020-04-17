@@ -140,4 +140,6 @@ func (tx *bchTx) SetInputSequence(idx int, seq uint32) { tx.tx.TxIn[idx].Sequenc
 
 func (tx *bchTx) TxUTXO() TxUTXO { return tx }
 
+func (tx *bchTx) TxStateBased() TxStateBased { panic(ErrNotStateBased) }
+
 func (tx *bchTx) Type() cryptotypes.CryptoType { return cryptotypes.UTXO }

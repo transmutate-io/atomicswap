@@ -1,6 +1,8 @@
 package transaction
 
 import (
+	"errors"
+
 	"transmutate.io/pkg/atomicswap/cryptotypes"
 	"transmutate.io/pkg/atomicswap/key"
 )
@@ -26,10 +28,18 @@ type (
 		SetInputSequence(idx int, seq uint32)
 	}
 
+	TxStateBased interface{}
+
 	Tx interface {
 		Copy() Tx
 		Type() cryptotypes.CryptoType
 		TxUTXO() TxUTXO
+		TxStateBased() TxStateBased
 		Serializer
 	}
+)
+
+var (
+	ErrNotStateBased = errors.New("not state based")
+	ErrNotUTXO       = errors.New("not UTXO")
 )

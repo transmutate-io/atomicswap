@@ -1,7 +1,8 @@
 package transaction
 
 import (
-	"transmutate.io/pkg/atomicswap/types/key"
+	"transmutate.io/pkg/atomicswap/cryptotypes"
+	"transmutate.io/pkg/atomicswap/key"
 )
 
 type (
@@ -27,7 +28,7 @@ type (
 
 	Tx interface {
 		Copy() Tx
-		Type() TransactionType
+		Type() cryptotypes.CryptoType
 		TxUTXO() TxUTXO
 		Serializer
 	}

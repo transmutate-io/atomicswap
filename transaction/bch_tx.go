@@ -3,83 +3,68 @@ package transaction
 import (
 	"bytes"
 
-	"github.com/btcsuite/btcd/btcec"
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
+	"github.com/gcash/bchd/bchec"
+	"github.com/gcash/bchd/chaincfg/chainhash"
+	"github.com/gcash/bchd/txscript"
+	"github.com/gcash/bchd/wire"
+	"transmutate.io/pkg/atomicswap/cryptotypes"
+	"transmutate.io/pkg/atomicswap/key"
 	"transmutate.io/pkg/atomicswap/script"
-	"transmutate.io/pkg/atomicswap/types/key"
 )
 
-// tx represents a transaction
-type btcTx struct {
+type bchTx struct {
 	tx           *wire.MsgTx
 	inputScripts [][]byte
 }
 
-// NewBTC creates a new *btcTx
-func NewBTC() Tx {
-	return &btcTx{
+// NewBCH creates a new *bchTx
+func NewBCH() Tx {
+	return &bchTx{
 		tx:           wire.NewMsgTx(wire.TxVersion),
 		inputScripts: make([][]byte, 0, 8),
 	}
 }
-func copyInputScripts(inputs [][]byte) [][]byte {
-	r := make([][]byte, 0, 8)
-	for _, i := range inputs {
-		r = append(r, append(make([]byte, 0, len(i)), i...))
-	}
-	return r
-}
 
-func (tx *btcTx) Copy() Tx {
-	return &btcTx{
+func (tx *bchTx) Tx() interface{} { return tx.tx }
+
+func (tx *bchTx) Copy() Tx {
+	return &bchTx{
 		tx:           tx.tx.Copy(),
 		inputScripts: copyInputScripts(tx.inputScripts),
 	}
 }
 
-func (tx *btcTx) Tx() interface{} { return tx.tx }
-
 // AddOutput adds an output to the transaction
-func (tx *btcTx) AddOutput(value uint64, script []byte) {
+func (tx *bchTx) AddOutput(value uint64, script []byte) {
 	tx.tx.AddTxOut(wire.NewTxOut(int64(value), script))
 }
 
-func bytesReverse(b []byte) []byte {
-	sz := len(b)
-	r := make([]byte, sz)
-	for i := 0; i < sz; i++ {
-		r[i] = b[sz-1-i]
-	}
-	return r
-}
-
 // AddInput adds an input to the transaction
-func (tx *btcTx) AddInput(txID []byte, idx uint32, script []byte) error {
+func (tx *bchTx) AddInput(txID []byte, idx uint32, script []byte) error {
 	txHash := bytesReverse(txID)
 	h, err := chainhash.NewHash(txHash)
 	if err != nil {
 		return err
 	}
-	tx.tx.AddTxIn(wire.NewTxIn(wire.NewOutPoint(h, idx), nil, nil))
+	tx.tx.AddTxIn(wire.NewTxIn(wire.NewOutPoint(h, idx), nil))
 	tx.inputScripts = append(tx.inputScripts, script)
 	return nil
 }
 
 // InputSignature signature for an existing input
-func (tx *btcTx) InputSignature(idx int, hashType uint32, privKey key.Private) ([]byte, error) {
-	return txscript.RawTxInSignature(
+func (tx *bchTx) InputSignature(idx int, hashType uint32, privKey key.Private) ([]byte, error) {
+	key := privKey.Key().(*bchec.PrivateKey)
+	return txscript.LegacyTxInSignature(
 		tx.tx,
 		idx,
 		tx.inputScripts[idx],
-		txscript.SigHashType(hashType),
-		privKey.Key().(*btcec.PrivateKey),
+		txscript.SigHashType(hashType)|txscript.SigHashForkID,
+		key,
 	)
 }
 
 // SignP2PKInput signs an p2pk input
-func (tx *btcTx) SignP2PKInput(idx int, hashType uint32, privKey key.Private) error {
+func (tx *bchTx) SignP2PKInput(idx int, hashType uint32, privKey key.Private) error {
 	sig, err := tx.InputSignature(idx, hashType, privKey)
 	if err != nil {
 		return err
@@ -92,17 +77,15 @@ func (tx *btcTx) SignP2PKInput(idx int, hashType uint32, privKey key.Private) er
 	return nil
 }
 
-func bytesConcat(b ...[]byte) []byte { return bytes.Join(b, []byte{}) }
-
 // SignP2PKHInput signs a p2pkh input
-func (tx *btcTx) SignP2PKHInput(idx int, hashType uint32, privKey key.Private) error {
+func (tx *bchTx) SignP2PKHInput(idx int, hashType uint32, privKey key.Private) error {
 	sig, err := tx.InputSignature(idx, hashType, privKey)
 	if err != nil {
 		return err
 	}
 	s, err := script.Validate(bytesConcat(
 		script.Data(sig),
-		script.Data(privKey.Key().(*btcec.PublicKey).SerializeCompressed()),
+		script.Data(privKey.Public().SerializeCompressed()),
 	))
 	if err != nil {
 		return err
@@ -112,7 +95,7 @@ func (tx *btcTx) SignP2PKHInput(idx int, hashType uint32, privKey key.Private) e
 }
 
 // SetP2SHInputPrefixes sets the prefix data for a p2sh input
-func (tx *btcTx) SetP2SHInputPrefixes(idx int, pref ...[]byte) error {
+func (tx *bchTx) SetP2SHInputPrefixes(idx int, pref ...[]byte) error {
 	b := make([]byte, 0, 1024)
 	for _, i := range pref {
 		b = append(b, script.Data(i)...)
@@ -127,7 +110,7 @@ func (tx *btcTx) SetP2SHInputPrefixes(idx int, pref ...[]byte) error {
 }
 
 // AddP2SHInputPrefix add a prefix to a p2sh input
-func (tx *btcTx) AddP2SHInputPrefix(idx int, p []byte) {
+func (tx *bchTx) AddP2SHInputPrefix(idx int, p []byte) {
 	var ss []byte
 	if ss = tx.tx.TxIn[idx].SignatureScript; ss == nil {
 		ss = []byte{}
@@ -136,12 +119,12 @@ func (tx *btcTx) AddP2SHInputPrefix(idx int, p []byte) {
 }
 
 // SetP2SHInputSignatureScript sets the signatureScript field of a p2sh input
-func (tx *btcTx) SetP2SHInputSignatureScript(idx int, ss []byte) {
+func (tx *bchTx) SetP2SHInputSignatureScript(idx int, ss []byte) {
 	tx.tx.TxIn[idx].SignatureScript = ss
 }
 
 // Serialize serializes the transaction
-func (tx *btcTx) Serialize() ([]byte, error) {
+func (tx *bchTx) Serialize() ([]byte, error) {
 	r := bytes.NewBuffer(make([]byte, 0, 1024))
 	if err := tx.tx.Serialize(r); err != nil {
 		return nil, err
@@ -149,12 +132,12 @@ func (tx *btcTx) Serialize() ([]byte, error) {
 	return r.Bytes(), nil
 }
 
-func (tx *btcTx) SerializedSize() uint64 { return uint64(tx.tx.SerializeSize()) }
+func (tx *bchTx) SerializedSize() uint64 { return uint64(tx.tx.SerializeSize()) }
 
-func (tx *btcTx) Type() TransactionType { return UTXO }
+func (tx *bchTx) SetLockTime(lt uint32) { tx.tx.LockTime = lt }
 
-func (tx *btcTx) SetLockTime(lt uint32) { tx.tx.LockTime = lt }
+func (tx *bchTx) SetInputSequence(idx int, seq uint32) { tx.tx.TxIn[idx].Sequence = seq }
 
-func (tx *btcTx) SetInputSequence(idx int, seq uint32) { tx.tx.TxIn[idx].Sequence = seq }
+func (tx *bchTx) TxUTXO() TxUTXO { return tx }
 
-func (tx *btcTx) TxUTXO() TxUTXO { return tx }
+func (tx *bchTx) Type() cryptotypes.CryptoType { return cryptotypes.UTXO }

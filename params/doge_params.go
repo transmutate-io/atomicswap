@@ -22,11 +22,3 @@ var (
 		privateKeyID:     0xEF,
 	}
 )
-
-func init() {
-	Networks["dogecoin"] = map[Chain]Params{
-		MainNet:       DOGE_MainNet,
-		TestNet:       DOGE_TestNet,
-		RegressionNet: DOGE_RegressionNet,
-	}
-}

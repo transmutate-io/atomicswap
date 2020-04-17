@@ -28,12 +28,3 @@ var (
 		privateKeyID:     0xef, // starts with 9 (uncompressed) or c (compressed)
 	}
 )
-
-func init() {
-	Networks["litecoin"] = map[Chain]Params{
-		MainNet:       LTC_MainNet,
-		TestNet:       LTC_TestNet,
-		SimNet:        LTC_SimNet,
-		RegressionNet: LTC_RegressionNet,
-	}
-}

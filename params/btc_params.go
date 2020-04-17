@@ -85,12 +85,3 @@ var (
 		privateKeyID:     0x64, // starts with 4 (uncompressed) or F (compressed)
 	}
 )
-
-func init() {
-	Networks["bitcoin"] = map[Chain]Params{
-		MainNet:       BTC_MainNet,
-		TestNet:       BTC_TestNet,
-		SimNet:        BTC_SimNet,
-		RegressionNet: BTC_RegressionNet,
-	}
-}

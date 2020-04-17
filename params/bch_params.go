@@ -91,12 +91,3 @@ var (
 		privateKeyID:     0x64,
 	}
 )
-
-func init() {
-	Networks["bitcoin-cash"] = map[Chain]Params{
-		MainNet:       BCH_MainNet,
-		TestNet:       BCH_TestNet,
-		SimNet:        BCH_SimNet,
-		RegressionNet: BCH_RegressionNet,
-	}
-}

@@ -8,17 +8,22 @@ import (
 	"transmutate.io/pkg/atomicswap/hash"
 )
 
-type privateBTCCash struct{ *bchec.PrivateKey }
+type privateBCH struct{ *bchec.PrivateKey }
 
-func NewPrivateBTCCash() (Private, error) {
+func ParsePrivateBCH(b []byte) Private {
+	priv, _ := bchec.PrivKeyFromBytes(bchec.S256(), b)
+	return &privateBCH{PrivateKey: priv}
+}
+
+func NewPrivateBCH() (Private, error) {
 	k, err := bchec.NewPrivateKey(bchec.S256())
 	if err != nil {
 		return nil, err
 	}
-	return &privateBTCCash{PrivateKey: k}, nil
+	return &privateBCH{PrivateKey: k}, nil
 }
 
-func (k *privateBTCCash) Sign(b []byte) ([]byte, error) {
+func (k *privateBCH) Sign(b []byte) ([]byte, error) {
 	sig, err := k.PrivateKey.SignECDSA(b)
 	if err != nil {
 		return nil, err
@@ -26,11 +31,11 @@ func (k *privateBTCCash) Sign(b []byte) ([]byte, error) {
 	return sig.Serialize(), nil
 }
 
-func (k *privateBTCCash) MarshalYAML() (interface{}, error) {
+func (k *privateBCH) MarshalYAML() (interface{}, error) {
 	return base64.RawStdEncoding.EncodeToString(k.Serialize()), nil
 }
 
-func (k *privateBTCCash) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (k *privateBCH) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var r string
 	if err := unmarshal(&r); err != nil {
 		return err
@@ -43,21 +48,20 @@ func (k *privateBTCCash) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	return nil
 }
 
-func (k *privateBTCCash) Public() Public { return &publicBTCCash{k.PubKey()} }
+func (k *privateBCH) Public() Public   { return &publicBCH{k.PubKey()} }
+func (k *privateBCH) Key() interface{} { return k.PrivateKey }
 
-type publicBTCCash struct{ *bchec.PublicKey }
+type publicBCH struct{ *bchec.PublicKey }
 
-func NewPublicBTCCash(b []byte) (Public, error) {
+func NewPublicBCH(b []byte) (Public, error) {
 	pub, err := bchec.ParsePubKey(b, bchec.S256())
 	if err != nil {
 		return nil, err
 	}
-	return &publicBTCCash{PublicKey: pub}, nil
+	return &publicBCH{PublicKey: pub}, nil
 }
 
-func (k *privateBTCCash) Key() interface{} { return k.PublicKey }
-
-func (k *publicBTCCash) Verify(sig, msg []byte) error {
+func (k *publicBCH) Verify(sig, msg []byte) error {
 	s, err := bchec.ParseDERSignature(sig, bchec.S256())
 	if err != nil {
 		return err
@@ -68,11 +72,11 @@ func (k *publicBTCCash) Verify(sig, msg []byte) error {
 	return nil
 }
 
-func (k *publicBTCCash) MarshalYAML() (interface{}, error) {
+func (k *publicBCH) MarshalYAML() (interface{}, error) {
 	return base64.RawStdEncoding.EncodeToString(k.SerializeCompressed()), nil
 }
 
-func (k *publicBTCCash) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (k *publicBCH) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var r string
 	if err := unmarshal(&r); err != nil {
 		return err
@@ -81,10 +85,10 @@ func (k *publicBTCCash) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err != nil {
 		return err
 	}
-	k.PublicKey, _ = bchec.ParsePubKey(b, bchec.S256())
-	return nil
+	k.PublicKey, err = bchec.ParsePubKey(b, bchec.S256())
+	return err
 }
 
-func (k *publicBTCCash) Hash160() []byte { return hash.Hash160(k.SerializeCompressed()) }
+func (k *publicBCH) Hash160() []byte { return hash.Hash160(k.SerializeCompressed()) }
 
-func (k *publicBTCCash) Key() interface{} { return k.PublicKey }
+func (k *publicBCH) Key() interface{} { return k.PublicKey }

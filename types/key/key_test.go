@@ -3,8 +3,6 @@ package key
 import (
 	"testing"
 
-	"transmutate.io/pkg/atomicswap/params"
-
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
@@ -15,25 +13,21 @@ type testKey struct {
 }
 
 var testKeys = map[string]*testKey{
-	params.Bitcoin.String(): &testKey{
+	"bitcoin": &testKey{
 		newPriv: NewPrivateBTC,
 		newPub:  NewPublicBTC,
 	},
-	params.Litecoin.String(): &testKey{
+	"litecoin": &testKey{
 		newPriv: NewPrivateLTC,
 		newPub:  NewPublicLTC,
 	},
-	params.Dogecoin.String(): &testKey{
-		newPriv: NewPrivateBTC,
-		newPub:  NewPublicBTC,
-	},
-	params.Dogecoin.String(): &testKey{
+	"dogecoin": &testKey{
 		newPriv: NewPrivateDOGE,
 		newPub:  NewPublicDOGE,
 	},
-	params.BitcoinCash.String(): &testKey{
-		newPriv: NewPrivateBTCCash,
-		newPub:  NewPublicBTCCash,
+	"bitcoin-cash": &testKey{
+		newPriv: NewPrivateBCH,
+		newPub:  NewPublicBCH,
 	},
 }
 

@@ -10,6 +10,11 @@ import (
 
 type privateBTC struct{ *btcec.PrivateKey }
 
+func ParsePrivateBTC(b []byte) Private {
+	priv, _ := btcec.PrivKeyFromBytes(btcec.S256(), b)
+	return &privateBTC{PrivateKey: priv}
+}
+
 func NewPrivateBTC() (Private, error) {
 	k, err := btcec.NewPrivateKey(btcec.S256())
 	if err != nil {
@@ -45,7 +50,7 @@ func (k *privateBTC) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 func (k *privateBTC) Public() Public { return &publicBTC{k.PubKey()} }
 
-func (k *privateBTC) Key() interface{} { return k.PublicKey }
+func (k *privateBTC) Key() interface{} { return k.PrivateKey }
 
 type publicBTC struct{ *btcec.PublicKey }
 
@@ -83,8 +88,8 @@ func (k *publicBTC) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err != nil {
 		return err
 	}
-	k.PublicKey, _ = btcec.ParsePubKey(b, btcec.S256())
-	return nil
+	k.PublicKey, err = btcec.ParsePubKey(b, btcec.S256())
+	return err
 }
 
 func (k *publicBTC) Hash160() []byte { return hash.Hash160(k.SerializeCompressed()) }

@@ -4,6 +4,11 @@ import "github.com/btcsuite/btcd/btcec"
 
 type privateDOGE = privateBTC
 
+func ParsePrivateDOGE(b []byte) Private {
+	priv, _ := btcec.PrivKeyFromBytes(btcec.S256(), b)
+	return &privateDOGE{PrivateKey: priv}
+}
+
 func NewPrivateDOGE() (Private, error) {
 	k, err := btcec.NewPrivateKey(btcec.S256())
 	if err != nil {

@@ -3,6 +3,8 @@ package cryptos
 import (
 	"fmt"
 
+	"transmutate.io/pkg/atomicswap/types/transaction"
+
 	"transmutate.io/pkg/atomicswap/types/key"
 )
 
@@ -18,6 +20,7 @@ type (
 		Name() string
 		Short() string
 		NewPrivateKey() (key.Private, error)
+		NewTx() transaction.Tx
 		YAMLMarshalerUnmarshaler
 	}
 
@@ -42,6 +45,7 @@ type crypto struct {
 	name       string
 	short      string
 	newPrivKey func() (key.Private, error)
+	newTx      func() transaction.Tx
 }
 
 func (c crypto) Short() string { return c.short }
@@ -53,6 +57,8 @@ func (c crypto) String() string { return c.name }
 func (c crypto) MarshalYAML() (interface{}, error) { return c.name, nil }
 
 func (c crypto) NewPrivateKey() (key.Private, error) { return c.newPrivKey() }
+
+func (c crypto) NewTx() transaction.Tx { return c.newTx() }
 
 func (c *crypto) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var r string

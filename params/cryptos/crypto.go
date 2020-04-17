@@ -3,17 +3,13 @@ package cryptos
 import (
 	"fmt"
 
-	"transmutate.io/pkg/atomicswap/types/transaction"
-
+	"transmutate.io/pkg/atomicswap/types"
 	"transmutate.io/pkg/atomicswap/types/key"
+	"transmutate.io/pkg/atomicswap/types/transaction"
 )
 
 type (
-	ParseCryptoFunc          = func(string) (Crypto, error)
-	YAMLMarshalerUnmarshaler interface {
-		MarshalYAML() (interface{}, error)
-		UnmarshalYAML(unmarshal func(interface{}) error) error
-	}
+	ParseCryptoFunc = func(string) (Crypto, error)
 
 	Crypto interface {
 		String() string
@@ -21,7 +17,7 @@ type (
 		Short() string
 		NewPrivateKey() (key.Private, error)
 		NewTx() transaction.Tx
-		YAMLMarshalerUnmarshaler
+		types.YAMLMarshalerUnmarshaler
 	}
 
 	newCryptoFunc = func() Crypto

@@ -11,18 +11,22 @@ templates:
   values:
     name: bitcoin
     short: BTC
+    type: UTXO
 - template: crypto.go.tpl
   out: crypto_ltc.gen.go
   values:
     name: litecoin
     short: LTC
+    type: UTXO
 - template: crypto.go.tpl
   out: crypto_doge.gen.go
   values:
     name: dogecoin
     short: DOGE
+    type: UTXO
 - template: crypto.go.tpl
   out: crypto_bch.gen.go
   values:
     name: bitcoin-cash
     short: BCH
+    type: UTXO

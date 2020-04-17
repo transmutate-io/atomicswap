@@ -3,25 +3,23 @@ package cryptos
 import (
 	"fmt"
 
+	"transmutate.io/pkg/atomicswap/cryptotypes"
 	"transmutate.io/pkg/atomicswap/key"
 	"transmutate.io/pkg/atomicswap/transaction"
-	"transmutate.io/pkg/atomicswap/types"
 )
 
-type (
-	ParseCryptoFunc = func(string) (Crypto, error)
+//  (
+// 	Crypto interface {
+// 		String() string
+// 		Name() string
+// 		Short() string
+// 		NewPrivateKey() (key.Private, error)
+// 		NewTx() transaction.Tx
+// 		Type() cryptotypes.CryptoType
+// 		yamltypes.MarshalerUnmarshaler
+// 	}
 
-	Crypto interface {
-		String() string
-		Name() string
-		Short() string
-		NewPrivateKey() (key.Private, error)
-		NewTx() transaction.Tx
-		types.YAMLMarshalerUnmarshaler
-	}
-
-	newCryptoFunc = func() Crypto
-)
+type newCryptoFunc = func() *Crypto
 
 type InvalidCryptoError string
 
@@ -29,38 +27,39 @@ func (e InvalidCryptoError) Error() string {
 	return fmt.Sprintf("invalid crypto: \"%s\"", string(e))
 }
 
-func ParseCrypto(s string) (Crypto, error) {
-	r, ok := _cryptos[s]
+func ParseCrypto(s string) (*Crypto, error) {
+	r, ok := Cryptos[s]
 	if !ok {
 		return nil, InvalidCryptoError(s)
 	}
 	return r(), nil
 }
 
-type crypto struct {
-	name       string
-	short      string
+type Crypto struct {
+	Name       string
+	Short      string
 	newPrivKey func() (key.Private, error)
 	newTx      func() transaction.Tx
+	Type       cryptotypes.CryptoType
 }
 
-func (c crypto) Short() string { return c.short }
+func (c Crypto) String() string { return c.Name }
 
-func (c crypto) Name() string { return c.name }
+func (c Crypto) NewPrivateKey() (key.Private, error) { return c.newPrivKey() }
 
-func (c crypto) String() string { return c.name }
+func (c Crypto) NewTx() transaction.Tx { return c.newTx() }
 
-func (c crypto) MarshalYAML() (interface{}, error) { return c.name, nil }
+func (c Crypto) MarshalYAML() (interface{}, error) { return c.Name, nil }
 
-func (c crypto) NewPrivateKey() (key.Private, error) { return c.newPrivKey() }
-
-func (c crypto) NewTx() transaction.Tx { return c.newTx() }
-
-func (c *crypto) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *Crypto) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var r string
 	if err := unmarshal(&r); err != nil {
 		return err
 	}
-	c.name = r
+	cr, err := ParseCrypto(r)
+	if err != nil {
+		return err
+	}
+	*c = *cr
 	return nil
 }

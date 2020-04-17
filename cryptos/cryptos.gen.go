@@ -1,7 +1,7 @@
 package cryptos
 
 var (
-	_cryptos = map[string]newCryptoFunc{
+	Cryptos = map[string]newCryptoFunc{
 		"bitcoin": newCryptoBTC,
 		"litecoin": newCryptoLTC,
 		"dogecoin": newCryptoDOGE,

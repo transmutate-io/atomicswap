@@ -15,4 +15,6 @@ func TestStager(t *testing.T) {
 	err = yaml.Unmarshal(b, s2)
 	require.NoError(t, err, "can't unmarshal")
 	require.Equal(t, s.stages, s2.stages, "mismatch")
+	require.Equal(t, s.NextStage(), s2.NextStage(), "next stage mismatch")
+	require.Equal(t, s.stages, s2.stages, "mismatch")
 }

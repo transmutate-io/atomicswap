@@ -2,11 +2,11 @@ package key
 
 import "github.com/btcsuite/btcd/btcec"
 
-type privateDOGE = privateBTC
+type PrivateDOGE = PrivateBTC
 
 func ParsePrivateDOGE(b []byte) Private {
 	priv, _ := btcec.PrivKeyFromBytes(btcec.S256(), b)
-	return &privateDOGE{PrivateKey: priv}
+	return &PrivateDOGE{PrivateKey: priv}
 }
 
 func NewPrivateDOGE() (Private, error) {
@@ -14,16 +14,16 @@ func NewPrivateDOGE() (Private, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &privateDOGE{PrivateKey: k}, nil
+	return &PrivateDOGE{PrivateKey: k}, nil
 
 }
 
-type publicDOGE = publicBTC
+type PublicDOGE = PublicBTC
 
 func NewPublicDOGE(b []byte) (Public, error) {
 	pub, err := btcec.ParsePubKey(b, btcec.S256())
 	if err != nil {
 		return nil, err
 	}
-	return &publicDOGE{PublicKey: pub}, nil
+	return &PublicDOGE{PublicKey: pub}, nil
 }

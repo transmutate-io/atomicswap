@@ -2,11 +2,11 @@ package key
 
 import "github.com/btcsuite/btcd/btcec"
 
-type privateLTC = privateBTC
+type PrivateLTC = PrivateBTC
 
 func ParsePrivateLTC(b []byte) Private {
 	priv, _ := btcec.PrivKeyFromBytes(btcec.S256(), b)
-	return &privateLTC{PrivateKey: priv}
+	return &PrivateLTC{PrivateKey: priv}
 }
 
 func NewPrivateLTC() (Private, error) {
@@ -14,16 +14,16 @@ func NewPrivateLTC() (Private, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &privateLTC{PrivateKey: k}, nil
+	return &PrivateLTC{PrivateKey: k}, nil
 
 }
 
-type publicLTC = publicBTC
+type PublicLTC = PublicBTC
 
 func NewPublicLTC(b []byte) (Public, error) {
 	pub, err := btcec.ParsePubKey(b, btcec.S256())
 	if err != nil {
 		return nil, err
 	}
-	return &publicLTC{PublicKey: pub}, nil
+	return &PublicLTC{PublicKey: pub}, nil
 }

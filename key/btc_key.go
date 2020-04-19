@@ -8,11 +8,11 @@ import (
 	"transmutate.io/pkg/atomicswap/hash"
 )
 
-type privateBTC struct{ *btcec.PrivateKey }
+type PrivateBTC struct{ *btcec.PrivateKey }
 
 func ParsePrivateBTC(b []byte) Private {
 	priv, _ := btcec.PrivKeyFromBytes(btcec.S256(), b)
-	return &privateBTC{PrivateKey: priv}
+	return &PrivateBTC{PrivateKey: priv}
 }
 
 func NewPrivateBTC() (Private, error) {
@@ -20,10 +20,10 @@ func NewPrivateBTC() (Private, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &privateBTC{PrivateKey: k}, nil
+	return &PrivateBTC{PrivateKey: k}, nil
 }
 
-func (k *privateBTC) Sign(b []byte) ([]byte, error) {
+func (k *PrivateBTC) Sign(b []byte) ([]byte, error) {
 	sig, err := k.PrivateKey.Sign(b)
 	if err != nil {
 		return nil, err
@@ -31,11 +31,11 @@ func (k *privateBTC) Sign(b []byte) ([]byte, error) {
 	return sig.Serialize(), nil
 }
 
-func (k *privateBTC) MarshalYAML() (interface{}, error) {
+func (k *PrivateBTC) MarshalYAML() (interface{}, error) {
 	return base64.RawStdEncoding.EncodeToString(k.Serialize()), nil
 }
 
-func (k *privateBTC) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (k *PrivateBTC) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var r string
 	if err := unmarshal(&r); err != nil {
 		return err
@@ -48,21 +48,21 @@ func (k *privateBTC) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-func (k *privateBTC) Public() Public { return &publicBTC{k.PubKey()} }
+func (k *PrivateBTC) Public() Public { return &PublicBTC{k.PubKey()} }
 
-func (k *privateBTC) Key() interface{} { return k.PrivateKey }
+func (k *PrivateBTC) Key() interface{} { return k.PrivateKey }
 
-type publicBTC struct{ *btcec.PublicKey }
+type PublicBTC struct{ *btcec.PublicKey }
 
 func NewPublicBTC(b []byte) (Public, error) {
 	pub, err := btcec.ParsePubKey(b, btcec.S256())
 	if err != nil {
 		return nil, err
 	}
-	return &publicBTC{PublicKey: pub}, nil
+	return &PublicBTC{PublicKey: pub}, nil
 }
 
-func (k *publicBTC) Verify(sig, msg []byte) error {
+func (k *PublicBTC) Verify(sig, msg []byte) error {
 	s, err := btcec.ParseSignature(sig, btcec.S256())
 	if err != nil {
 		return err
@@ -73,13 +73,13 @@ func (k *publicBTC) Verify(sig, msg []byte) error {
 	return nil
 }
 
-func (k *publicBTC) Key() interface{} { return k.PublicKey }
+func (k *PublicBTC) Key() interface{} { return k.PublicKey }
 
-func (k *publicBTC) MarshalYAML() (interface{}, error) {
+func (k *PublicBTC) MarshalYAML() (interface{}, error) {
 	return base64.RawStdEncoding.EncodeToString(k.SerializeCompressed()), nil
 }
 
-func (k *publicBTC) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (k *PublicBTC) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var r string
 	if err := unmarshal(&r); err != nil {
 		return err
@@ -92,4 +92,4 @@ func (k *publicBTC) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return err
 }
 
-func (k *publicBTC) Hash160() []byte { return hash.Hash160(k.SerializeCompressed()) }
+func (k *PublicBTC) Hash160() []byte { return hash.Hash160(k.SerializeCompressed()) }

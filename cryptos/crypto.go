@@ -8,17 +8,6 @@ import (
 	"transmutate.io/pkg/atomicswap/transaction"
 )
 
-//  (
-// 	Crypto interface {
-// 		String() string
-// 		Name() string
-// 		Short() string
-// 		NewPrivateKey() (key.Private, error)
-// 		NewTx() transaction.Tx
-// 		Type() cryptotypes.CryptoType
-// 		yamltypes.MarshalerUnmarshaler
-// 	}
-
 type newCryptoFunc = func() *Crypto
 
 type InvalidCryptoError string

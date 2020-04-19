@@ -38,7 +38,8 @@ func (v *Stage) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 const (
- 	GenereateKeys Stage = iota
+ 	GenerateKeys Stage = iota
+ 	GenerateToken
  	SharePublicKeyHash
  	ReceivePublicKeyHash
  	ShareTokenHash
@@ -55,7 +56,8 @@ const (
 
 var (
 	_Stage = map[Stage]string{
-		GenereateKeys:         "generate-keys",
+		GenerateKeys:          "generate-keys",
+		GenerateToken:         "generate-token",
 		SharePublicKeyHash:    "share-key-hash",
 		ReceivePublicKeyHash:  "receive-key-hash",
 		ShareTokenHash:        "share-token-hash",

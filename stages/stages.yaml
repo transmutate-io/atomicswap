@@ -2,8 +2,10 @@ type: Stage
 filename: stages.gen.go
 package: stages
 consts:
-  - name: GenereateKeys
+  - name: GenerateKeys
     value: generate-keys
+  - name: GenerateToken
+    value: generate-token
   - name: SharePublicKeyHash
     value: share-key-hash
   - name: ReceivePublicKeyHash

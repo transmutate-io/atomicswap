@@ -1,29 +1,59 @@
 package stages
 
-var (
-	SellerStagesManualExchange = []Stage{
-		ReceivePublicKeyHash,
-		SharePublicKeyHash,
-		ShareTokenHash,
-		GenerateLockScript,
-		ShareLockScript,
-		ReceiveLockScript,
-		LockFunds,
-		WaitLockTransaction,
-		RedeemFunds,
-		Done,
+import (
+	"transmutate.io/pkg/atomicswap/roles"
+)
+
+func stagesConcat(s ...[]Stage) []Stage {
+	r := make([]Stage, 0, 1024)
+	for _, i := range s {
+		r = append(r, i...)
 	}
-	BuyerStagesManualExchange = []Stage{
-		SharePublicKeyHash,
-		ReceivePublicKeyHash,
-		ReceiveTokenHash,
-		ReceiveLockScript,
-		GenerateLockScript,
-		ShareLockScript,
-		WaitLockTransaction,
+	return r
+}
+
+var (
+	genBuyer  = []Stage{GenerateKeys, GenerateToken}
+	propBuyer = []Stage{ShareProposal, ReceiveProposalResponse}
+	lockBuyer = []Stage{
+		ReceiveKeyData,
+		GenerateLock,
+		ShareLock,
+		ShareKeyData,
+		ReceiveLock,
+	}
+	fundsBuyer = []Stage{LockFunds, WaitLockedFunds, RedeemFunds}
+	genSeller  = []Stage{GenerateKeys}
+	propSeller = []Stage{ReceiveProposal, ShareProposalResponse}
+	lockSeller = []Stage{
+		ShareKeyData,
+		ReceiveLock,
+		ReceiveKeyData,
+		GenerateLock,
+		ShareLock,
+	}
+	fundsSeller = []Stage{
+		WaitLockedFunds,
 		LockFunds,
-		WaitRedeemTransaction,
+		WaitRedeemableFunds,
 		RedeemFunds,
-		Done,
+	}
+	done = []Stage{Done}
+
+	StagesManualExchange = map[roles.Role][]Stage{
+		roles.Buyer: stagesConcat(
+			genBuyer,
+			propBuyer,
+			lockBuyer,
+			fundsBuyer,
+			done,
+		),
+		roles.Seller: stagesConcat(
+			genSeller,
+			propSeller,
+			lockSeller,
+			fundsSeller,
+			done,
+		),
 	}
 )

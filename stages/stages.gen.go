@@ -38,38 +38,42 @@ func (v *Stage) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 const (
- 	GenerateKeys Stage = iota
- 	GenerateToken
- 	SharePublicKeyHash
- 	ReceivePublicKeyHash
- 	ShareTokenHash
- 	ReceiveTokenHash
- 	ReceiveLockScript
- 	GenerateLockScript
- 	ShareLockScript
- 	WaitLockTransaction
+ 	ShareProposal Stage = iota
+ 	ShareKeyData
+ 	ShareLock
  	LockFunds
- 	WaitRedeemTransaction
- 	RedeemFunds
+ 	ReceiveProposalResponse
  	Done
+ 	ShareProposalResponse
+ 	ReceiveKeyData
+ 	GenerateLock
+ 	WaitRedeemableFunds
+ 	RedeemFunds
+ 	ReceiveProposal
+ 	GenerateKeys
+ 	GenerateToken
+ 	ReceiveLock
+ 	WaitLockedFunds
 )
 
 var (
 	_Stage = map[Stage]string{
-		GenerateKeys:          "generate-keys",
-		GenerateToken:         "generate-token",
-		SharePublicKeyHash:    "share-key-hash",
-		ReceivePublicKeyHash:  "receive-key-hash",
-		ShareTokenHash:        "share-token-hash",
-		ReceiveTokenHash:      "receive-token-hash",
-		ReceiveLockScript:     "receive-lock",
-		GenerateLockScript:    "generate-lock",
-		ShareLockScript:       "share-lock",
-		WaitLockTransaction:   "wait-locked-funds",
-		LockFunds:             "lock-funds",
-		WaitRedeemTransaction: "wait-redeem-funds",
-		RedeemFunds:           "redeem",
-		Done:                  "done",
+		ShareProposal:           "share-proposal",
+		ShareKeyData:            "share-key-data",
+		ShareLock:               "share-lock",
+		LockFunds:               "lock-funds",
+		ReceiveProposalResponse: "receive-proposal-response",
+		Done:                    "done",
+		ShareProposalResponse:   "share-proposal-response",
+		ReceiveKeyData:          "receive-key-data",
+		GenerateLock:            "generate-lock",
+		WaitRedeemableFunds:     "wait-redeemable-funds",
+		RedeemFunds:             "redeem",
+		ReceiveProposal:         "receive-proposal",
+		GenerateKeys:            "generate-keys",
+		GenerateToken:           "generate-token",
+		ReceiveLock:             "receive-lock",
+		WaitLockedFunds:         "wait-locked-funds",
 	}
 	_StageNames map[string]Stage
 )

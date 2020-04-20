@@ -10,6 +10,7 @@ require (
 	github.com/gcash/bchutil v0.0.0-20191012211144-98e73ec336ba
 	github.com/golang/protobuf v1.3.3
 	github.com/ltcsuite/ltcd v0.20.1-beta
+	github.com/ompluscator/dynamic-struct v1.2.0
 	github.com/stretchr/testify v1.5.0
 	golang.org/x/crypto v0.0.0-20200302210943-78000ba7a073
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58

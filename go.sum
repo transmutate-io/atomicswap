@@ -72,6 +72,8 @@ github.com/ltcsuite/ltcd v0.20.1-beta h1:ka9ZwUG7oUPppl+7ptuh5VDxGD7TWEJXu/IOOOz
 github.com/ltcsuite/ltcd v0.20.1-beta/go.mod h1:ZFQaYdYULIuTQiWqs7AUiHD2XhDFeeHW1IH+UYMdABU=
 github.com/ltcsuite/ltcutil v0.0.0-20191227053721-6bec450ea6ad/go.mod h1:8Vg/LTOO0KYa/vlHWJ6XZAevPQThGH5sufO0Hrou/lA=
 github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
+github.com/ompluscator/dynamic-struct v1.2.0 h1:s9Ge7kwWXfQ0eGG7S3LrUIv5/isJN7V1oGS1IV/dM+U=
+github.com/ompluscator/dynamic-struct v1.2.0/go.mod h1:ADQ1+6Ox1D+ntuNwTHyl1NvpAqY2lBXPSPbcO4CJdeA=
 github.com/onsi/ginkgo v1.6.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=
 github.com/onsi/ginkgo v1.7.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=
 github.com/onsi/ginkgo v1.10.1/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=

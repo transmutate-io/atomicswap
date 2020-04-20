@@ -1,204 +1,147 @@
 package atomicswap
 
 import (
-	"gopkg.in/yaml.v2"
+	"crypto/rand"
+	"errors"
+	"time"
+
 	"transmutate.io/pkg/atomicswap/cryptos"
+	"transmutate.io/pkg/atomicswap/hash"
 	"transmutate.io/pkg/atomicswap/key"
+	"transmutate.io/pkg/atomicswap/reflection"
 	"transmutate.io/pkg/atomicswap/roles"
 	"transmutate.io/pkg/atomicswap/stages"
-	cctypes "transmutate.io/pkg/cryptocore/types"
+	"transmutate.io/pkg/cryptocore/types"
 )
 
-type (
-	Tokenizer interface {
-		TokenHash() cctypes.Bytes
-		SetTokenHash(tokenHash cctypes.Bytes)
-		Token() cctypes.Bytes
-		SetToken(token cctypes.Bytes)
-		GenerateToken() (cctypes.Bytes, error)
-	}
-
-	Stager interface {
-		Stage() stages.Stage
-		NextStage() stages.Stage
-	}
-
-	Trade interface {
-		Role() roles.Role
-		Duration() Duration
-		OwnInfo() *TradeInfo
-		TraderInfo() *TradeInfo
-		Tokenizer
-		Stager
-		// types.YAMLMarshalerUnmarshaler
-		// GenerateKeys() error
-
-		// GenerateOwnLockScript() error
-		// CheckTraderLockScript(tradeLockScript []byte) error
-		// newRedeemTransactionUTXO(tx transaction.TxUTXO, fee uint64) error
-		// newRedeemTransaction(fee uint64) (types.Tx, error)
-		// RedeemTransactionFixedFee(fee uint64) (types.Tx, error)
-		// RedeemTransaction(feePerByte uint64) (types.Tx, error)
-		// AddRedeemableOutput(out *Output)
-		// AddRecoverableOutput(out *Output)
-		// newRecoveryTransactionUTXO(tx transaction.TxUTXO, fee uint64) error
-		// newRecoveryTransaction(fee uint64) (types.Tx, error)
-		// RecoveryTransactionFixedFee(fee uint64) (types.Tx, error)
-		// RecoveryTransaction(feePerByte uint64) (types.Tx, error)
-	}
-)
-
-// TradeInfo represents the own user trade info
-type TradeInfo struct {
-	Crypto      cryptos.Crypto `yaml:"crypto"`
-	RedeemKey   key.Private    `yaml:"redeem_key,omitempty"`
-	RecoveryKey key.Private    `yaml:"recover_key,omitempty"`
-	// 	Amount          cctypes.Amount `yaml:"amount"`
-	// 	LastBlockHeight uint64         `yaml:"last_block_height"`
-	// 	LockScript      cctypes.Bytes  `yaml:"lock_script,omitempty"`
+type TraderInfo struct {
+	Crypto *cryptos.Crypto `yaml:"crypto"`
+	Amount types.Amount    `yaml:"amount"`
 }
 
-type tradeInfo struct {
-	Crypto      string `yaml:"crypto"`
-	RedeemKey   string `yaml:"redeem_key,omitempty"`
-	RecoveryKey string `yaml:"recover_key,omitempty"`
+type Trade struct {
+	Role             roles.Role     `yaml:"role"`
+	Duration         Duration       `yaml:"duration"`
+	Token            types.Bytes    `yaml:"token,omitempty"`
+	TokenHash        types.Bytes    `yaml:"token_hash,omitempty"`
+	OwnInfo          *TraderInfo    `yaml:"own,omitempty"`
+	TraderInfo       *TraderInfo    `yaml:"trader,omitempty"`
+	RedeemKey        key.Private    `yaml:"redeem_key,omitempty"`
+	RecoveryKey      key.Private    `yaml:"recover_key,omitempty"`
+	RedeemableFunds  Funds          `yaml:"redeemable_funds,omitempty"`
+	RecoverableFunds Funds          `yaml:"recoverable_funds,omitempty"`
+	Stages           *stages.Stager `yaml:"stages,omitempty"`
 }
 
-func (ti *TradeInfo) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	t := &tradeInfo{}
-	err := unmarshal(t)
+func NewTrade() *Trade { return &Trade{} }
+
+func (t *Trade) WithOwnAmountCrypto(amt types.Amount, c *cryptos.Crypto) *Trade {
+	t.OwnInfo = &TraderInfo{Crypto: c, Amount: amt}
+	t.RecoverableFunds = newFundsData(c)
+	return t
+}
+
+func (t *Trade) WithTraderAmountCrypto(amt types.Amount, c *cryptos.Crypto) *Trade {
+	t.TraderInfo = &TraderInfo{Crypto: c, Amount: amt}
+	t.RedeemableFunds = newFundsData(c)
+	return t
+}
+
+func (t *Trade) WithStages(s ...stages.Stage) *Trade {
+	t.Stages = stages.NewStager(s...)
+	return t
+}
+
+func (t *Trade) WithRole(r roles.Role) *Trade { t.Role = r; return t }
+
+func (t *Trade) WithDuration(d time.Duration) *Trade { t.Duration = Duration(d); return t }
+
+func (t *Trade) WithToken(tk []byte) *Trade { t.SetToken(tk); return t }
+
+func (t *Trade) WithTokenHash(th []byte) *Trade { t.TokenHash = th; return t }
+
+// UnmarshalYAML implements yaml.Unmarshaler
+func (t *Trade) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	tModel := &Trade{}
+	tc := &struct {
+		OwnInfo    *TraderInfo `yaml:"own,omitempty"`
+		TraderInfo *TraderInfo `yaml:"trader,omitempty"`
+	}{}
+	if err := unmarshal(tc); err != nil {
+		return err
+	}
+	redeemKey, err := tc.TraderInfo.Crypto.NewPrivateKey()
 	if err != nil {
 		return err
 	}
-	ti.Crypto, err = cryptos.ParseCrypto(t.Crypto)
+	recoveryKey, err := tc.OwnInfo.Crypto.NewPrivateKey()
 	if err != nil {
 		return err
 	}
-	priv, err := ti.Crypto.NewPrivateKey()
+	td, err := reflection.ReplaceTypeFields(tModel, reflection.FieldReplacementMap{
+		"RedeemKey":        redeemKey,
+		"RecoveryKey":      recoveryKey,
+		"RedeemableFunds":  newFundsData(tc.TraderInfo.Crypto),
+		"RecoverableFunds": newFundsData(tc.OwnInfo.Crypto),
+	})
 	if err != nil {
 		return err
 	}
-	if err = yaml.Unmarshal([]byte(t.RecoveryKey), priv); err != nil {
+	if err := unmarshal(td); err != nil {
 		return err
 	}
-	ti.RecoveryKey = priv
-	if priv, err = ti.Crypto.NewPrivateKey(); err != nil {
-		return err
-	}
-	if err = yaml.Unmarshal([]byte(t.RedeemKey), priv); err != nil {
-		return err
-	}
-	ti.RedeemKey = priv
-	return nil
+	return reflection.CopyFieldsByName(td, t)
 }
 
-// import (
-// 	"bytes"
-// 	"crypto/rand"
-// 	"encoding/hex"
-// 	"errors"
-// 	"fmt"
-// 	"reflect"
-// 	"time"
+// SetToken sets the token
+func (t *Trade) SetToken(token types.Bytes) {
+	t.Token = token
+	t.TokenHash = hash.Hash160(token)
+}
 
-// 	"transmutate.io/pkg/atomicswap/hash"
-// 	"transmutate.io/pkg/atomicswap/params/cryptos"
-// 	"transmutate.io/pkg/atomicswap/roles"
-// 	"transmutate.io/pkg/atomicswap/script"
-// 	"transmutate.io/pkg/atomicswap/stages"
-// 	"transmutate.io/pkg/atomicswap/types"
-// 	"transmutate.io/pkg/atomicswap/types/key"
-// 	"transmutate.io/pkg/atomicswap/types/transaction"
-// 	cctypes "transmutate.io/pkg/cryptocore/types"
-// )
+// ErrNotEnoughBytes is returned the is not possible to read enough random bytes
+var ErrNotEnoughBytes = errors.New("not enough bytes")
 
-// // Trade represents an atomic swap trade
-// type Trade struct {
-// 	// Stage of the trade
-// 	Stage stages.Stage
-// 	// Role on the trade
-// 	Role roles.Role
-// 	// Duration represents the trade lock time
-// 	Duration  types.Duration
-// 	token     cctypes.Bytes
-// 	tokenHash cctypes.Bytes
-// 	// Outputs contains the outputs involved
-// 	Outputs *Outputs
-// 	// Own contains own user data and keys
-// 	Own *OwnTradeInfo
-// 	// Trader contrains the trader data
-// 	Trader *TraderTradeInfo
-// 	// OnChainDataExchange whether to exchange data between traders manually or on-chain
-// 	OnChainDataExchange bool
-// }
+const tokenSize = 32
 
-// type tradeData struct {
-// 	Stage     stages.Stage     `yaml:"stage"`
-// 	Role      roles.Role       `yaml:"role"`
-// 	Duration  types.Duration   `yaml:"duration"`
-// 	Outputs   *Outputs         `yaml:"outputs,omitempty"`
-// 	Own       *OwnTradeInfo    `yaml:"own,omitempty"`
-// 	Trader    *TraderTradeInfo `yaml:"trader,omitempty"`
-// 	Token     cctypes.Bytes    `yaml:"token,omitempty"`
-// 	TokenHash cctypes.Bytes    `yaml:"token_hash,omitempty"`
-// }
+func readRandom(n int) ([]byte, error) {
+	r := make([]byte, n)
+	if sz, err := rand.Read(r); err != nil {
+		return nil, err
+	} else if sz != len(r) {
+		return nil, ErrNotEnoughBytes
+	}
+	return r, nil
+}
 
-// func newTrade(role roles.Role, stage stages.Stage, ownAmount cctypes.Amount, ownCrypto cryptos.Crypto, tradeAmount cctypes.Amount, tradeCrypto cryptos.Crypto) (*Trade, error) {
-// 	r := &Trade{
-// 		Role:  role,
-// 		Stage: stage,
-// 		Own: &OwnTradeInfo{
-// 			Crypto:          ownCrypto,
-// 			Amount:          ownAmount,
-// 			LastBlockHeight: 1,
-// 		},
-// 		Trader: &TraderTradeInfo{
-// 			Crypto:          tradeCrypto,
-// 			Amount:          tradeAmount,
-// 			LastBlockHeight: 1,
-// 		},
-// 	}
-// 	if err := r.generateKeys(); err != nil {
-// 		return nil, err
-// 	}
-// 	return r, nil
-// }
+func readRandomToken() ([]byte, error) { return readRandom(tokenSize) }
 
-// // NewBuyerTrade starts a trade as a buyer
-// func NewBuyerTrade(ownAmount cctypes.Amount, ownCrypto cryptos.Crypto, tradeAmount cctypes.Amount, tradeCrypto cryptos.Crypto) (*Trade, error) {
-// 	return newTrade(
-// 		roles.Buyer,
-// 		stages.SharePublicKeyHash,
-// 		ownAmount,
-// 		ownCrypto,
-// 		tradeAmount,
-// 		tradeCrypto,
-// 	)
-// }
+// GenerateToken generates and sets the token
+func (t *Trade) GenerateToken() (types.Bytes, error) {
+	rt, err := readRandomToken()
+	if err != nil {
+		return nil, err
+	}
+	t.Token = rt
+	t.TokenHash = hash.Hash160(t.Token)
+	return t.Token, nil
+}
 
-// // NewSellerTrade starts a trade as a seller
-// func NewSellerTrade(ownAmount cctypes.Amount, ownCrypto cryptos.Crypto, tradeAmount cctypes.Amount, tradeCrypto cryptos.Crypto) (*Trade, error) {
-// 	r, err := newTrade(
-// 		roles.Seller,
-// 		stages.ReceivePublicKeyHash,
-// 		ownAmount,
-// 		ownCrypto,
-// 		tradeAmount,
-// 		tradeCrypto,
-// 	)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	if err = r.generateToken(); err != nil {
-// 		return nil, err
-// 	}
-// 	return r, nil
-// }
+func (t *Trade) GenerateKeys() error {
+	var err error
+	if t.RecoveryKey, err = t.OwnInfo.Crypto.NewPrivateKey(); err != nil {
+		return err
+	}
+	t.RedeemKey, err = t.TraderInfo.Crypto.NewPrivateKey()
+	return err
+}
+
+// ------------------------------------------------------------------------------------
 
 // type (
 // 	// Output represents an output
 // 	Output struct {
-// 		TxID   cctypes.Bytes `yaml:"txid,omitempty"`
+// 		TxID   types.Bytes `yaml:"txid,omitempty"`
 // 		N      uint32        `yaml:"n"`
 // 		Amount uint64        `yaml:"amount"`
 // 	}
@@ -213,10 +156,10 @@ func (ti *TradeInfo) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // // TraderTradeInfo represents the trader trade info
 // type TraderTradeInfo struct {
 // 	Crypto          cryptos.Crypto `yaml:"crypto"`
-// 	Amount          cctypes.Amount `yaml:"amount"`
+// 	Amount          types.Amount `yaml:"amount"`
 // 	LastBlockHeight uint64         `yaml:"last_block_height"`
-// 	RedeemKeyHash   cctypes.Bytes  `yaml:"recover_key_hash,omitempty"`
-// 	LockScript      cctypes.Bytes  `yaml:"lock_script,omitempty"`
+// 	RedeemKeyHash   types.Bytes  `yaml:"recover_key_hash,omitempty"`
+// 	LockScript      types.Bytes  `yaml:"lock_script,omitempty"`
 // }
 
 // func (tti *TraderTradeInfo) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -234,30 +177,30 @@ func (ti *TradeInfo) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // type traderTradeInfo struct {
 // 	Crypto          string         `yaml:"crypto"`
-// 	Amount          cctypes.Amount `yaml:"amount"`
+// 	Amount          types.Amount `yaml:"amount"`
 // 	LastBlockHeight uint64         `yaml:"last_block_height"`
-// 	RedeemKeyHash   cctypes.Bytes  `yaml:"recover_key_hash,omitempty"`
-// 	LockScript      cctypes.Bytes  `yaml:"lock_script,omitempty"`
+// 	RedeemKeyHash   types.Bytes  `yaml:"recover_key_hash,omitempty"`
+// 	LockScript      types.Bytes  `yaml:"lock_script,omitempty"`
 // }
 
 // // TokenHash returns the token hash if set, otherwise nil
-// func (t *Trade) TokenHash() cctypes.Bytes {
-// 	if t.token != nil {
-// 		return hash.Hash160(t.token)
+// func (t *Trade) TokenHash() types.Bytes {
+// 	if t.Token != nil {
+// 		return hash.Hash160(t.Token)
 // 	}
-// 	return t.tokenHash
+// 	return t.TokenHash
 // }
 
 // // Token returns the token if set, otherwise nil
-// func (t *Trade) Token() cctypes.Bytes { return t.token }
+// func (t *Trade) Token() types.Bytes { return t.Token }
 
 // // SetTokenHash sets the token hash
-// func (t *Trade) SetTokenHash(tokenHash cctypes.Bytes) { t.tokenHash = tokenHash }
+// func (t *Trade) SetTokenHash(tokenHash types.Bytes) { t.TokenHash = tokenHash }
 
 // // SetToken sets the token
-// func (t *Trade) SetToken(token cctypes.Bytes) {
-// 	t.token = token
-// 	t.tokenHash = hash.Hash160(token)
+// func (t *Trade) SetToken(token types.Bytes) {
+// 	t.Token = token
+// 	t.TokenHash = hash.Hash160(token)
 // }
 
 // var (
@@ -307,7 +250,7 @@ func (ti *TradeInfo) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // 		return err
 // 	}
 // 	if t.Role == roles.Seller {
-// 		if t.token, err = readRandomToken(); err != nil {
+// 		if t.Token, err = readRandomToken(); err != nil {
 // 			return err
 // 		}
 // 	}
@@ -319,8 +262,8 @@ func (ti *TradeInfo) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // 	if err != nil {
 // 		return err
 // 	}
-// 	t.token = rt
-// 	t.tokenHash = hash.Hash160(t.token)
+// 	t.Token = rt
+// 	t.TokenHash = hash.Hash160(t.Token)
 // 	return nil
 // }
 
@@ -355,7 +298,7 @@ func (ti *TradeInfo) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // 	}
 // 	r, err := script.Validate(script.HTLC(
 // 		script.LockTimeTime(lockTime),
-// 		t.tokenHash,
+// 		t.TokenHash,
 // 		script.P2PKHHash(t.Own.RecoveryKey.Public().Hash160()),
 // 		script.P2PKHHash(t.Trader.RedeemKeyHash),
 // 	))
@@ -423,7 +366,7 @@ func (ti *TradeInfo) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // 	}
 // 	r.timeLock = time.Unix(n, 0)
 // 	// token hash
-// 	if r.tokenHash, err = hex.DecodeString(inst[11]); err != nil {
+// 	if r.TokenHash, err = hex.DecodeString(inst[11]); err != nil {
 // 		return nil, err
 // 	}
 // 	// redeem key hash
@@ -442,7 +385,7 @@ func (ti *TradeInfo) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // 	if t.Duration != 0 && time.Now().UTC().Add(time.Duration(t.Duration)).After(lsd.timeLock) {
 // 		return ErrInvalidLockScript
 // 	}
-// 	if !bytes.Equal(lsd.tokenHash, t.tokenHash) {
+// 	if !bytes.Equal(lsd.TokenHash, t.TokenHash) {
 // 		return ErrInvalidLockScript
 // 	}
 // 	if !bytes.Equal(lsd.redeemKeyHash, t.Own.RedeemKey.Public().Hash160()) {
@@ -455,7 +398,7 @@ func (ti *TradeInfo) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // func (t *Trade) newRedeemTransactionUTXO(tx transaction.TxUTXO, fee uint64) error {
 // 	redeemScript, err := script.Validate(bytesJoin(
-// 		script.Data(t.token),
+// 		script.Data(t.Token),
 // 		script.Int64(0),
 // 		script.Data(t.Trader.LockScript),
 // 	))
@@ -578,45 +521,6 @@ func (ti *TradeInfo) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // 		return nil, err
 // 	}
 // 	return t.newRecoveryTransaction(tx.SerializedSize() * feePerByte)
-// }
-
-// var (
-// 	errNilPointer        = errors.New("nil pointer")
-// 	errNotAStructPointer = errors.New("not a struct pointer")
-// )
-
-// // copy fields by name
-// func copyFieldsByName(src, dst interface{}) error {
-// 	if src == nil || dst == nil {
-// 		return errNilPointer
-// 	}
-// 	vs := reflect.ValueOf(src)
-// 	vd := reflect.ValueOf(dst)
-// 	if vs.Kind() != reflect.Ptr || vd.Kind() != reflect.Ptr {
-// 		return errNotAStructPointer
-// 	}
-// 	if vs.IsNil() || vd.IsNil() {
-// 		return errNilPointer
-// 	}
-// 	vs = vs.Elem()
-// 	vd = vd.Elem()
-// 	if vs.Kind() != reflect.Struct || vd.Kind() != reflect.Struct {
-// 		return errNotAStructPointer
-// 	}
-// 	vst := vs.Type()
-// 	vdt := vd.Type()
-// 	for i := 0; i < vst.NumField(); i++ {
-// 		sfld := vst.Field(i)
-// 		dfld, ok := vdt.FieldByName(sfld.Name)
-// 		if !ok {
-// 			continue
-// 		}
-// 		if sfld.Type != dfld.Type {
-// 			continue
-// 		}
-// 		vd.FieldByName(sfld.Name).Set(vs.Field(i))
-// 	}
-// 	return nil
 // }
 
 // // MarshalYAML implements yaml.Marshaler

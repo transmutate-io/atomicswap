@@ -2,6 +2,7 @@ package atomicswap
 
 import (
 	"crypto/rand"
+	"errors"
 	"math/big"
 	"os"
 	"testing"
@@ -120,14 +121,6 @@ func setupMiner(c *testCrypto) error {
 	return nil
 }
 
-// func fmtPrintf(f string, a ...interface{}) { fmt.Printf(f, a...) }
-
-// type printfFunc = func(f string, a ...interface{})
-
-// func newPrintf(oldPrintf printfFunc, name string) printfFunc {
-// 	return func(f string, args ...interface{}) { oldPrintf(name+": "+f, args...) }
-// }
-
 func TestAtomicSwapRedeemManualExchange(t *testing.T) {
 	for _, i := range testCryptos[1:] {
 		t.Run("bitcoin_"+i.crypto,
@@ -149,56 +142,163 @@ type tradeProposal struct {
 	traderCrypto *cryptos.Crypto
 }
 
-type manualExchange struct{ a2b chan interface{} }
+type manualExchange struct {
+	a2b chan interface{}
+	pf  printfFunc
+}
 
-func newManualExchange() *manualExchange { return &manualExchange{make(chan interface{}, 0)} }
+func newManualExchange(a2b chan interface{}, pf printfFunc) *manualExchange {
+	return &manualExchange{a2b: a2b, pf: pf}
+}
 
-func (m *manualExchange) close() { close(m.a2b) }
+func (m *manualExchange) shareProposal(t *Trade) error {
+	m.a2b <- &tradeProposal{
+		ownAmount:    t.OwnInfo.Amount,
+		ownCrypto:    t.OwnInfo.Crypto,
+		traderAmount: t.TraderInfo.Amount,
+		traderCrypto: t.TraderInfo.Crypto,
+	}
+	m.pf("buy proposal sent\n")
+	return nil
+}
+
+func (m *manualExchange) receiveProposal(t *Trade) error {
+	p := (<-m.a2b).(*tradeProposal)
+	t.WithOwnAmountCrypto(p.traderAmount, p.traderCrypto).
+		WithTraderAmountCrypto(p.ownAmount, p.ownCrypto)
+	m.pf("buy proposal received\n")
+	return nil
+}
+
+func (m *manualExchange) shareProposalResponse(t *Trade) error {
+	m.a2b <- true
+	m.pf("proposal response sent\n")
+	return nil
+}
+
+func (m *manualExchange) receiveProposalResponse(t *Trade) error {
+	if !(<-m.a2b).(bool) {
+		return errors.New("proposal refused")
+	}
+	m.pf("proposal response received (accepted)\n")
+	return nil
+}
+
+func (m *manualExchange) shareKeyData(t *Trade) error {
+	panic("not implemented")
+}
+
+func (m *manualExchange) receiveKeyData(t *Trade) error {
+	panic("not implemented")
+}
+
+func (m *manualExchange) shareLock(t *Trade) error {
+	panic("not implemented")
+}
+
+func (m *manualExchange) receiveLock(t *Trade) error {
+	panic("not implemented")
+}
+
+func (m *manualExchange) stageMap() StageHandlerMap {
+	return StageHandlerMap{
+		stages.ShareProposal:           m.shareProposal,
+		stages.ReceiveProposal:         m.receiveProposal,
+		stages.ShareProposalResponse:   m.shareProposalResponse,
+		stages.ReceiveProposalResponse: m.receiveProposalResponse,
+		stages.ShareKeyData:            m.shareKeyData,
+		stages.ReceiveKeyData:          m.receiveKeyData,
+		stages.ShareLock:               m.shareLock,
+		stages.ReceiveLock:             m.receiveLock,
+	}
+}
+
+func newGenerateKeysHandler(pf printfFunc) func(*Trade) error {
+	return func(t *Trade) error {
+		if err := t.GenerateKeys(); err != nil {
+			return err
+		}
+		pf("generated keys\n")
+		return nil
+	}
+}
+
+func newGenerateTokenHandler(pf printfFunc) func(*Trade) error {
+	return func(t *Trade) error {
+		if _, err := t.GenerateToken(); err != nil {
+			return err
+		}
+		pf("generated token\n")
+		return nil
+	}
+}
+
+func newDoneHandler(pf printfFunc) func(*Trade) error {
+	return func(t *Trade) error {
+		pf("trade done\n")
+		return nil
+	}
+}
+
+// func fmtPrintf(f string, a ...interface{}) { fmt.Printf(f, a...) }
+
+type printfFunc = func(f string, a ...interface{})
+
+func newPrintf(oldPrintf printfFunc, name string) printfFunc {
+	return func(f string, args ...interface{}) { oldPrintf(name+": "+f, args...) }
+}
 
 func newTestAtomicSwapRedeemManualExchange(btc, alt *testCrypto, htlcDuration time.Duration) func(*testing.T) {
 	return func(t *testing.T) {
 		// generate communication channel
-		me := newManualExchange()
-		defer me.close()
-
-		// altCrypto, err := cryptos.ParseCrypto(alt.crypto)
-		// require.NoError(t, err, "can't parse alt crypto")
-		// btcCrypto, err := cryptos.ParseCrypto(btc.crypto)
-		// require.NoError(t, err, "can't parse btc crypto")
-
-		// buyerTrade, sellerTrade, err := newTestTrades()
-		// require.NoError(t, err, "can't create trades")
-
+		a2b := make(chan interface{}, 0)
+		defer close(a2b)
+		// parse cryptos names
+		altCrypto, err := cryptos.ParseCrypto(alt.crypto)
+		require.NoError(t, err, "can't parse alt crypto")
+		btcCrypto, err := cryptos.ParseCrypto(btc.crypto)
+		require.NoError(t, err, "can't parse btc crypto")
+		// generate new trades
+		buyerTrade, sellerTrade, err := newTestTrades()
+		// set the buyer proposal values
+		buyerTrade.
+			WithOwnAmountCrypto(types.Amount("1"), btcCrypto).
+			WithTraderAmountCrypto(types.Amount("1"), altCrypto)
+		require.NoError(t, err, "can't create trades")
 		eg := &errgroup.Group{}
 		// alice (alt)
 		eg.Go(func() error {
-			// 	at, err := atomicswap.NewBuyerTrade(
-			// 		types.Amount("1"),
-			// 		altCrypto,
-			// 		types.Amount("1"),
-			// 		btcCrypto,
-			// 	)
-			// 	if err != nil {
-			// 		return err
-			// 	}
-			// 	return handleTrade(newPrintf(t.Logf, "alice (buyer)"), a2b, alt, btc, htlcDuration, at, false, 2)
-			return nil
+			pf := newPrintf(t.Logf, "alice ("+alt.crypto+")")
+			me := newManualExchange(a2b, pf)
+
+			// sellerTrade.WithStages(stages.StagesManualExchange[roles.Seller]...)
+			sellerTrade.WithStages(stages.Done)
+
+			tradeHandler := NewStageHandler(me.stageMap())
+			tradeHandler.InstallHandlers(StageHandlerMap{
+				stages.GenerateKeys:  newGenerateKeysHandler(pf),
+				stages.GenerateToken: newGenerateTokenHandler(pf),
+				stages.Done:          newDoneHandler(pf),
+			})
+			return tradeHandler.HandleTrade(sellerTrade)
 		})
 		// bob (BTC)
 		eg.Go(func() error {
-			// 	at, err := atomicswap.NewSellerTrade(
-			// 		types.Amount("1"),
-			// 		btcCrypto,
-			// 		types.Amount("1"),
-			// 		altCrypto,
-			// 	)
-			// 	if err != nil {
-			// 		return err
-			// 	}
-			// 	return handleTrade(newPrintf(t.Logf, "bob (seller)"), a2b, btc, alt, htlcDuration, at, false, 2)
-			return nil
+			pf := newPrintf(t.Logf, "bob ("+btc.crypto+")")
+			me := newManualExchange(a2b, pf)
+
+			// buyerTrade.WithStages(stages.StagesManualExchange[roles.Buyer]...)
+			buyerTrade.WithStages(stages.Done)
+
+			tradeHandler := NewStageHandler(me.stageMap())
+			tradeHandler.InstallHandlers(StageHandlerMap{
+				stages.GenerateKeys:  newGenerateKeysHandler(pf),
+				stages.GenerateToken: newGenerateTokenHandler(pf),
+				stages.Done:          newDoneHandler(pf),
+			})
+			return tradeHandler.HandleTrade(buyerTrade)
 		})
-		err := eg.Wait()
+		err = eg.Wait()
 		require.NoError(t, err, "unexpected error")
 	}
 }
@@ -548,19 +648,20 @@ func newTestAtomicSwapRedeemManualExchange(btc, alt *testCrypto, htlcDuration ti
 // }
 
 func newTestFundsData(t *testing.T, c *cryptos.Crypto) Funds {
-	fd := newFundsData(c)
-	switch fd.(type) {
+	fd := newFunds(c)
+	switch ffd := fd.(type) {
 	case *fundsUTXO:
 		txid1, err := readRandom(32)
 		require.NoError(t, err, "can't read random bytes")
 		nOut, err := rand.Int(rand.Reader, big.NewInt(5))
 		require.NoError(t, err, "can't read random int")
 		n := nOut.Uint64()
-		fd.Add(&Output{
+		ffd.Outputs = append(ffd.Outputs, &Output{
 			TxID:   txid1,
 			N:      uint32(n),
 			Amount: n * 100000000,
 		})
+		ffd.LockScript = types.Bytes{}
 	default:
 		panic("not supported")
 	}
@@ -568,7 +669,7 @@ func newTestFundsData(t *testing.T, c *cryptos.Crypto) Funds {
 }
 
 func newTestPrivateKey(t *testing.T, c *cryptos.Crypto) key.Private {
-	p, err := c.NewPrivateKey()
+	p, err := key.NewPrivate(c)
 	require.NoError(t, err, "can't create new key")
 	return p
 }

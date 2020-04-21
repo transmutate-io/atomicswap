@@ -38,42 +38,42 @@ func (v *Stage) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 const (
- 	ShareProposal Stage = iota
- 	ShareKeyData
- 	ShareLock
- 	LockFunds
- 	ReceiveProposalResponse
- 	Done
- 	ShareProposalResponse
- 	ReceiveKeyData
- 	GenerateLock
+ 	GenerateKeys Stage = iota
  	WaitRedeemableFunds
  	RedeemFunds
- 	ReceiveProposal
- 	GenerateKeys
- 	GenerateToken
+ 	ShareProposalResponse
+ 	ReceiveKeyData
+ 	ShareProposal
+ 	ReceiveProposalResponse
  	ReceiveLock
+ 	Done
+ 	GenerateToken
+ 	ReceiveProposal
+ 	ShareKeyData
+ 	GenerateLock
+ 	ShareLock
+ 	LockFunds
  	WaitLockedFunds
 )
 
 var (
 	_Stage = map[Stage]string{
-		ShareProposal:           "share-proposal",
-		ShareKeyData:            "share-key-data",
-		ShareLock:               "share-lock",
-		LockFunds:               "lock-funds",
-		ReceiveProposalResponse: "receive-proposal-response",
-		Done:                    "done",
-		ShareProposalResponse:   "share-proposal-response",
-		ReceiveKeyData:          "receive-key-data",
-		GenerateLock:            "generate-lock",
+		GenerateKeys:            "generate-keys",
 		WaitRedeemableFunds:     "wait-redeemable-funds",
 		RedeemFunds:             "redeem",
-		ReceiveProposal:         "receive-proposal",
-		GenerateKeys:            "generate-keys",
-		GenerateToken:           "generate-token",
+		ShareProposalResponse:   "share-proposal-response",
+		ReceiveKeyData:          "receive-key-data",
+		ShareProposal:           "share-proposal",
+		ReceiveProposalResponse: "receive-proposal-response",
 		ReceiveLock:             "receive-lock",
+		LockFunds:               "lock-funds",
 		WaitLockedFunds:         "wait-locked-funds",
+		Done:                    "done",
+		GenerateToken:           "generate-token",
+		ReceiveProposal:         "receive-proposal",
+		ShareKeyData:            "share-key-data",
+		GenerateLock:            "generate-lock",
+		ShareLock:               "share-lock",
 	}
 	_StageNames map[string]Stage
 )

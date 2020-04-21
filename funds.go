@@ -5,14 +5,9 @@ import (
 	"transmutate.io/pkg/atomicswap/cryptotypes"
 )
 
-type Funds interface {
-	Len() int
-	Idx(idx int) interface{}
-	Add(fd interface{})
-	Data() interface{}
-}
+type Funds interface{ CryptoType() cryptotypes.CryptoType }
 
-func newFundsData(c *cryptos.Crypto) Funds {
+func newFunds(c *cryptos.Crypto) Funds {
 	switch c.Type {
 	case cryptotypes.UTXO:
 		return newFundsUTXO()

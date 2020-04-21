@@ -25,3 +25,28 @@ consts:
   RedeemFunds: redeem
 
   Done: done
+
+
+
+# buyer (utxo)                          | seller (utxo)
+# --------------------------------------------------------------------------------
+# generates a proposal                  |
+# sends proposal to seller              |
+#                                       | receives proposal
+# generate key                          | generate key
+# generates a token                     |
+#                                       | sends redeem key hash to buyer
+# generates lock script                 |
+# sends lock script to seller           |
+# sends redeem key hash to seller       |
+#                                       | generates lock script
+#                                       | sends lock script to buyer
+# locks funds with generate lockscript  |
+# waits for seller transaction(s)       |
+#                                       | waits for buyer transaction(s)
+#                                       | locks funds with generate lockscript
+#                                       | waits for buyer redeem transaction
+# redeems funds with token              |
+#                                       | extract token from buyers redeem transaction
+#                                       | redeems funds with token
+# done                                  | done

@@ -38,10 +38,10 @@ func (v *Chain) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 const (
- 	SimNet Chain = iota
- 	RegressionNet
- 	MainNet
+ 	MainNet Chain = iota
  	TestNet
+ 	SimNet
+ 	RegressionNet
 )
 
 var (

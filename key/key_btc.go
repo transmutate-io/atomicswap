@@ -10,18 +10,22 @@ import (
 
 type PrivateBTC struct{ *btcec.PrivateKey }
 
-func ParsePrivateBTC(b []byte) Private {
+func parsePrivateBTC(b []byte) *PrivateBTC {
 	priv, _ := btcec.PrivKeyFromBytes(btcec.S256(), b)
 	return &PrivateBTC{PrivateKey: priv}
 }
 
-func NewPrivateBTC() (Private, error) {
+func ParsePrivateBTC(b []byte) Private { return parsePrivateBTC(b) }
+
+func newPrivateBTC() (*PrivateBTC, error) {
 	k, err := btcec.NewPrivateKey(btcec.S256())
 	if err != nil {
 		return nil, err
 	}
 	return &PrivateBTC{PrivateKey: k}, nil
 }
+
+func NewPrivateBTC() (Private, error) { return newPrivateBTC() }
 
 func (k *PrivateBTC) Sign(b []byte) ([]byte, error) {
 	sig, err := k.PrivateKey.Sign(b)
@@ -44,7 +48,7 @@ func (k *PrivateBTC) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err != nil {
 		return err
 	}
-	k.PrivateKey, _ = btcec.PrivKeyFromBytes(btcec.S256(), b)
+	k.PrivateKey = parsePrivateBTC(b).PrivateKey
 	return nil
 }
 
@@ -54,13 +58,15 @@ func (k *PrivateBTC) Key() interface{} { return k.PrivateKey }
 
 type PublicBTC struct{ *btcec.PublicKey }
 
-func NewPublicBTC(b []byte) (Public, error) {
+func newPublicBTC(b []byte) (*PublicBTC, error) {
 	pub, err := btcec.ParsePubKey(b, btcec.S256())
 	if err != nil {
 		return nil, err
 	}
 	return &PublicBTC{PublicKey: pub}, nil
 }
+
+func NewPublicBTC(b []byte) (Public, error) { return newPublicBTC(b) }
 
 func (k *PublicBTC) Verify(sig, msg []byte) error {
 	s, err := btcec.ParseSignature(sig, btcec.S256())

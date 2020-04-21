@@ -11,11 +11,15 @@ require (
 	github.com/golang/protobuf v1.3.3
 	github.com/ltcsuite/ltcd v0.20.1-beta
 	github.com/ompluscator/dynamic-struct v1.2.0
-	github.com/stretchr/testify v1.5.0
+	github.com/stretchr/testify v1.5.1
 	golang.org/x/crypto v0.0.0-20200302210943-78000ba7a073
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	gopkg.in/yaml.v2 v2.2.4
-	transmutate.io/pkg/cryptocore v0.0.1-rc1
+	transmutate.io/pkg/cryptocore v0.0.0-00010101000000-000000000000
+	transmutate.io/pkg/reflection v0.0.1
 )
 
-replace transmutate.io/pkg/cryptocore => ../cryptocore
+replace (
+	transmutate.io/pkg/cryptocore => ../cryptocore
+	transmutate.io/pkg/reflection => ../reflection
+)

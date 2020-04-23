@@ -1,17 +1,12 @@
 package cryptos
 
-import (
-	"transmutate.io/pkg/atomicswap/cryptotypes"
-	// "transmutate.io/pkg/atomicswap/key"
-	// "transmutate.io/pkg/atomicswap/transaction"
-)
+import "transmutate.io/pkg/atomicswap/cryptotypes"
 
 func newCryptoBCH() *Crypto {
 	return &Crypto{
-		Name:       "bitcoin-cash",
-		Short:      "BCH",
-		// newPrivKey: key.NewPrivateBCH,
-		// newTx:      transaction.NewBCH,
-		Type:       cryptotypes.UTXO,
+		Name:     "bitcoin-cash",
+		Short:    "BCH",
+		Decimals: 8,
+		Type:     cryptotypes.UTXO,
 	}
 }

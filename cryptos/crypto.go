@@ -23,18 +23,13 @@ func ParseCrypto(s string) (*Crypto, error) {
 }
 
 type Crypto struct {
-	Name  string
-	Short string
-	// newPrivKey func() (key.Private, error)
-	// newTx      func() transaction.Tx
-	Type cryptotypes.CryptoType
+	Name     string
+	Short    string
+	Decimals int
+	Type     cryptotypes.CryptoType
 }
 
 func (c Crypto) String() string { return c.Name }
-
-// func (c Crypto) NewPrivateKey() (key.Private, error) { return c.newPrivKey() }
-
-// func (c Crypto) NewTx() transaction.Tx { return c.newTx() }
 
 func (c Crypto) MarshalYAML() (interface{}, error) { return c.Name, nil }
 

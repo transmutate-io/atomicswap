@@ -1,17 +1,12 @@
 package cryptos
 
-import (
-	"transmutate.io/pkg/atomicswap/cryptotypes"
-	// "transmutate.io/pkg/atomicswap/key"
-	// "transmutate.io/pkg/atomicswap/transaction"
-)
+import "transmutate.io/pkg/atomicswap/cryptotypes"
 
 func newCryptoBTC() *Crypto {
 	return &Crypto{
-		Name:       "bitcoin",
-		Short:      "BTC",
-		// newPrivKey: key.NewPrivateBTC,
-		// newTx:      transaction.NewBTC,
-		Type:       cryptotypes.UTXO,
+		Name:     "bitcoin",
+		Short:    "BTC",
+		Decimals: 8,
+		Type:     cryptotypes.UTXO,
 	}
 }

@@ -2,8 +2,8 @@ package key
 
 type PrivateLTC struct{ *PrivateBTC }
 
-func ParsePrivateLTC(b []byte) Private {
-	return &PrivateLTC{PrivateBTC: parsePrivateBTC(b)}
+func ParsePrivateLTC(b []byte) (Private, error) {
+	return &PrivateLTC{PrivateBTC: parsePrivateBTC(b)}, nil
 }
 
 func NewPrivateLTC() (Private, error) {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/gcash/bchd/bchec"
 	"transmutate.io/pkg/atomicswap/hash"
+	"transmutate.io/pkg/cryptocore/types"
 )
 
 type PrivateBCH struct{ *bchec.PrivateKey }
@@ -15,7 +16,7 @@ func parsePrivateBCH(b []byte) *PrivateBCH {
 	return &PrivateBCH{PrivateKey: priv}
 }
 
-func ParsePrivateBCH(b []byte) Private { return parsePrivateBCH(b) }
+func ParsePrivateBCH(b []byte) (Private, error) { return parsePrivateBCH(b), nil }
 
 func newPrivateBCH() (*PrivateBCH, error) {
 	k, err := bchec.NewPrivateKey(bchec.S256())
@@ -99,3 +100,5 @@ func (k *PublicBCH) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 func (k *PublicBCH) Hash160() []byte { return hash.Hash160(k.SerializeCompressed()) }
+
+func (k *PublicBCH) KeyData() KeyData { return types.Bytes(k.Hash160()) }

@@ -8,26 +8,31 @@ import (
 )
 
 type testKey struct {
-	newPriv NewPrivateFunc
-	newPub  NewPublicFunc
+	parsePriv ParsePrivateFunc
+	newPriv   NewPrivateFunc
+	newPub    NewPublicFunc
 }
 
 var testKeys = map[string]*testKey{
 	"bitcoin": &testKey{
-		newPriv: NewPrivateBTC,
-		newPub:  NewPublicBTC,
+		parsePriv: ParsePrivateBTC,
+		newPriv:   NewPrivateBTC,
+		newPub:    NewPublicBTC,
 	},
 	"litecoin": &testKey{
-		newPriv: NewPrivateLTC,
-		newPub:  NewPublicLTC,
+		parsePriv: ParsePrivateLTC,
+		newPriv:   NewPrivateLTC,
+		newPub:    NewPublicLTC,
 	},
 	"dogecoin": &testKey{
-		newPriv: NewPrivateDOGE,
-		newPub:  NewPublicDOGE,
+		parsePriv: ParsePrivateDOGE,
+		newPriv:   NewPrivateDOGE,
+		newPub:    NewPublicDOGE,
 	},
 	"bitcoin-cash": &testKey{
-		newPriv: NewPrivateBCH,
-		newPub:  NewPublicBCH,
+		parsePriv: ParsePrivateBCH,
+		newPriv:   NewPrivateBCH,
+		newPub:    NewPublicBCH,
 	},
 }
 

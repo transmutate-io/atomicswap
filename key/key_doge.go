@@ -2,8 +2,8 @@ package key
 
 type PrivateDOGE struct{ *PrivateBTC }
 
-func ParsePrivateDOGE(b []byte) Private {
-	return &PrivateDOGE{PrivateBTC: parsePrivateBTC(b)}
+func ParsePrivateDOGE(b []byte) (Private, error) {
+	return &PrivateDOGE{PrivateBTC: parsePrivateBTC(b)}, nil
 }
 
 func NewPrivateDOGE() (Private, error) {

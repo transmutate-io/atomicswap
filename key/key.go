@@ -8,10 +8,13 @@ import (
 )
 
 type (
-	NewPrivateFunc = func() (Private, error)
-	NewPublicFunc  = func(b []byte) (Public, error)
+	NewPrivateFunc   = func() (Private, error)
+	NewPublicFunc    = func(b []byte) (Public, error)
+	ParsePrivateFunc = func(b []byte) (Private, error)
 
 	Keyer interface{ Key() interface{} }
+
+	KeyData interface{}
 
 	Private interface {
 		Public() Public
@@ -22,7 +25,7 @@ type (
 	}
 
 	Public interface {
-		Hash160() []byte
+		KeyData() KeyData
 		Verify(sig, msg []byte) error
 		yamltypes.MarshalerUnmarshaler
 		SerializeCompressed() []byte
@@ -31,8 +34,9 @@ type (
 )
 
 type newFuncs struct {
-	priv NewPrivateFunc
-	pub  NewPublicFunc
+	parsePriv ParsePrivateFunc
+	priv      NewPrivateFunc
+	pub       NewPublicFunc
 }
 
 var cryptoFuncs = map[string]newFuncs{
@@ -60,10 +64,34 @@ func (e *KeysError) Error() string {
 	return fmt.Sprintf(`can't create keys for crypto: "%s"`, (*cryptos.Crypto)(e).Name)
 }
 
-func NewPrivate(c *cryptos.Crypto) (Private, error) {
+func getCryptoFuncs(c *cryptos.Crypto) (*newFuncs, error) {
 	cf, ok := cryptoFuncs[c.String()]
 	if !ok {
 		return nil, (*KeysError)(c)
 	}
+	return &cf, nil
+}
+
+func ParsePrivate(c *cryptos.Crypto, b []byte) (Private, error) {
+	cf, err := getCryptoFuncs(c)
+	if err != nil {
+		return nil, (*KeysError)(c)
+	}
+	return cf.parsePriv(b)
+}
+
+func NewPrivate(c *cryptos.Crypto) (Private, error) {
+	cf, err := getCryptoFuncs(c)
+	if err != nil {
+		return nil, (*KeysError)(c)
+	}
 	return cf.priv()
+}
+
+func NewPublic(c *cryptos.Crypto, b []byte) (Public, error) {
+	cf, err := getCryptoFuncs(c)
+	if err != nil {
+		return nil, (*KeysError)(c)
+	}
+	return cf.pub(b)
 }

@@ -39,7 +39,7 @@ var (
 
 func init() {
 	for cn, c := range NetworksByName {
-		cr, err := cryptos.ParseCrypto(cn)
+		cr, err := cryptos.Parse(cn)
 		if err != nil {
 			panic("unknown crypto: " + cn)
 		}

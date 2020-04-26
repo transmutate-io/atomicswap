@@ -1,7 +1,7 @@
 package atomicswap
 
 import (
-	"transmutate.io/pkg/atomicswap/cryptotypes"
+	"transmutate.io/pkg/atomicswap/cryptos"
 	"transmutate.io/pkg/cryptocore/types"
 )
 
@@ -19,7 +19,7 @@ type fundsUTXO struct {
 
 func newFundsUTXO() *fundsUTXO { return &fundsUTXO{Outputs: make([]*Output, 0, 4)} }
 
-func (f *fundsUTXO) CryptoType() cryptotypes.CryptoType { return cryptotypes.UTXO }
+func (f *fundsUTXO) CryptoType() cryptos.Type { return cryptos.UTXO }
 
 func (f *fundsUTXO) Funds() interface{} { return f.Outputs }
 

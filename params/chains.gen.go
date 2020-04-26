@@ -46,10 +46,10 @@ const (
 
 var (
 	_Chain = map[Chain]string{
-		SimNet:        "simnet",
-		RegressionNet: "regnet",
 		MainNet:       "mainnet",
 		TestNet:       "testnet",
+		SimNet:        "simnet",
+		RegressionNet: "regnet",
 	}
 	_ChainNames map[string]Chain
 )

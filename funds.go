@@ -2,11 +2,10 @@ package atomicswap
 
 import (
 	"transmutate.io/pkg/atomicswap/cryptos"
-	"transmutate.io/pkg/atomicswap/cryptotypes"
 )
 
 type Funds interface {
-	CryptoType() cryptotypes.CryptoType
+	CryptoType() cryptos.Type
 	AddFunds(funds interface{})
 	Funds() interface{}
 	SetLock(lock Lock)
@@ -15,7 +14,7 @@ type Funds interface {
 
 func newFunds(c *cryptos.Crypto) Funds {
 	switch c.Type {
-	case cryptotypes.UTXO:
+	case cryptos.UTXO:
 		return newFundsUTXO()
 	default:
 		panic("not supported")

@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"time"
 
+	"transmutate.io/pkg/atomicswap/cryptos"
+
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	"transmutate.io/pkg/atomicswap/cryptotypes"
 	"transmutate.io/pkg/atomicswap/key"
 	"transmutate.io/pkg/atomicswap/script"
 )
@@ -148,8 +149,7 @@ func (tx *txBTC) TxUTXO() TxUTXO { return tx }
 // TxStateBased returns a TxStateBased transaction
 func (tx *txBTC) TxStateBased() TxStateBased { panic(ErrNotStateBased) }
 
-// Type returns the crypto/message type
-func (tx *txBTC) Type() cryptotypes.CryptoType { return cryptotypes.UTXO }
+func (tx *txBTC) Crypto() *cryptos.Crypto { return cryptos.Cryptos["bitcoin"] }
 
 // Copy returns a copy of tx
 func (tx *txBTC) Copy() Tx { return (*txBTC)(tx.tx().Copy()) }

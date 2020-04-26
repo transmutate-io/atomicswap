@@ -5,12 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"transmutate.io/pkg/atomicswap/key"
-
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 	"transmutate.io/pkg/atomicswap/cryptos"
-	"transmutate.io/pkg/atomicswap/cryptotypes"
+	"transmutate.io/pkg/atomicswap/key"
 )
 
 func readRandom(sz int) []byte {
@@ -71,11 +69,11 @@ func TestTx(t *testing.T) {
 			// new tx
 			tx, err := NewTx(crypto)
 			require.NoError(t, err, "can't create a new tx")
-			switch txType := tx.Type(); txType {
-			case cryptotypes.UTXO:
+			switch cryptoType := crypto.Type; cryptoType {
+			case cryptos.UTXO:
 				testTxUTXO(t, crypto, tx)
 			default:
-				t.Errorf("unknown crypto type: %v", txType)
+				t.Errorf("unknown crypto type: %v", cryptoType)
 				return
 			}
 		})

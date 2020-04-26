@@ -2,8 +2,6 @@ package cryptos
 
 import (
 	"fmt"
-
-	"transmutate.io/pkg/atomicswap/cryptotypes"
 )
 
 type newCryptoFunc = func() *Crypto
@@ -26,7 +24,7 @@ type Crypto struct {
 	Name     string
 	Short    string
 	Decimals int
-	Type     cryptotypes.CryptoType
+	Type     Type
 }
 
 func (c Crypto) String() string { return c.Name }

@@ -1,6 +1,6 @@
-type: CryptoType
+type: Type
 filename: crypto_types.gen.go
-package: cryptotypes
+package: cryptos
 consts:
   UTXO: utxo
   StateBased: state-based

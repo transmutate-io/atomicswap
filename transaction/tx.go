@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"transmutate.io/pkg/atomicswap/cryptos"
-	"transmutate.io/pkg/atomicswap/cryptotypes"
 	"transmutate.io/pkg/atomicswap/key"
 	"transmutate.io/pkg/atomicswap/script"
 )
@@ -57,7 +56,8 @@ type (
 		Serializer
 		Copy() Tx
 
-		Type() cryptotypes.CryptoType
+		Crypto() *cryptos.Crypto
+
 		// Copy returns a copy of tx
 		// TxUTXO returns a TxUTXO transaction
 		TxUTXO() TxUTXO

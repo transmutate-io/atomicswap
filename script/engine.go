@@ -1,10 +1,15 @@
 package script
 
 import (
+	"fmt"
 	"time"
+
+	"transmutate.io/pkg/atomicswap/cryptos"
 )
 
 type (
+	NewEngineFunc = func() Engine
+
 	Disassembler interface {
 		DisassembleString(s []byte) (string, error)
 		DisassembleStrings(s []byte) ([]string, error)
@@ -102,3 +107,24 @@ type (
 		MSTLC
 	}
 )
+
+var engines = map[string]NewEngineFunc{
+	"bitcoin":      NewEngineBTC,
+	"litecoin":     NewEngineBTC,
+	"dogecoin":     NewEngineBTC,
+	"bitcoin-cash": NewEngineBTC,
+}
+
+type NewEngineError cryptos.Crypto
+
+func (e *NewEngineError) Error() string {
+	return fmt.Sprintf(`can't create new engine for crypto: "%s"`, (*cryptos.Crypto)(e).Name)
+}
+
+func NewEngine(c *cryptos.Crypto) (Engine, error) {
+	e, ok := engines[c.Name]
+	if !ok {
+		return nil, (*NewEngineError)(c)
+	}
+	return e(), nil
+}

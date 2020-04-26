@@ -2,51 +2,56 @@ type: Stage
 filename: stages.gen.go
 package: stages
 consts:
+  # keys and token generation
   GenerateKeys: generate-keys
   GenerateToken: generate-token
 
-  ShareProposal: share-proposal
+  # proposal exchange
+  SendProposal: send-proposal
   ReceiveProposal: receive-proposal
-
-  ShareProposalResponse: share-proposal-response
+  SendProposalResponse: send-proposal-response
   ReceiveProposalResponse: receive-proposal-response
 
-  ShareKeyData: share-key-data
-  ReceiveKeyData: receive-key-data
+  # # key data exchange and lock generation
+  # SendKeyData: send-key-data
+  # ReceiveKeyData: receive-key-data
 
-  GenerateLock: generate-lock
-  ShareLock: share-lock
-  ReceiveLock: receive-lock
+  # # lock exchange
+  # SendLock: send-lock
+  # ReceiveLock: receive-lock
 
+  # # lock generation and check
+  # GenerateLock: generate-lock
+  # CheckLock: check-lock
+
+  # funds locking
   LockFunds: lock-funds
   WaitLockedFunds: wait-locked-funds
 
-  WaitRedeemableFunds: wait-redeemable-funds
+  # redeem and wait for funds redeem
+  WaitFundsRedeemed: wait-funds-redeemed
   RedeemFunds: redeem
 
+  # done
   Done: done
 
-
-
-# buyer (utxo)                          | seller (utxo)
-# --------------------------------------------------------------------------------
-# generates a proposal                  |
-# sends proposal to seller              |
-#                                       | receives proposal
-# generate key                          | generate key
-# generates a token                     |
-#                                       | sends redeem key hash to buyer
-# generates lock script                 |
-# sends lock script to seller           |
-# sends redeem key hash to seller       |
-#                                       | generates lock script
-#                                       | sends lock script to buyer
-# locks funds with generate lockscript  |
-# waits for seller transaction(s)       |
-#                                       | waits for buyer transaction(s)
-#                                       | locks funds with generate lockscript
-#                                       | waits for buyer redeem transaction
-# redeems funds with token              |
-#                                       | extract token from buyers redeem transaction
-#                                       | redeems funds with token
-# done                                  | done
+# ---------------------------------------------------------------------------------
+#                                  manual exchange
+#   buyer                              | opr |  seller
+# -------------------------------------|-----|-------------------------------------
+#   sends proposal to seller           | --> |  receives proposal
+#   receives proposal response         | <-- |  sends proposal response to buyer
+#   generate redeem and recovery keys  |  G  |  generate redeem and recovery keys
+#   generates a secret token           |  G  |
+#   receives sellers redeem key hash   | <-- |  sends redeem key hash to buyer
+#   generates lockscript (Lb)          |  G  |
+#   sends lockscript to seller         | --> |  receives lockscript and check it
+#
+#   sends redeem key hash to seller    | --> |  receives buyers redeem key hash
+#                                      |  G  |  generates lockscript (Ls)
+#   receive lockscript and check it    | <-- |  sends lockscript to buyer
+#   locks funds with lockscript Lb     | L/W |  waits for buyer lock transaction(s)
+#
+#   waits for seller transaction(s)    | W/L |  locks funds with lockscript Ls
+#   redeems funds with token           | R/W |  waits for buyer redeem transaction and extract token
+#                                      |  R  |  redeems funds with token

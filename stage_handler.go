@@ -2,6 +2,7 @@ package atomicswap
 
 import (
 	"fmt"
+	"strings"
 
 	"transmutate.io/pkg/atomicswap/stages"
 )
@@ -47,7 +48,7 @@ func (sh *StageHandler) Unhandled(s ...stages.Stage) []stages.Stage {
 func (sh *StageHandler) HandleStage(s stages.Stage, t *Trade) error {
 	h, ok := sh.handlers[s]
 	if !ok {
-		return StageNotHandlerError(s)
+		return StagesNotHandlerError([]stages.Stage{s})
 	}
 	return h(t)
 }
@@ -55,7 +56,7 @@ func (sh *StageHandler) HandleStage(s stages.Stage, t *Trade) error {
 func (sh *StageHandler) HandleTrade(t *Trade) error {
 	h := sh.Unhandled(t.Stages.Stages()...)
 	if len(h) > 0 {
-		return StageNotHandlerError(h[0])
+		return StagesNotHandlerError(h)
 	}
 	for {
 		if err := sh.HandleStage(t.Stages.Stage(), t); err != nil {
@@ -67,10 +68,15 @@ func (sh *StageHandler) HandleTrade(t *Trade) error {
 	}
 }
 
-type StageNotHandlerError stages.Stage
+type StagesNotHandlerError []stages.Stage
 
-func (e StageNotHandlerError) Error() string {
-	return fmt.Sprintf("stage not handled: %s", stages.Stage(e).String())
+func (e StagesNotHandlerError) Error() string {
+	s := []stages.Stage(e)
+	ss := make([]string, 0, len(s))
+	for _, i := range s {
+		ss = append(ss, i.String())
+	}
+	return fmt.Sprintf("stages not handled: %s", strings.Join(ss, ", "))
 }
 
 var (

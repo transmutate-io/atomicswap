@@ -38,42 +38,32 @@ func (v *Stage) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 const (
- 	GenerateKeys Stage = iota
- 	WaitRedeemableFunds
- 	RedeemFunds
- 	ShareProposalResponse
- 	ReceiveKeyData
- 	ShareProposal
- 	ReceiveProposalResponse
- 	ReceiveLock
- 	Done
- 	GenerateToken
+ 	GenerateToken Stage = iota
+ 	SendProposal
  	ReceiveProposal
- 	ShareKeyData
- 	GenerateLock
- 	ShareLock
  	LockFunds
  	WaitLockedFunds
+ 	WaitFundsRedeemed
+ 	RedeemFunds
+ 	GenerateKeys
+ 	SendProposalResponse
+ 	ReceiveProposalResponse
+ 	Done
 )
 
 var (
 	_Stage = map[Stage]string{
-		GenerateKeys:            "generate-keys",
-		WaitRedeemableFunds:     "wait-redeemable-funds",
-		RedeemFunds:             "redeem",
-		ShareProposalResponse:   "share-proposal-response",
-		ReceiveKeyData:          "receive-key-data",
-		ShareProposal:           "share-proposal",
-		ReceiveProposalResponse: "receive-proposal-response",
-		ReceiveLock:             "receive-lock",
+		GenerateToken:           "generate-token",
+		SendProposal:            "send-proposal",
+		ReceiveProposal:         "receive-proposal",
 		LockFunds:               "lock-funds",
 		WaitLockedFunds:         "wait-locked-funds",
+		WaitFundsRedeemed:       "wait-funds-redeemed",
+		RedeemFunds:             "redeem",
+		GenerateKeys:            "generate-keys",
+		SendProposalResponse:    "send-proposal-response",
+		ReceiveProposalResponse: "receive-proposal-response",
 		Done:                    "done",
-		GenerateToken:           "generate-token",
-		ReceiveProposal:         "receive-proposal",
-		ShareKeyData:            "share-key-data",
-		GenerateLock:            "generate-lock",
-		ShareLock:               "share-lock",
 	}
 	_StageNames map[string]Stage
 )

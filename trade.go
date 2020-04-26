@@ -136,6 +136,139 @@ func (t *Trade) GenerateKeys() error {
 	return err
 }
 
+type BuyProposalInfo struct {
+	Crypto       *cryptos.Crypto `yaml:"crypto"`
+	Amount       types.Amount    `yaml:"amount"`
+	LockDuration Duration        `yaml:"lock_duration"`
+}
+
+type BuyProposal struct {
+	Buyer  *BuyProposalInfo `yaml:"buyer"`
+	Seller *BuyProposalInfo `yaml:"seller"`
+}
+
+type InitialBuyProposal struct {
+	Buyer           *BuyProposalInfo `yaml:"buyer"`
+	Seller          *BuyProposalInfo `yaml:"seller"`
+	TokenHash       []byte           `yaml:"token_hash"`
+	RedeemKeyData   key.KeyData      `yaml:"redeem_key_data"`
+	RecoveryKeyData key.KeyData      `yaml:"recovery_key_data"`
+}
+
+var (
+	ErrNotABuyerTrade  = errors.New("not a buyer trade")
+	ErrNotASellerTrade = errors.New("not a seller trade")
+)
+
+// func (t *Trade) GenerateBuyProposal() (*BuyProposal, error) {
+// 	if t.Role != roles.Buyer {
+// 		return nil, ErrNotABuyerTrade
+// 	}
+// 	return &BuyProposal{
+// 		Buyer: &BuyProposalInfo{
+// 			Crypto:       t.OwnInfo.Crypto,
+// 			Amount:       t.OwnInfo.Amount,
+// 			LockDuration: t.Duration,
+// 		},
+// 		Seller: &BuyProposalInfo{
+// 			Crypto:       t.TraderInfo.Crypto,
+// 			Amount:       t.TraderInfo.Amount,
+// 			LockDuration: t.Duration / 2,
+// 		},
+// 		RecoveryKeyData: t.RecoveryKey.Public().KeyData(),
+// 		RedeemKeyData:   t.RedeemKey.Public().KeyData(),
+// 		TokenHash:       t.TokenHash,
+// 	}, nil
+// }
+
+type BuyProposalResponse interface {
+	Accepted() bool
+	Locks() (Lock, Lock, error)
+	Refused() bool
+	CounterProposal() (*BuyProposal, error)
+}
+
+var (
+	ErrNotAccepted = errors.New("not accepted")
+	ErrNotACounter = errors.New("not a counter proposal")
+)
+
+type RefusedBuyResponse struct{}
+
+func (r RefusedBuyResponse) Accepted() bool { return false }
+func (r RefusedBuyResponse) Refused() bool  { return true }
+
+func (r RefusedBuyResponse) Locks() (Lock, Lock, error) {
+	return nil, nil, ErrNotAccepted
+}
+
+func (r RefusedBuyResponse) CounterProposal() (*BuyProposal, error) {
+	return nil, ErrNotACounter
+}
+
+func (r RefusedBuyResponse) MarshalYAML() (interface{}, error) {
+	return false, nil
+}
+
+func (r RefusedBuyResponse) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var b bool
+	return unmarshal(&b)
+}
+
+type AcceptBuyResponse struct {
+	Buyer  Lock `yaml:"buyer"`
+	Seller Lock `yaml:"seller"`
+}
+
+func (r *AcceptBuyResponse) Accepted() bool { return true }
+func (r *AcceptBuyResponse) Refused() bool  { return false }
+
+func (r *AcceptBuyResponse) Locks() (Lock, Lock, error) {
+	return r.Buyer, r.Seller, nil
+}
+
+func (r *AcceptBuyResponse) CounterProposal() (*BuyProposal, error) {
+	return nil, ErrNotACounter
+}
+
+type CounterBuyResponse BuyProposal
+
+func (r *CounterBuyResponse) Accepted() bool { return false }
+func (r *CounterBuyResponse) Refused() bool  { return false }
+
+func (r *CounterBuyResponse) Locks() (Lock, Lock, error) {
+	return nil, nil, ErrNotAccepted
+}
+
+func (r *CounterBuyResponse) CounterProposal() (*BuyProposal, error) {
+	return (*BuyProposal)(r), nil
+}
+
+// type BuyProposalResponse struct {
+// 	BuyerCrypto  *cryptos.Crypto `yaml:"buyer_crypto"`
+// 	BuyerAmount  types.Amount    `yaml:"buyer_amount"`
+// 	BuyerLock    Lock            `yaml:"buyer_lock"`
+// 	SellerCrypto *cryptos.Crypto `yaml:"seller_crypto"`
+// 	SellerAmount types.Amount    `yaml:"seller_amount"`
+// 	SellerLock   Lock            `yaml:"seller_lock"`
+// }
+
+// func (t *Trade) AcceptBuyProposal(prop *BuyProposal) (*BuyProposalResponse, error) {
+// 	if t.Role != roles.Seller {
+// 		return nil, ErrNotASellerTrade
+// 	}
+// 	// // generate seller lock
+// 	// engine, err := script.NewEngine(prop.BuyerCrypto)
+// 	// if err != nil {
+// 	// 	return nil, err
+// 	// }
+// 	// _ = engine
+// 	// // generate own lock with trader field data
+// 	return nil, nil
+// }
+
+// func generateLock() {}
+
 // ------------------------------------------------------------------------------------
 
 // type (

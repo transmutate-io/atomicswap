@@ -5,7 +5,13 @@ import (
 	"transmutate.io/pkg/atomicswap/cryptotypes"
 )
 
-type Funds interface{ CryptoType() cryptotypes.CryptoType }
+type Funds interface {
+	CryptoType() cryptotypes.CryptoType
+	AddFunds(funds interface{})
+	Funds() interface{}
+	SetLock(lock Lock)
+	Lock() Lock
+}
 
 func newFunds(c *cryptos.Crypto) Funds {
 	switch c.Type {
@@ -15,3 +21,15 @@ func newFunds(c *cryptos.Crypto) Funds {
 		panic("not supported")
 	}
 }
+
+type (
+	// LockData struct {
+	// 	Locktime        time.Time
+	// 	RedeemKeyData   key.KeyData
+	// 	RecoveryKeyData key.KeyData
+	// }
+	Lock interface {
+		Data() interface{}
+		// LockData() *LockData
+	}
+)

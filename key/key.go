@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"transmutate.io/pkg/atomicswap/cryptos"
-	"transmutate.io/pkg/atomicswap/yamltypes"
 )
 
 type (
@@ -19,7 +18,6 @@ type (
 	Private interface {
 		Public() Public
 		Sign(b []byte) ([]byte, error)
-		yamltypes.MarshalerUnmarshaler
 		Serialize() []byte
 		Keyer
 	}
@@ -27,7 +25,6 @@ type (
 	Public interface {
 		KeyData() KeyData
 		Verify(sig, msg []byte) error
-		yamltypes.MarshalerUnmarshaler
 		SerializeCompressed() []byte
 		Keyer
 	}

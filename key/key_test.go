@@ -5,48 +5,29 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
+	"transmutate.io/pkg/atomicswap/cryptos"
 )
 
-type testKey struct {
-	parsePriv ParsePrivateFunc
-	newPriv   NewPrivateFunc
-	newPub    NewPublicFunc
-}
-
-var testKeys = map[string]*testKey{
-	"bitcoin": &testKey{
-		parsePriv: ParsePrivateBTC,
-		newPriv:   NewPrivateBTC,
-		newPub:    NewPublicBTC,
-	},
-	"litecoin": &testKey{
-		parsePriv: ParsePrivateLTC,
-		newPriv:   NewPrivateLTC,
-		newPub:    NewPublicLTC,
-	},
-	"dogecoin": &testKey{
-		parsePriv: ParsePrivateDOGE,
-		newPriv:   NewPrivateDOGE,
-		newPub:    NewPublicDOGE,
-	},
-	"bitcoin-cash": &testKey{
-		parsePriv: ParsePrivateBCH,
-		newPriv:   NewPrivateBCH,
-		newPub:    NewPublicBCH,
-	},
+var testCryptos = []string{
+	"bitcoin",
+	"litecoin",
+	"dogecoin",
+	"bitcoin-cash",
 }
 
 func TestKeys(t *testing.T) {
-	for name, n := range testKeys {
+	for _, name := range testCryptos {
 		t.Run(name, func(t *testing.T) {
+			crypto, err := cryptos.Parse(name)
+			require.NoError(t, err, "can't parse crypto")
 			// generate private key
-			k1, err := n.newPriv()
+			k1, err := NewPrivate(crypto)
 			require.NoError(t, err, "can't create private key")
 			// marshal
 			b, err := yaml.Marshal(k1)
 			require.NoError(t, err, "can't private marshal")
 			// generate private key
-			k2, err := n.newPriv()
+			k2, err := NewPrivate(crypto)
 			require.NoError(t, err, "can't create new key")
 			// unmarshal
 			err = yaml.Unmarshal(b, k2)

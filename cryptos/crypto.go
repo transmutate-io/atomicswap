@@ -14,12 +14,12 @@ func (e InvalidCryptoError) Error() string {
 	return fmt.Sprintf("invalid crypto: \"%s\"", string(e))
 }
 
-func ParseCrypto(s string) (*Crypto, error) {
+func Parse(s string) (*Crypto, error) {
 	r, ok := Cryptos[s]
 	if !ok {
 		return nil, InvalidCryptoError(s)
 	}
-	return r(), nil
+	return r, nil
 }
 
 type Crypto struct {
@@ -38,7 +38,7 @@ func (c *Crypto) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&r); err != nil {
 		return err
 	}
-	cr, err := ParseCrypto(r)
+	cr, err := Parse(r)
 	if err != nil {
 		return err
 	}

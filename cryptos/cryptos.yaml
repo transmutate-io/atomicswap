@@ -1,36 +1,23 @@
 package: cryptos
 main_file: cryptos.gen.go
 interface_type: Crypto
-type_prefix: crypto
 main_template:
   template: cryptos.go.tpl
   out: cryptos.gen.go
-templates:
-- template: crypto.go.tpl
-  out: crypto_btc.gen.go
   values:
-    name: bitcoin
-    short: BTC
-    decimals: 8
-    type: UTXO
-- template: crypto.go.tpl
-  out: crypto_ltc.gen.go
-  values:
-    name: litecoin
-    short: LTC
-    decimals: 8
-    type: UTXO
-- template: crypto.go.tpl
-  out: crypto_doge.gen.go
-  values:
-    name: dogecoin
-    short: DOGE
-    decimals: 8
-    type: UTXO
-- template: crypto.go.tpl
-  out: crypto_bch.gen.go
-  values:
-    name: bitcoin-cash
-    short: BCH
-    decimals: 8
-    type: UTXO
+    BTC:
+      name: "bitcoin"
+      decimals: 8
+      type: UTXO
+    LTC:
+      name: "litecoin"
+      decimals: 8
+      type: UTXO
+    DOGE:
+      name: "dogecoin"
+      decimals: 8
+      type: UTXO
+    BCH:
+      name: "bitcoin-cash"
+      decimals: 8
+      type: UTXO

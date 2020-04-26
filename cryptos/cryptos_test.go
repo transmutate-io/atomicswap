@@ -10,7 +10,7 @@ import (
 func TestParseCrypto(t *testing.T) {
 	for i := range cryptos.Cryptos {
 		t.Run(i, func(t *testing.T) {
-			c, err := cryptos.ParseCrypto(i)
+			c, err := cryptos.Parse(i)
 			require.NoError(t, err, "parsing error")
 			_ = c
 		})

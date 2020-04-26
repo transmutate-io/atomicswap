@@ -2,8 +2,11 @@ package transaction
 
 type txDOGE struct{ *txBTC }
 
-// NewDOGE creates a new *txDOGE
-func NewDOGE() Tx { return &txDOGE{txBTC: NewBTC().(*txBTC)} }
+// NewTxDOGE creates a new *txDOGE
+func NewTxDOGE() (Tx, error) {
+	b, _ := NewTxBTC()
+	return &txDOGE{txBTC: b.(*txBTC)}, nil
+}
 
 func (tx *txDOGE) Copy() Tx { return &txDOGE{txBTC: tx.txBTC.Copy().(*txBTC)} }
 

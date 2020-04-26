@@ -5,10 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"transmutate.io/pkg/atomicswap/key"
+
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
+	"transmutate.io/pkg/atomicswap/cryptos"
 	"transmutate.io/pkg/atomicswap/cryptotypes"
-	"transmutate.io/pkg/atomicswap/key"
 )
 
 func readRandom(sz int) []byte {
@@ -21,39 +23,20 @@ func readRandom(sz int) []byte {
 	return r
 }
 
-type testTx struct {
-	newTx NewTxFunc
-	newK  key.NewPrivateFunc
+var testCryptos = []string{
+	"bitcoin",
+	"litecoin",
+	"dogecoin",
+	"bitcoin-cash",
 }
 
-var testTxs = map[string]*testTx{
-	"bitcoin": &testTx{
-		newTx: NewBTC,
-		newK:  key.NewPrivateBTC,
-	},
-	"litecoin": &testTx{
-		newTx: NewLTC,
-		newK:  key.NewPrivateLTC,
-	},
-
-	"dogecoin": &testTx{
-		newTx: NewDOGE,
-		newK:  key.NewPrivateDOGE,
-	},
-
-	"bitcoin-cash": &testTx{
-		newTx: NewBCH,
-		newK:  key.NewPrivateBCH,
-	},
-}
-
-func testTxUTXO(t *testing.T, tt *testTx, tx Tx) {
+func testTxUTXO(t *testing.T, c *cryptos.Crypto, tx Tx) {
 	// inputs and outputs
 	txUTXO := tx.TxUTXO()
 	txUTXO.AddInput(readRandom(32), 1, []byte{0x52, 0x52, 0x93, 0x54, 0x87})
 	txUTXO.AddInput(readRandom(32), 3, []byte{0x53, 0x52, 0x93, 0x55, 0x87})
 	txUTXO.AddOutput(100000000, []byte{0x54, 0x52, 0x93, 0x56, 0x87})
-	k, err := tt.newK()
+	k, err := key.NewPrivate(c)
 	require.NoError(t, err, "can't create new private key")
 	for i := 0; i < 2; i++ {
 		_, err = txUTXO.InputSignature(i, 0, k)
@@ -81,13 +64,16 @@ func testTxUTXO(t *testing.T, tt *testTx, tx Tx) {
 }
 
 func TestTx(t *testing.T) {
-	for n, i := range testTxs {
-		t.Run(n, func(t *testing.T) {
+	for _, name := range testCryptos {
+		t.Run(name, func(t *testing.T) {
+			crypto, err := cryptos.Parse(name)
+			require.NoError(t, err, "can't parse crypto")
 			// new tx
-			tx := i.newTx()
+			tx, err := NewTx(crypto)
+			require.NoError(t, err, "can't create a new tx")
 			switch txType := tx.Type(); txType {
 			case cryptotypes.UTXO:
-				testTxUTXO(t, i, tx)
+				testTxUTXO(t, crypto, tx)
 			default:
 				t.Errorf("unknown crypto type: %v", txType)
 				return

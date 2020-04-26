@@ -2,8 +2,11 @@ package transaction
 
 type txLTC struct{ *txBTC }
 
-// NewLTC creates a new *txLTC
-func NewLTC() Tx { return &txLTC{txBTC: NewBTC().(*txBTC)} }
+// NewTxLTC creates a new *txLTC
+func NewTxLTC() (Tx, error) {
+	b, _ := NewTxBTC()
+	return &txLTC{txBTC: b.(*txBTC)}, nil
+}
 
 func (tx *txLTC) Copy() Tx { return &txLTC{txBTC: tx.txBTC.Copy().(*txBTC)} }
 

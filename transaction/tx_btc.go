@@ -16,8 +16,8 @@ import (
 // tx represents a transaction
 type txBTC wire.MsgTx
 
-// NewBTC creates a new *txBTC
-func NewBTC() Tx { return (*txBTC)(wire.NewMsgTx(wire.TxVersion)) }
+// NewTxBTC creates a new *txBTC
+func NewTxBTC() (Tx, error) { return (*txBTC)(wire.NewMsgTx(wire.TxVersion)), nil }
 
 func (tx *txBTC) tx() *wire.MsgTx { return (*wire.MsgTx)(tx) }
 

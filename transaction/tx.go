@@ -4,14 +4,14 @@ import (
 	"errors"
 	"time"
 
-	"transmutate.io/pkg/atomicswap/script"
-
+	"transmutate.io/pkg/atomicswap/cryptos"
 	"transmutate.io/pkg/atomicswap/cryptotypes"
 	"transmutate.io/pkg/atomicswap/key"
+	"transmutate.io/pkg/atomicswap/script"
 )
 
 type (
-	NewTxFunc = func() Tx
+	NewTxFunc = func() (Tx, error)
 
 	Serializer interface {
 		// Serialize serializes the transaction
@@ -71,3 +71,18 @@ var (
 	ErrNotStateBased = errors.New("not state based")
 	ErrNotUTXO       = errors.New("not UTXO")
 )
+
+var newFuncs = map[string]NewTxFunc{
+	"bitcoin":      NewTxBTC,
+	"litecoin":     NewTxLTC,
+	"dogecoin":     NewTxDOGE,
+	"bitcoin-cash": NewTxBCH,
+}
+
+func NewTx(c *cryptos.Crypto) (Tx, error) {
+	nf, ok := newFuncs[c.Name]
+	if !ok {
+		return nil, cryptos.InvalidCryptoError(c.Name)
+	}
+	return nf()
+}

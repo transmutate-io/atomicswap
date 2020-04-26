@@ -16,8 +16,8 @@ import (
 // tx represents a transaction
 type txBCH wire.MsgTx
 
-// NewBCH creates a new *txBCH
-func NewBCH() Tx { return (*txBCH)(wire.NewMsgTx(wire.TxVersion)) }
+// NewTxBCH creates a new *txBCH
+func NewTxBCH() (Tx, error) { return (*txBCH)(wire.NewMsgTx(wire.TxVersion)), nil }
 
 func (tx *txBCH) tx() *wire.MsgTx { return (*wire.MsgTx)(tx) }
 

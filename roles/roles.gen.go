@@ -4,7 +4,9 @@ import "fmt"
 
 type InvalidRoleError string
 
-func (e InvalidRoleError) Error() string { return fmt.Sprintf("invalid role: \"%s\"", string(e)) }
+func (e InvalidRoleError) Error() string {
+	return fmt.Sprintf("invalid role: \"%s\"", string(e))
+}
 
 type Role int
 
@@ -38,13 +40,13 @@ func (v *Role) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 const (
- 	Buyer Role = iota
- 	Seller
+	Buyer Role = iota
+	Seller
 )
 
 var (
 	_Role = map[Role]string{
-		Buyer:  "buyer",
+		Buyer: "buyer",
 		Seller: "seller",
 	}
 	_RoleNames map[string]Role
@@ -56,3 +58,4 @@ func init() {
 		_RoleNames[v] = k
 	}
 }
+

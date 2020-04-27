@@ -36,25 +36,6 @@ type newFuncs struct {
 	pub       NewPublicFunc
 }
 
-var cryptoFuncs = map[string]newFuncs{
-	"bitcoin": newFuncs{
-		priv: NewPrivateBTC,
-		pub:  NewPublicBTC,
-	},
-	"litecoin": newFuncs{
-		priv: NewPrivateLTC,
-		pub:  NewPublicLTC,
-	},
-	"dogecoin": newFuncs{
-		priv: NewPrivateDOGE,
-		pub:  NewPublicDOGE,
-	},
-	"bitcoin-cash": newFuncs{
-		priv: NewPrivateBCH,
-		pub:  NewPublicBCH,
-	},
-}
-
 type KeysError cryptos.Crypto
 
 func (e *KeysError) Error() string {

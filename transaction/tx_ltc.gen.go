@@ -10,7 +10,7 @@ func NewTxLTC() (Tx, error) {
 	return &txLTC{txBTC: b.(*txBTC)}, nil
 }
 
-func (tx *txLTC) Crypto() *cryptos.Crypto { return cryptos.Cryptos["litecoin"] }
+func (tx *txLTC) Crypto() *cryptos.Crypto { return cryptos.Cryptos["<no value>"] }
 
 func (tx *txLTC) Copy() Tx { return &txLTC{txBTC: tx.txBTC.Copy().(*txBTC)} }
 

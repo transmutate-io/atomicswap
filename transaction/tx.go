@@ -72,15 +72,8 @@ var (
 	ErrNotUTXO       = errors.New("not UTXO")
 )
 
-var newFuncs = map[string]NewTxFunc{
-	"bitcoin":      NewTxBTC,
-	"litecoin":     NewTxLTC,
-	"dogecoin":     NewTxDOGE,
-	"bitcoin-cash": NewTxBCH,
-}
-
 func NewTx(c *cryptos.Crypto) (Tx, error) {
-	nf, ok := newFuncs[c.Name]
+	nf, ok := txFuncs[c.Name]
 	if !ok {
 		return nil, cryptos.InvalidCryptoError(c.Name)
 	}

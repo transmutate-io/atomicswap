@@ -1,0 +1,27 @@
+value_sets:
+  go:
+    package: transaction
+templates:
+- template: tx.go.tpl
+  out: tx.gen.go
+  value_sets: [ go ]
+  values:
+    coins:
+    - name: bitcoin
+      short: BTC
+    - name: litecoin
+      short: LTC
+    - name: dogecoin
+      short: DOGE
+    - name: bitcoin-cash
+      short: BCH
+- template: tx_btc_like.go.tpl
+  out: tx_ltc.gen.go
+  value_sets: [ go ]
+  values:
+    short: LTC
+- template: tx_btc_like.go.tpl
+  out: tx_doge.gen.go
+  value_sets: [ go ]
+  values:
+    short: DOGE

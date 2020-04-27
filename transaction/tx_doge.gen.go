@@ -10,7 +10,7 @@ func NewTxDOGE() (Tx, error) {
 	return &txDOGE{txBTC: b.(*txBTC)}, nil
 }
 
-func (tx *txDOGE) Crypto() *cryptos.Crypto { return cryptos.Cryptos["dogecoin"] }
+func (tx *txDOGE) Crypto() *cryptos.Crypto { return cryptos.Cryptos["<no value>"] }
 
 func (tx *txDOGE) Copy() Tx { return &txDOGE{txBTC: tx.txBTC.Copy().(*txBTC)} }
 

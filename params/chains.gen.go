@@ -2,34 +2,36 @@ package params
 
 import "fmt"
 
-type InvalidChainError string
+type InvalidTypeError string
 
-func (e InvalidChainError) Error() string { return fmt.Sprintf("invalid chain: \"%s\"", string(e)) }
+func (e InvalidTypeError) Error() string {
+	return fmt.Sprintf("invalid crypto type: \"%s\"", string(e))
+}
 
-type Chain int
+type Type int
 
-func ParseChain(s string) (Chain, error) {
-	var r Chain
+func ParseType(s string) (Type, error) {
+	var r Type
 	if err := (&r).Set(s); err != nil {
 		return 0, err
 	}
 	return r, nil
 }
 
-func (v Chain) String() string { return _Chain[v] }
+func (v Type) String() string { return _Type[v] }
 
-func (v *Chain) Set(sv string) error {
-	nv, ok := _ChainNames[sv]
+func (v *Type) Set(sv string) error {
+	nv, ok := _TypeNames[sv]
 	if !ok {
-		return InvalidChainError(sv)
+		return InvalidTypeError(sv)
 	}
 	*v = nv
 	return nil
 }
 
-func (v Chain) MarshalYAML() (interface{}, error) { return v.String(), nil }
+func (v Type) MarshalYAML() (interface{}, error) { return v.String(), nil }
 
-func (v *Chain) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (v *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var r string
 	if err := unmarshal(&r); err != nil {
 		return err
@@ -38,25 +40,26 @@ func (v *Chain) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 const (
- 	MainNet Chain = iota
- 	TestNet
- 	SimNet
- 	RegressionNet
+	MainNet Type = iota
+	TestNet
+	SimNet
+	RegressionNet
 )
 
 var (
-	_Chain = map[Chain]string{
-		MainNet:       "mainnet",
-		TestNet:       "testnet",
-		SimNet:        "simnet",
+	_Type = map[Type]string{
+		MainNet: "mainnet",
+		TestNet: "testnet",
+		SimNet: "simnet",
 		RegressionNet: "regnet",
 	}
-	_ChainNames map[string]Chain
+	_TypeNames map[string]Type
 )
 
 func init() {
-	_ChainNames = make(map[string]Chain, len(_Chain))
-	for k, v := range _Chain {
-		_ChainNames[v] = k
+	_TypeNames = make(map[string]Type, len(_Type))
+	for k, v := range _Type {
+		_TypeNames[v] = k
 	}
 }
+

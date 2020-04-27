@@ -1,39 +1,58 @@
-type: Stage
-filename: stages.gen.go
-package: stages
-consts:
-  # keys and token generation
-  GenerateKeys: generate-keys
-  GenerateToken: generate-token
+value_sets:
+  go:
+    package: stages
+templates:
+- template: ../cryptos/const_type.go.tpl
+  out: stages.gen.go
+  value_sets:
+  - go
+  values:
+    type_name: Stage
+    type_desc: stage
+    consts:
+    # keys and token generation
+    - name: GenerateKeys
+      value: generate-keys
+    - name: GenerateToken
+      value: generate-token
 
-  # proposal exchange
-  SendProposal: send-proposal
-  ReceiveProposal: receive-proposal
-  SendProposalResponse: send-proposal-response
-  ReceiveProposalResponse: receive-proposal-response
+    # proposal exchange
+    - name: SendProposal
+      value: send-proposal
+    - name: ReceiveProposal
+      value: receive-proposal
+    - name: SendProposalResponse
+      value: send-proposal-response
+    - name: ReceiveProposalResponse
+      value: receive-proposal-response
 
-  # # key data exchange and lock generation
-  # SendKeyData: send-key-data
-  # ReceiveKeyData: receive-key-data
+    # # key data exchange and lock generation
+    # SendKeyData: send-key-data
+    # ReceiveKeyData: receive-key-data
 
-  # # lock exchange
-  # SendLock: send-lock
-  # ReceiveLock: receive-lock
+    # # lock exchange
+    # SendLock: send-lock
+    # ReceiveLock: receive-lock
 
-  # # lock generation and check
-  # GenerateLock: generate-lock
-  # CheckLock: check-lock
+    # # lock generation and check
+    # GenerateLock: generate-lock
+    # CheckLock: check-lock
 
-  # funds locking
-  LockFunds: lock-funds
-  WaitLockedFunds: wait-locked-funds
+    # funds locking
+    - name: LockFunds
+      value: lock-funds
+    - name: WaitLockedFunds
+      value: wait-locked-funds
 
-  # redeem and wait for funds redeem
-  WaitFundsRedeemed: wait-funds-redeemed
-  RedeemFunds: redeem
+    # redeem and wait for funds redeem
+    - name: WaitFundsRedeemed
+      value: wait-funds-redeemed
+    - name: RedeemFunds
+      value: redeem
 
-  # done
-  Done: done
+    # done
+    - name: Done
+      value: done
 
 # ---------------------------------------------------------------------------------
 #                                  manual exchange

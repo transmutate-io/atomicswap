@@ -4,7 +4,9 @@ import "fmt"
 
 type InvalidStageError string
 
-func (e InvalidStageError) Error() string { return fmt.Sprintf("invalid stage: \"%s\"", string(e)) }
+func (e InvalidStageError) Error() string {
+	return fmt.Sprintf("invalid stage: \"%s\"", string(e))
+}
 
 type Stage int
 
@@ -38,32 +40,32 @@ func (v *Stage) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 const (
- 	GenerateToken Stage = iota
- 	SendProposal
- 	ReceiveProposal
- 	LockFunds
- 	WaitLockedFunds
- 	WaitFundsRedeemed
- 	RedeemFunds
- 	GenerateKeys
- 	SendProposalResponse
- 	ReceiveProposalResponse
- 	Done
+	GenerateKeys Stage = iota
+	GenerateToken
+	SendProposal
+	ReceiveProposal
+	SendProposalResponse
+	ReceiveProposalResponse
+	LockFunds
+	WaitLockedFunds
+	WaitFundsRedeemed
+	RedeemFunds
+	Done
 )
 
 var (
 	_Stage = map[Stage]string{
-		GenerateToken:           "generate-token",
-		SendProposal:            "send-proposal",
-		ReceiveProposal:         "receive-proposal",
-		LockFunds:               "lock-funds",
-		WaitLockedFunds:         "wait-locked-funds",
-		WaitFundsRedeemed:       "wait-funds-redeemed",
-		RedeemFunds:             "redeem",
-		GenerateKeys:            "generate-keys",
-		SendProposalResponse:    "send-proposal-response",
+		GenerateKeys: "generate-keys",
+		GenerateToken: "generate-token",
+		SendProposal: "send-proposal",
+		ReceiveProposal: "receive-proposal",
+		SendProposalResponse: "send-proposal-response",
 		ReceiveProposalResponse: "receive-proposal-response",
-		Done:                    "done",
+		LockFunds: "lock-funds",
+		WaitLockedFunds: "wait-locked-funds",
+		WaitFundsRedeemed: "wait-funds-redeemed",
+		RedeemFunds: "redeem",
+		Done: "done",
 	}
 	_StageNames map[string]Stage
 )
@@ -74,3 +76,4 @@ func init() {
 		_StageNames[v] = k
 	}
 }
+

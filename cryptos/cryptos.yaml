@@ -1,23 +1,39 @@
-package: cryptos
-main_file: cryptos.gen.go
-interface_type: Crypto
-main_template:
-  template: cryptos.go.tpl
-  out: cryptos.gen.go
+value_sets:
+  go:
+    package: cryptos
+templates:
+- template: const_type.go.tpl
+  out: crypto_types.gen.go
+  value_sets:
+  - go
   values:
-    BTC:
-      name: "bitcoin"
-      decimals: 8
-      type: UTXO
-    LTC:
-      name: "litecoin"
-      decimals: 8
-      type: UTXO
-    DOGE:
-      name: "dogecoin"
-      decimals: 8
-      type: UTXO
-    BCH:
-      name: "bitcoin-cash"
-      decimals: 8
-      type: UTXO
+    type_name: Type
+    type_desc: crypto type
+    consts:
+    - name: UTXO
+      value: utxo
+    - name: StateBased
+      value: state-based
+- template: cryptos.go.tpl
+  out: cryptos.gen.go
+  value_sets:
+  - go
+  values:
+    type_name: Crypto
+    coins:
+      BTC:
+        name: "bitcoin"
+        type: UTXO
+        decimals: 8
+      LTC:
+        name: "litecoin"
+        type: UTXO
+        decimals: 8
+      DOGE:
+        name: "dogecoin"
+        type: UTXO
+        decimals: 8
+      BCH:
+        name: "bitcoin-cash"
+        type: UTXO
+        decimals: 8

@@ -4,7 +4,9 @@ import "fmt"
 
 type InvalidTypeError string
 
-func (e InvalidTypeError) Error() string { return fmt.Sprintf("invalid type: \"%s\"", string(e)) }
+func (e InvalidTypeError) Error() string {
+	return fmt.Sprintf("invalid crypto type: \"%s\"", string(e))
+}
 
 type Type int
 
@@ -38,14 +40,14 @@ func (v *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 const (
- 	UTXO Type = iota
- 	StateBased
+	UTXO Type = iota
+	StateBased
 )
 
 var (
 	_Type = map[Type]string{
+		UTXO: "utxo",
 		StateBased: "state-based",
-		UTXO:       "utxo",
 	}
 	_TypeNames map[string]Type
 )
@@ -56,3 +58,4 @@ func init() {
 		_TypeNames[v] = k
 	}
 }
+

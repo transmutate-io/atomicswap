@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"go/format"
+	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/template"
 
@@ -14,7 +18,7 @@ func main() {
 	if len(os.Args) != 2 {
 		errorExit(-1, "need a generation file\n")
 	}
-	gd, err := readGenData(os.Args[1])
+	gd, err := loadGenData(os.Args[1])
 	if err != nil {
 		errorExit(-2, "can't read generation data: %s\n", err.Error())
 	}
@@ -31,8 +35,10 @@ func errorExit(code int, f string, a ...interface{}) {
 type valueMap = map[string]interface{}
 
 type genData struct {
-	ValueSets map[string]valueMap `yaml:"value_sets"`
-	Templates []*genValues        `yaml:"templates"`
+	Imports           []string `yaml:"imports"`
+	importedValueSets map[string]valueMap
+	ValueSets         map[string]valueMap `yaml:"value_sets"`
+	Templates         []*genValues        `yaml:"templates"`
 }
 
 type genValues struct {
@@ -42,8 +48,25 @@ type genValues struct {
 	Values    valueMap `yaml:"values"`
 }
 
-func readGenData(f string) (*genData, error) {
-	rc, err := os.Open(os.Args[1])
+func loadGenData(f string) (*genData, error) {
+	r, err := readGenDataFile(f)
+	if err != nil {
+		return nil, err
+	}
+	r.importedValueSets = make(map[string]valueMap, 16)
+	for _, i := range r.Imports {
+		fn := filepath.Join(filepath.Dir(f), i)
+		gd, err := readGenDataFile(fn)
+		if err != nil {
+			return nil, err
+		}
+		mergeValueSets(gd.ValueSets, r.importedValueSets)
+	}
+	return r, nil
+}
+
+func readGenDataFile(f string) (*genData, error) {
+	rc, err := os.Open(f)
 	if err != nil {
 		return nil, err
 	}
@@ -69,21 +92,30 @@ var funcMap = template.FuncMap{
 }
 
 func generateCode(gd *genData) error {
-	for i := range gd.Templates {
-		if err := generateFromTemplate(gd, i); err != nil {
+	vs := make(map[string]valueMap, len(gd.ValueSets)+len(gd.importedValueSets))
+	mergeValueSets(gd.importedValueSets, vs)
+	mergeValueSets(gd.ValueSets, vs)
+	for _, i := range gd.Templates {
+		if i.Values == nil {
+			i.Values = make(valueMap, 16)
+		}
+		for _, j := range i.ValueSets {
+			mergeValues(vs[j], i.Values)
+		}
+		if err := generateFromTemplate(i); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func generateFromTemplate(gd *genData, idx int) error {
-	f, err := os.Create(gd.Templates[idx].Out)
+func generateFromTemplate(gv *genValues) error {
+	f, err := os.Create(gv.Out)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	b, err := ioutil.ReadFile(gd.Templates[idx].Template)
+	b, err := ioutil.ReadFile(gv.Template)
 	if err != nil {
 		return err
 	}
@@ -91,18 +123,27 @@ func generateFromTemplate(gd *genData, idx int) error {
 	if err != nil {
 		return err
 	}
-
-	vals := make(map[string]interface{}, 32)
-	for _, i := range gd.Templates[idx].ValueSets {
-		mergeValues(gd.ValueSets[i], vals)
+	bb := bytes.NewBuffer(make([]byte, 0, 1024))
+	if err = t.Execute(bb, valueMap{"Values": gv.Values}); err != nil {
+		return err
 	}
-	mergeValues(gd.Templates[idx].Values, vals)
-
-	return t.Execute(f, map[string]interface{}{"All": gd, "Values": vals})
+	if b, err = format.Source(bb.Bytes()); err != nil {
+		return err
+	}
+	_, err = io.Copy(f, bytes.NewReader(b))
+	return err
 }
 
-func mergeValues(src, dst map[string]interface{}) {
+func mergeValues(src, dst valueMap) valueMap {
 	for k, v := range src {
 		dst[k] = v
 	}
+	return dst
+}
+
+func mergeValueSets(src, dst map[string]valueMap) map[string]valueMap {
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
 }

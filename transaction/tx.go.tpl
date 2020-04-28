@@ -1,7 +1,7 @@
 package {{ .Values.package }}
 
 var txFuncs = map[string]NewTxFunc{
-    {{- range .Values.coins }}
-	"{{ .name }}": NewTx{{ .short }},
+    {{- range $short,$d := .Values.cryptos }}
+	"{{ $d.name }}": NewTx{{ $short }},
     {{- end }}
 }

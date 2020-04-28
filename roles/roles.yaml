@@ -1,16 +1,14 @@
+imports:
+- ../cmd/tpl_gen/yaml/settings.yaml
 value_sets:
   go:
     package: roles
 templates:
-- template: ../cryptos/const_type.go.tpl
+- template: ../cmd/tpl_gen/tpl/const_type.go.tpl
   out: roles.gen.go
   value_sets:
   - go
+  - roles
   values:
     type_name: Role
     type_desc: role
-    consts:
-    - name: Buyer
-      value: buyer
-    - name: Seller
-      value: seller

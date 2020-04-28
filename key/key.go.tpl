@@ -1,11 +1,11 @@
 package {{ .Values.package }}
 
 var cryptoFuncs = map[string]newFuncs{
-	{{- range $i, $v := .Values.coins }}
+	{{- range $i, $v := .Values.cryptos }}
 	"{{ $v.name }}": newFuncs{
-		parsePriv: ParsePrivate{{ $v.short }},
-		priv:      NewPrivate{{ $v.short }},
-		pub:       NewPublic{{ $v.short }},
+		parsePriv: ParsePrivate{{ $i }},
+		priv:      NewPrivate{{ $i }},
+		pub:       NewPublic{{ $i }},
 	},
 	{{- end }}
 }

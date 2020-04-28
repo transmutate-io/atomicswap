@@ -1,0 +1,87 @@
+value_sets:
+  networks:
+    consts:
+    - name: MainNet
+      value: mainnet
+    - name: TestNet
+      value: testnet
+    - name: SimNet
+      value: simnet
+    - name: RegressionNet
+      value: regnet
+  crypto_types:
+    consts:
+    - name: UTXO
+      value: utxo
+    - name: StateBased
+      value: state-based
+  cryptos:
+    cryptos:
+      BTC:
+        name: bitcoin
+        type: UTXO
+        decimals: 8
+      LTC:
+        name: litecoin
+        type: UTXO
+        decimals: 8
+      DOGE:
+        name: dogecoin
+        type: UTXO
+        decimals: 8
+      BCH:
+        name: bitcoin-cash
+        type: UTXO
+        decimals: 8
+  roles:
+    consts:
+    - name: Buyer
+      value: buyer
+    - name: Seller
+      value: seller
+  stages:
+    consts:
+    # keys and token generation
+    - name: GenerateKeys
+      value: generate-keys
+    - name: GenerateToken
+      value: generate-token
+
+    # proposal exchange
+    - name: SendProposal
+      value: send-proposal
+    - name: ReceiveProposal
+      value: receive-proposal
+    - name: SendProposalResponse
+      value: send-proposal-response
+    - name: ReceiveProposalResponse
+      value: receive-proposal-response
+
+    # # key data exchange and lock generation
+    # SendKeyData: send-key-data
+    # ReceiveKeyData: receive-key-data
+
+    # # lock exchange
+    # SendLock: send-lock
+    # ReceiveLock: receive-lock
+
+    # # lock generation and check
+    # GenerateLock: generate-lock
+    # CheckLock: check-lock
+
+    # funds locking
+    - name: LockFunds
+      value: lock-funds
+    - name: WaitLockedFunds
+      value: wait-locked-funds
+
+    # redeem and wait for funds redeem
+    - name: WaitFundsRedeemed
+      value: wait-funds-redeemed
+    - name: RedeemFunds
+      value: redeem
+
+    # done
+    - name: Done
+      value: done
+

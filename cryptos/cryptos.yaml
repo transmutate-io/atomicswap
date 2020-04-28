@@ -1,5 +1,5 @@
 imports:
-- ../cmd/tpl_gen/yaml/coins.yaml
+- ../cmd/tpl_gen/yaml/settings.yaml
 value_sets:
   go:
     package: cryptos
@@ -8,18 +8,14 @@ templates:
   out: crypto_types.gen.go
   value_sets:
   - go
+  - crypto_types
   values:
     type_name: Type
     type_desc: crypto type
-    consts:
-    - name: UTXO
-      value: utxo
-    - name: StateBased
-      value: state-based
 - template: cryptos.go.tpl
   out: cryptos.gen.go
   value_sets:
   - go
-  - coins
+  - cryptos
   values:
     type_name: Crypto

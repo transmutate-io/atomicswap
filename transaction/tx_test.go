@@ -21,13 +21,6 @@ func readRandom(sz int) []byte {
 	return r
 }
 
-var testCryptos = []string{
-	"bitcoin",
-	"litecoin",
-	"dogecoin",
-	"bitcoin-cash",
-}
-
 func testTxUTXO(t *testing.T, c *cryptos.Crypto, tx Tx) {
 	// inputs and outputs
 	txUTXO := tx.TxUTXO()
@@ -62,7 +55,7 @@ func testTxUTXO(t *testing.T, c *cryptos.Crypto, tx Tx) {
 }
 
 func TestTx(t *testing.T) {
-	for _, name := range testCryptos {
+	for name := range txFuncs {
 		t.Run(name, func(t *testing.T) {
 			crypto, err := cryptos.Parse(name)
 			require.NoError(t, err, "can't parse crypto")

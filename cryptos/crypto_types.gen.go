@@ -46,7 +46,7 @@ const (
 
 var (
 	_Type = map[Type]string{
-		UTXO: "utxo",
+		UTXO:       "utxo",
 		StateBased: "state-based",
 	}
 	_TypeNames map[string]Type
@@ -58,4 +58,3 @@ func init() {
 		_TypeNames[v] = k
 	}
 }
-

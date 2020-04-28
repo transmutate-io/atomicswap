@@ -1,3 +1,5 @@
+imports:
+- ../cmd/tpl_gen/yaml/settings.yaml
 value_sets:
   go:
     package: key
@@ -6,16 +8,7 @@ templates:
   out: key.gen.go
   value_sets:
   - go
-  values:
-    coins:
-    - name: bitcoin
-      short: BTC
-    - name: litecoin
-      short: LTC
-    - name: dogecoin
-      short: DOGE
-    - name: bitcoin-cash
-      short: BCH
+  - cryptos
 - template: key_btc_like.go.tpl
   out: key_ltc.gen.go
   value_sets:

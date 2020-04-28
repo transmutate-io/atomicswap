@@ -61,4 +61,3 @@ func init() {
 		_{{ .Values.type_name }}Names[v] = k
 	}
 }
-

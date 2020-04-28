@@ -3,7 +3,7 @@ package {{ .Values.package | default "main" }}
 var (
 	{{ $tn := .Values.type_name -}}
 	{{ .Values.type_name }}s = map[string]*{{ .Values.type_name }}{
-	{{- range $short, $data := .Values.coins }}
+	{{- range $short, $data := .Values.cryptos }}
 		"{{ $data.name }}": &{{ $tn }}{
 			Name:     "{{ $data.name }}",
 			Short:    "{{ $short }}",

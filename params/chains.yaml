@@ -1,20 +1,14 @@
+imports:
+- ../cmd/tpl_gen/yaml/settings.yaml
 value_sets:
   go:
     package: params
 templates:
-- template: ../cryptos/const_type.go.tpl
+- template: ../cmd/tpl_gen/tpl/const_type.go.tpl
   out: chains.gen.go
   value_sets:
   - go
+  - networks
   values:
-    type_name: Type
-    type_desc: crypto type
-    consts:
-    - name: MainNet
-      value: mainnet
-    - name: TestNet
-      value: testnet
-    - name: SimNet
-      value: simnet
-    - name: RegressionNet
-      value: regnet
+    type_name: Chain
+    type_desc: cryptocurrency chain

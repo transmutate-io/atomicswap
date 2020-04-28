@@ -46,7 +46,7 @@ const (
 
 var (
 	_Role = map[Role]string{
-		Buyer: "buyer",
+		Buyer:  "buyer",
 		Seller: "seller",
 	}
 	_RoleNames map[string]Role
@@ -58,4 +58,3 @@ func init() {
 		_RoleNames[v] = k
 	}
 }
-

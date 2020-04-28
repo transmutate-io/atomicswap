@@ -55,17 +55,17 @@ const (
 
 var (
 	_Stage = map[Stage]string{
-		GenerateKeys: "generate-keys",
-		GenerateToken: "generate-token",
-		SendProposal: "send-proposal",
-		ReceiveProposal: "receive-proposal",
-		SendProposalResponse: "send-proposal-response",
+		GenerateKeys:            "generate-keys",
+		GenerateToken:           "generate-token",
+		SendProposal:            "send-proposal",
+		ReceiveProposal:         "receive-proposal",
+		SendProposalResponse:    "send-proposal-response",
 		ReceiveProposalResponse: "receive-proposal-response",
-		LockFunds: "lock-funds",
-		WaitLockedFunds: "wait-locked-funds",
-		WaitFundsRedeemed: "wait-funds-redeemed",
-		RedeemFunds: "redeem",
-		Done: "done",
+		LockFunds:               "lock-funds",
+		WaitLockedFunds:         "wait-locked-funds",
+		WaitFundsRedeemed:       "wait-funds-redeemed",
+		RedeemFunds:             "redeem",
+		Done:                    "done",
 	}
 	_StageNames map[string]Stage
 )
@@ -76,4 +76,3 @@ func init() {
 		_StageNames[v] = k
 	}
 }
-

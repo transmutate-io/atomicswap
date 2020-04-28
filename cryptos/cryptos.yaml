@@ -1,8 +1,10 @@
+imports:
+- ../cmd/tpl_gen/yaml/coins.yaml
 value_sets:
   go:
     package: cryptos
 templates:
-- template: const_type.go.tpl
+- template: ../cmd/tpl_gen/tpl/const_type.go.tpl
   out: crypto_types.gen.go
   value_sets:
   - go
@@ -18,22 +20,6 @@ templates:
   out: cryptos.gen.go
   value_sets:
   - go
+  - coins
   values:
     type_name: Crypto
-    coins:
-      BTC:
-        name: "bitcoin"
-        type: UTXO
-        decimals: 8
-      LTC:
-        name: "litecoin"
-        type: UTXO
-        decimals: 8
-      DOGE:
-        name: "dogecoin"
-        type: UTXO
-        decimals: 8
-      BCH:
-        name: "bitcoin-cash"
-        type: UTXO
-        decimals: 8

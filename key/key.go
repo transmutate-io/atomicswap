@@ -1,8 +1,6 @@
 package key
 
 import (
-	"fmt"
-
 	"transmutate.io/pkg/atomicswap/cryptos"
 )
 
@@ -36,16 +34,10 @@ type newFuncs struct {
 	pub       NewPublicFunc
 }
 
-type KeysError cryptos.Crypto
-
-func (e *KeysError) Error() string {
-	return fmt.Sprintf(`can't create keys for crypto: "%s"`, (*cryptos.Crypto)(e).Name)
-}
-
 func getCryptoFuncs(c *cryptos.Crypto) (*newFuncs, error) {
 	cf, ok := cryptoFuncs[c.String()]
 	if !ok {
-		return nil, (*KeysError)(c)
+		return nil, cryptos.InvalidCryptoError(c.Name)
 	}
 	return &cf, nil
 }
@@ -53,7 +45,7 @@ func getCryptoFuncs(c *cryptos.Crypto) (*newFuncs, error) {
 func ParsePrivate(c *cryptos.Crypto, b []byte) (Private, error) {
 	cf, err := getCryptoFuncs(c)
 	if err != nil {
-		return nil, (*KeysError)(c)
+		return nil, cryptos.InvalidCryptoError(c.Name)
 	}
 	return cf.parsePriv(b)
 }
@@ -61,7 +53,7 @@ func ParsePrivate(c *cryptos.Crypto, b []byte) (Private, error) {
 func NewPrivate(c *cryptos.Crypto) (Private, error) {
 	cf, err := getCryptoFuncs(c)
 	if err != nil {
-		return nil, (*KeysError)(c)
+		return nil, cryptos.InvalidCryptoError(c.Name)
 	}
 	return cf.priv()
 }
@@ -69,7 +61,7 @@ func NewPrivate(c *cryptos.Crypto) (Private, error) {
 func NewPublic(c *cryptos.Crypto, b []byte) (Public, error) {
 	cf, err := getCryptoFuncs(c)
 	if err != nil {
-		return nil, (*KeysError)(c)
+		return nil, cryptos.InvalidCryptoError(c.Name)
 	}
 	return cf.pub(b)
 }

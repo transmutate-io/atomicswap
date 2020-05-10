@@ -19,7 +19,7 @@ func (eng *engineBTC) Validate() ([]byte, error) {
 
 // // Disassemble a script into a string
 func (eng *engineBTC) DisassembleString(s []byte) (string, error) {
-	return txscript.DisasmString(eng.b)
+	return txscript.DisasmString(s)
 }
 
 // // DisassembleStrings disassembles a script into a string slice

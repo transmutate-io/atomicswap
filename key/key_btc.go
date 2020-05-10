@@ -6,7 +6,6 @@ import (
 
 	"github.com/btcsuite/btcd/btcec"
 	"transmutate.io/pkg/atomicswap/hash"
-	"transmutate.io/pkg/cryptocore/types"
 )
 
 type PrivateBTC struct{ *btcec.PrivateKey }
@@ -101,4 +100,4 @@ func (k *PublicBTC) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 func (k *PublicBTC) Hash160() []byte { return hash.Hash160(k.SerializeCompressed()) }
 
-func (k *PublicBTC) KeyData() KeyData { return types.Bytes(k.Hash160()) }
+func (k *PublicBTC) KeyData() KeyData { return k.Hash160() }

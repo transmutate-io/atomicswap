@@ -2,6 +2,7 @@ package key
 
 import (
 	"transmutate.io/pkg/atomicswap/cryptos"
+	"transmutate.io/pkg/cryptocore/types"
 )
 
 type (
@@ -11,7 +12,7 @@ type (
 
 	Keyer interface{ Key() interface{} }
 
-	KeyData interface{}
+	KeyData = types.Bytes
 
 	Private interface {
 		Public() Public

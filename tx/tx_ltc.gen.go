@@ -1,12 +1,12 @@
-package transaction
+package tx
 
 import "transmutate.io/pkg/atomicswap/cryptos"
 
 type txLTC struct{ *txBTC }
 
-// NewTxLTC creates a new *txLTC
-func NewTxLTC() (Tx, error) {
-	b, _ := NewTxBTC()
+// NewLTC creates a new *txLTC
+func NewLTC() (Tx, error) {
+	b, _ := NewBTC()
 	return &txLTC{txBTC: b.(*txBTC)}, nil
 }
 

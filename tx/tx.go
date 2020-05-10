@@ -1,4 +1,4 @@
-package transaction
+package tx
 
 import (
 	"errors"
@@ -72,7 +72,7 @@ var (
 	ErrNotUTXO       = errors.New("not UTXO")
 )
 
-func NewTx(c *cryptos.Crypto) (Tx, error) {
+func New(c *cryptos.Crypto) (Tx, error) {
 	nf, ok := txFuncs[c.Name]
 	if !ok {
 		return nil, cryptos.InvalidCryptoError(c.Name)

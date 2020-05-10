@@ -1,4 +1,4 @@
-package transaction
+package tx
 
 import (
 	"crypto/rand"
@@ -60,7 +60,7 @@ func TestTx(t *testing.T) {
 			crypto, err := cryptos.Parse(name)
 			require.NoError(t, err, "can't parse crypto")
 			// new tx
-			tx, err := NewTx(crypto)
+			tx, err := New(crypto)
 			require.NoError(t, err, "can't create a new tx")
 			switch cryptoType := crypto.Type; cryptoType {
 			case cryptos.UTXO:

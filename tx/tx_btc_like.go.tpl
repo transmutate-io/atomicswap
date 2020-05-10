@@ -4,9 +4,9 @@ import "transmutate.io/pkg/atomicswap/cryptos"
 
 type tx{{ .Values.short }} struct{ *txBTC }
 
-// NewTx{{ .Values.short }} creates a new *tx{{ .Values.short }}
-func NewTx{{ .Values.short }}() (Tx, error) {
-	b, _ := NewTxBTC()
+// New{{ .Values.short }} creates a new *tx{{ .Values.short }}
+func New{{ .Values.short }}() (Tx, error) {
+	b, _ := NewBTC()
 	return &tx{{ .Values.short }}{txBTC: b.(*txBTC)}, nil
 }
 

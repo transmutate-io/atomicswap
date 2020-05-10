@@ -1,82 +1,90 @@
-package transaction
+package tx
 
 import (
 	"bytes"
 	"time"
 
-	"github.com/gcash/bchd/bchec"
-	"github.com/gcash/bchd/chaincfg/chainhash"
-	"github.com/gcash/bchd/txscript"
-	"github.com/gcash/bchd/wire"
+	"github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
+	"github.com/btcsuite/btcd/txscript"
+	"github.com/btcsuite/btcd/wire"
 	"transmutate.io/pkg/atomicswap/cryptos"
 	"transmutate.io/pkg/atomicswap/key"
 	"transmutate.io/pkg/atomicswap/script"
 )
 
 // tx represents a transaction
-type txBCH wire.MsgTx
+type txBTC wire.MsgTx
 
-// NewTxBCH creates a new *txBCH
-func NewTxBCH() (Tx, error) { return (*txBCH)(wire.NewMsgTx(wire.TxVersion)), nil }
+// NewBTC creates a new *txBTC
+func NewBTC() (Tx, error) { return (*txBTC)(wire.NewMsgTx(wire.TxVersion)), nil }
 
-func (tx *txBCH) tx() *wire.MsgTx { return (*wire.MsgTx)(tx) }
+func (tx *txBTC) tx() *wire.MsgTx { return (*wire.MsgTx)(tx) }
 
 // AddOutput adds an output to the transaction
-func (tx *txBCH) AddOutput(value uint64, script []byte) {
+func (tx *txBTC) AddOutput(value uint64, script []byte) {
 	tx.tx().AddTxOut(wire.NewTxOut(int64(value), script))
 }
 
+func bytesReverse(b []byte) []byte {
+	sz := len(b)
+	r := make([]byte, sz)
+	for i := 0; i < sz; i++ {
+		r[i] = b[sz-1-i]
+	}
+	return r
+}
+
 // AddInput adds an input to the transaction
-func (tx *txBCH) AddInput(txID []byte, idx uint32, script []byte) error {
+func (tx *txBTC) AddInput(txID []byte, idx uint32, script []byte) error {
 	h, err := chainhash.NewHash(bytesReverse(txID))
 	if err != nil {
 		return err
 	}
-	tx.tx().AddTxIn(wire.NewTxIn(wire.NewOutPoint(h, idx), script))
+	tx.tx().AddTxIn(wire.NewTxIn(wire.NewOutPoint(h, idx), script, nil))
 	return nil
 }
 
-// InputSignature signature for an existing input
-func (tx *txBCH) InputSignature(idx int, hashType uint32, privKey key.Private) ([]byte, error) {
-	key := privKey.Key().(*bchec.PrivateKey)
-	return txscript.LegacyTxInSignature(
-		(*wire.MsgTx)(tx),
+// InputSignature returns the signature for an existing input
+func (tx *txBTC) InputSignature(idx int, hashType uint32, privKey key.Private) ([]byte, error) {
+	return txscript.RawTxInSignature(
+		tx.tx(),
 		idx,
-		(*wire.MsgTx)(tx).TxIn[idx].SignatureScript,
-		txscript.SigHashType(hashType)|txscript.SigHashForkID,
-		key,
+		tx.TxIn[idx].SignatureScript,
+		txscript.SigHashType(hashType),
+		privKey.Key().(*btcec.PrivateKey),
 	)
 }
 
 // SetInputSequenceNumber sets the sequence number for a given input
-func (tx *txBCH) SetInputSequenceNumber(idx int, seq uint32) {
+func (tx *txBTC) SetInputSequenceNumber(idx int, seq uint32) {
 	tx.TxIn[idx].Sequence = seq
 }
 
 // InputSequenceNumber returns the sequence number of a given input
-func (tx *txBCH) InputSequenceNumber(idx int) uint32 { return tx.tx().TxIn[idx].Sequence }
+func (tx *txBTC) InputSequenceNumber(idx int) uint32 { return tx.tx().TxIn[idx].Sequence }
 
 // SetLockTimeUInt32 sets the locktime
-func (tx *txBCH) SetLockTimeUInt32(lt uint32) { tx.LockTime = lt }
+func (tx *txBTC) SetLockTimeUInt32(lt uint32) { tx.LockTime = lt }
 
 // SetLockTime sets the locktime
-func (tx *txBCH) SetLockTime(lt time.Time) { tx.LockTime = uint32(lt.UTC().Unix()) }
+func (tx *txBTC) SetLockTime(lt time.Time) { tx.LockTime = uint32(lt.UTC().Unix()) }
 
 // SetLockDuration sets the locktime as a duration (counting from time.Now().UTC())
-func (tx *txBCH) SetLockDuration(d time.Duration) { tx.SetLockTime(time.Now().UTC().Add(d)) }
+func (tx *txBTC) SetLockDuration(d time.Duration) { tx.SetLockTime(time.Now().UTC().Add(d)) }
 
 // InputSignatureScript returns the signatureScript field of an input
-func (tx *txBCH) InputSignatureScript(idx int) []byte {
+func (tx *txBTC) InputSignatureScript(idx int) []byte {
 	return tx.TxIn[idx].SignatureScript
 }
 
 // SetInputSignatureScript sets the signatureScript field of an input
-func (tx *txBCH) SetInputSignatureScript(idx int, ss []byte) {
+func (tx *txBTC) SetInputSignatureScript(idx int, ss []byte) {
 	tx.TxIn[idx].SignatureScript = ss
 }
 
 // SignP2PKInput signs an p2pk input
-func (tx *txBCH) SignP2PKInput(idx int, hashType uint32, privKey key.Private) error {
+func (tx *txBTC) SignP2PKInput(idx int, hashType uint32, privKey key.Private) error {
 	sig, err := tx.InputSignature(idx, hashType, privKey)
 	if err != nil {
 		return err
@@ -92,7 +100,7 @@ func (tx *txBCH) SignP2PKInput(idx int, hashType uint32, privKey key.Private) er
 }
 
 // SignP2PKHInput signs a p2pkh input
-func (tx *txBCH) SignP2PKHInput(idx int, hashType uint32, privKey key.Private) error {
+func (tx *txBTC) SignP2PKHInput(idx int, hashType uint32, privKey key.Private) error {
 	sig, err := tx.InputSignature(idx, hashType, privKey)
 	if err != nil {
 		return err
@@ -109,7 +117,7 @@ func (tx *txBCH) SignP2PKHInput(idx int, hashType uint32, privKey key.Private) e
 }
 
 // // AddInputPrefixes add prefixes to a p2sh input
-// func (tx *txBCH) AddInputPrefixes(idx int, p ...[]byte) {
+// func (tx *txBTC) AddInputPrefixes(idx int, p ...[]byte) {
 // 	var ss []byte
 // 	if ss = tx.InputSignatureScript(idx); ss == nil {
 // 		ss = []byte{}
@@ -123,7 +131,7 @@ func (tx *txBCH) SignP2PKHInput(idx int, hashType uint32, privKey key.Private) e
 // }
 
 // Serialize serializes the transaction
-func (tx *txBCH) Serialize() ([]byte, error) {
+func (tx *txBTC) Serialize() ([]byte, error) {
 	r := bytes.NewBuffer(make([]byte, 0, 1024))
 	if err := tx.tx().Serialize(r); err != nil {
 		return nil, err
@@ -132,18 +140,18 @@ func (tx *txBCH) Serialize() ([]byte, error) {
 }
 
 // SerializedSize returns the size of the serialized transaction
-func (tx *txBCH) SerializedSize() uint64 { return uint64(tx.tx().SerializeSize()) }
+func (tx *txBTC) SerializedSize() uint64 { return uint64(tx.tx().SerializeSize()) }
 
 // TxUTXO returns a TxUTXO transaction
-func (tx *txBCH) TxUTXO() TxUTXO { return tx }
+func (tx *txBTC) TxUTXO() TxUTXO { return tx }
 
 // TxStateBased returns a TxStateBased transaction
-func (tx *txBCH) TxStateBased() TxStateBased { panic(ErrNotStateBased) }
+func (tx *txBTC) TxStateBased() TxStateBased { panic(ErrNotStateBased) }
 
-func (tx *txBCH) Crypto() *cryptos.Crypto { return cryptos.Cryptos["bitcoin-cash"] }
+func (tx *txBTC) Crypto() *cryptos.Crypto { return cryptos.Cryptos["bitcoin"] }
 
 // Copy returns a copy of tx
-func (tx *txBCH) Copy() Tx { return (*txBCH)(tx.tx().Copy()) }
+func (tx *txBTC) Copy() Tx { return (*txBTC)(tx.tx().Copy()) }
 
 // NewScript returns a new script engine
-func (tx *txBCH) NewScript() script.Engine { return script.NewEngineBTC() }
+func (tx *txBTC) NewScript() script.Engine { return script.NewEngineBTC() }

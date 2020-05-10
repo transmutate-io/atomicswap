@@ -2,7 +2,7 @@ imports:
 - ../cmd/tpl_gen/yaml/settings.yaml
 value_sets:
   go:
-    package: transaction
+    package: tx
 templates:
 - template: tx.go.tpl
   out: tx.gen.go

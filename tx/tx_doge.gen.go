@@ -1,12 +1,12 @@
-package transaction
+package tx
 
 import "transmutate.io/pkg/atomicswap/cryptos"
 
 type txDOGE struct{ *txBTC }
 
-// NewTxDOGE creates a new *txDOGE
-func NewTxDOGE() (Tx, error) {
-	b, _ := NewTxBTC()
+// NewDOGE creates a new *txDOGE
+func NewDOGE() (Tx, error) {
+	b, _ := NewBTC()
 	return &txDOGE{txBTC: b.(*txBTC)}, nil
 }
 

@@ -1,4 +1,4 @@
-package atomicswap
+package duration
 
 import (
 	"time"

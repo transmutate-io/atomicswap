@@ -57,18 +57,6 @@ value_sets:
     - name: ReceiveProposalResponse
       value: receive-proposal-response
 
-    # # key data exchange and lock generation
-    # SendKeyData: send-key-data
-    # ReceiveKeyData: receive-key-data
-
-    # # lock exchange
-    # SendLock: send-lock
-    # ReceiveLock: receive-lock
-
-    # # lock generation and check
-    # GenerateLock: generate-lock
-    # CheckLock: check-lock
-
     # funds locking
     - name: LockFunds
       value: lock-funds

@@ -7,10 +7,9 @@ import (
 
 type chains = map[params.Chain]params.Params
 
-// Networks contains all available cryptos/networks
+// All contains all available cryptos/networks
 var (
-	Networks       = make(map[*cryptos.Crypto]map[params.Chain]params.Params, len(NetworksByName))
-	NetworksByName = map[string]chains{
+	AllByName = map[string]chains{
 		"bitcoin": chains{
 			params.MainNet:       params.BTC_MainNet,
 			params.TestNet:       params.BTC_TestNet,
@@ -35,14 +34,39 @@ var (
 			params.RegressionNet: params.BCH_RegressionNet,
 		},
 	}
+	All              = make(map[*cryptos.Crypto]map[params.Chain]params.Params, len(AllByName))
+	Main             = make(map[*cryptos.Crypto]params.Params, len(AllByName))
+	MainByName       = make(map[string]params.Params, len(AllByName))
+	Test             = make(map[*cryptos.Crypto]params.Params, len(AllByName))
+	TestByName       = make(map[string]params.Params, len(AllByName))
+	Sim              = make(map[*cryptos.Crypto]params.Params, len(AllByName))
+	SimByName        = make(map[string]params.Params, len(AllByName))
+	Regression       = make(map[*cryptos.Crypto]params.Params, len(AllByName))
+	RegressionByName = make(map[string]params.Params, len(AllByName))
 )
 
 func init() {
-	for cn, c := range NetworksByName {
+	for cn, c := range AllByName {
 		cr, err := cryptos.Parse(cn)
 		if err != nil {
 			panic("unknown crypto: " + cn)
 		}
-		Networks[cr] = c
+		All[cr] = c
+		if p, ok := c[params.MainNet]; ok {
+			MainByName[cn] = p
+			Main[cr] = p
+		}
+		if p, ok := c[params.TestNet]; ok {
+			TestByName[cn] = p
+			Test[cr] = p
+		}
+		if p, ok := c[params.SimNet]; ok {
+			SimByName[cn] = p
+			Sim[cr] = p
+		}
+		if p, ok := c[params.RegressionNet]; ok {
+			RegressionByName[cn] = p
+			Regression[cr] = p
+		}
 	}
 }

@@ -36,7 +36,7 @@ func bytesReverse(b []byte) []byte {
 }
 
 // AddInput adds an input to the transaction
-func (tx *txBTC) AddInput(txID []byte, idx uint32, script []byte) error {
+func (tx *txBTC) AddInput(txID []byte, idx uint32, script []byte, _ uint64) error {
 	h, err := chainhash.NewHash(bytesReverse(txID))
 	if err != nil {
 		return err
@@ -89,7 +89,7 @@ func (tx *txBTC) SignP2PKInput(idx int, hashType uint32, privKey key.Private) er
 	if err != nil {
 		return err
 	}
-	s, err := tx.NewScript().
+	s, err := script.NewEngineBTC().
 		Data(sig).
 		Validate()
 	if err != nil {
@@ -105,9 +105,9 @@ func (tx *txBTC) SignP2PKHInput(idx int, hashType uint32, privKey key.Private) e
 	if err != nil {
 		return err
 	}
-	s, err := tx.NewScript().
+	s, err := script.NewEngineBTC().
 		Data(sig).
-		Data(privKey.Serialize()).
+		Data(privKey.Public().SerializeCompressed()).
 		Validate()
 	if err != nil {
 		return err
@@ -115,20 +115,6 @@ func (tx *txBTC) SignP2PKHInput(idx int, hashType uint32, privKey key.Private) e
 	tx.SetInputSignatureScript(idx, s)
 	return nil
 }
-
-// // AddInputPrefixes add prefixes to a p2sh input
-// func (tx *txBTC) AddInputPrefixes(idx int, p ...[]byte) {
-// 	var ss []byte
-// 	if ss = tx.InputSignatureScript(idx); ss == nil {
-// 		ss = []byte{}
-// 	}
-// 	b := make([][]byte, 0, len(p)+1)
-// 	for _, i := range p {
-// 		b = append(b, script.Data(i))
-// 	}
-// 	b = append(b, ss)
-// 	tx.SetInputSignatureScript(idx, bytesConcat(b...))
-// }
 
 // Serialize serializes the transaction
 func (tx *txBTC) Serialize() ([]byte, error) {
@@ -152,6 +138,3 @@ func (tx *txBTC) Crypto() *cryptos.Crypto { return cryptos.Cryptos["bitcoin"] }
 
 // Copy returns a copy of tx
 func (tx *txBTC) Copy() Tx { return (*txBTC)(tx.tx().Copy()) }
-
-// NewScript returns a new script engine
-func (tx *txBTC) NewScript() script.Engine { return script.NewEngineBTC() }

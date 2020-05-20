@@ -6,7 +6,6 @@ import (
 
 	"transmutate.io/pkg/atomicswap/cryptos"
 	"transmutate.io/pkg/atomicswap/key"
-	"transmutate.io/pkg/atomicswap/script"
 )
 
 type (
@@ -20,12 +19,10 @@ type (
 	}
 
 	TxUTXO interface {
-		// NewScript returns a new script engine
-		NewScript() script.Engine
 		// AddOutput adds an output to the transaction
 		AddOutput(value uint64, script []byte)
 		// AddInput adds an input to the transaction
-		AddInput(txID []byte, idx uint32, script []byte) error
+		AddInput(txID []byte, idx uint32, script []byte, amount uint64) error
 		// InputSignature returns the signature for an existing input
 		InputSignature(idx int, hashType uint32, privKey key.Private) ([]byte, error)
 		// SetInputSequenceNumber sets the sequence number for a given input

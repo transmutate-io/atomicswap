@@ -34,7 +34,8 @@ type (
 	}
 
 	Bytes interface {
-		Append(b []byte) []byte
+		AppendBytes(b []byte) []byte
+		Append(b []byte) Engine
 		Bytes() []byte
 		SetBytes(b []byte) Engine
 	}
@@ -83,6 +84,8 @@ type (
 	HTLC interface {
 		HTLCBytes(lockScript, tokenHash, timeLockedScript, hashLockedScript []byte) []byte
 		HTLC(lockScript, tokenHash, timeLockedScript, hashLockedScript []byte) Engine
+		HTLCRedeemBytes(sig, key, token, locksScript []byte) []byte
+		HTLCRedeem(sig, key, token, locksScript []byte) Engine
 	}
 
 	MSTLC interface {
@@ -91,6 +94,7 @@ type (
 	}
 
 	Engine interface {
+		Reset() Engine
 		Disassembler
 		Validator
 		Logical

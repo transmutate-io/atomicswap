@@ -13,6 +13,11 @@ type engineBTC struct{ b []byte }
 
 func NewEngineBTC() Engine { return &engineBTC{b: make([]byte, 0, 1024)} }
 
+func (eng *engineBTC) Reset() Engine {
+	eng.b = make([]byte, 0, 1024)
+	return eng
+}
+
 func (eng *engineBTC) Validate() ([]byte, error) {
 	return txscript.NewScriptBuilder().AddOps(eng.b).Script()
 }
@@ -31,7 +36,9 @@ func (eng *engineBTC) DisassembleStrings(s []byte) ([]string, error) {
 	return strings.Split(r, " "), nil
 }
 
-func (eng *engineBTC) Append(b []byte) []byte { eng.b = append(eng.b, b...); return eng.b }
+func (eng *engineBTC) AppendBytes(b []byte) []byte { eng.b = append(eng.b, b...); return eng.b }
+
+func (eng *engineBTC) Append(b []byte) Engine { eng.b = append(eng.b, b...); return eng }
 
 func (eng *engineBTC) Bytes() []byte { return eng.b }
 
@@ -230,6 +237,21 @@ func (eng *engineBTC) HTLCBytes(lockScript, tokenHash, timeLockedScript, hashLoc
 		bytesJoin(lockScript, timeLockedScript),
 		bytesJoin(eng.HashLockBytes(tokenHash, true), hashLockedScript),
 	)
+}
+
+func (eng *engineBTC) HTLCRedeemBytes(sig, key, token, locksScript []byte) []byte {
+	return bytesJoin(
+		eng.DataBytes(sig),
+		eng.DataBytes(key),
+		eng.DataBytes(token),
+		eng.DataBytes([]byte{txscript.OP_0}),
+		eng.DataBytes(locksScript),
+	)
+}
+
+func (eng *engineBTC) HTLCRedeem(sig, key, token, locksScript []byte) Engine {
+	eng.Append(eng.HTLCRedeemBytes(sig, key, token, locksScript))
+	return eng
 }
 
 func (eng *engineBTC) MSTLC(lockScript, timeLockedScript []byte, nRequired int64, pubKeys ...[]byte) Engine {

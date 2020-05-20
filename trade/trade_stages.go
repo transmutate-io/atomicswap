@@ -1,4 +1,4 @@
-package atomicswap
+package trade
 
 import (
 	"transmutate.io/pkg/atomicswap/roles"
@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	DefaultTradeStages = map[roles.Role][]stages.Stage{
+	tradeStages = map[roles.Role][]stages.Stage{
 		roles.Buyer: []stages.Stage{
 			// generate keys and token
 			stages.GenerateKeys,
@@ -36,4 +36,16 @@ var (
 			stages.Done,
 		},
 	}
+	// _tradeStages = make(map[roles.Role]map[stages.Stage]stages.Stage, 2)
 )
+
+// func init() {
+// 	for r, s := range tradeStages {
+// 		ts := make(map[stages.Stage]stages.Stage, len(s)+1)
+// 		for i := 0; i < len(s)-1; i++ {
+// 			ts[s[i]] = s[i+1]
+// 		}
+// 		ts[stages.Done] = stages.Done
+// 		_tradeStages[r] = ts
+// 	}
+// }

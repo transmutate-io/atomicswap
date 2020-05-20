@@ -1,4 +1,4 @@
-package atomicswap
+package trade
 
 import (
 	"fmt"
@@ -10,32 +10,32 @@ import (
 type (
 	StageHandlerFunc = func(trade *Trade) error
 	StageHandlerMap  = map[stages.Stage]StageHandlerFunc
-	StageHandler     struct{ handlers StageHandlerMap }
+	Handler          struct{ handlers StageHandlerMap }
 )
 
-func NewStageHandler(hm StageHandlerMap) *StageHandler {
-	r := &StageHandler{handlers: make(StageHandlerMap, 16)}
-	r.InstallHandlers(hm)
+func NewHandler(hm StageHandlerMap) *Handler {
+	r := &Handler{handlers: make(StageHandlerMap, 16)}
+	r.InstallStageHandlers(hm)
 	return r
 }
 
-func NewStageHandlerDefaults(hm StageHandlerMap) *StageHandler {
-	r := NewStageHandler(DefaultStageHandlers)
-	r.InstallHandlers(hm)
+func NewHandlerDefaults(hm StageHandlerMap) *Handler {
+	r := NewHandler(DefaultStageHandlers)
+	r.InstallStageHandlers(hm)
 	return r
 }
 
-func (sh *StageHandler) InstallHandlers(hm StageHandlerMap) {
+func (sh *Handler) InstallStageHandlers(hm StageHandlerMap) {
 	for k, v := range hm {
 		sh.handlers[k] = v
 	}
 }
 
-func (sh *StageHandler) InstallHandler(s stages.Stage, h StageHandlerFunc) {
+func (sh *Handler) InstallStageHandler(s stages.Stage, h StageHandlerFunc) {
 	sh.handlers[s] = h
 }
 
-func (sh *StageHandler) Unhandled(s ...stages.Stage) []stages.Stage {
+func (sh *Handler) Unhandled(s ...stages.Stage) []stages.Stage {
 	r := make([]stages.Stage, 0, len(s))
 	for _, i := range s {
 		if _, ok := sh.handlers[i]; !ok {
@@ -45,7 +45,7 @@ func (sh *StageHandler) Unhandled(s ...stages.Stage) []stages.Stage {
 	return r
 }
 
-func (sh *StageHandler) HandleStage(s stages.Stage, t *Trade) error {
+func (sh *Handler) HandleStage(s stages.Stage, t *Trade) error {
 	h, ok := sh.handlers[s]
 	if !ok {
 		return StagesNotHandlerError([]stages.Stage{s})
@@ -53,7 +53,7 @@ func (sh *StageHandler) HandleStage(s stages.Stage, t *Trade) error {
 	return h(t)
 }
 
-func (sh *StageHandler) HandleTrade(t *Trade) error {
+func (sh *Handler) HandleTrade(t *Trade) error {
 	h := sh.Unhandled(t.Stages.Stages()...)
 	if len(h) > 0 {
 		return StagesNotHandlerError(h)

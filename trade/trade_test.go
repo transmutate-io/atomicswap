@@ -1,4 +1,4 @@
-package atomicswap
+package trade
 
 import (
 	"testing"
@@ -8,7 +8,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v2"
 	"transmutate.io/pkg/atomicswap/cryptos"
-	"transmutate.io/pkg/atomicswap/roles"
 	"transmutate.io/pkg/atomicswap/stages"
 	"transmutate.io/pkg/cryptocore"
 	"transmutate.io/pkg/cryptocore/types"
@@ -67,8 +66,27 @@ func init() {
 
 func TestAtomicSwapRedeem(t *testing.T) {
 	for _, i := range testCryptos[1:] {
+		a2b := make(chan []byte, 0)
+		buyerExchanger := newTestExchanger(
+			a2b,
+			newPrintf(t.Logf, "bob, buyer, "+testCryptos[0].crypto),
+			testCryptos[0],
+			i,
+		)
+		sellerExchanger := newTestExchanger(
+			a2b,
+			newPrintf(t.Logf, "alice, seller, "+i.crypto),
+			i,
+			testCryptos[0],
+		)
 		t.Run("bitcoin_"+i.crypto,
-			newTestAtomicSwapRedeem(testCryptos[0], i, 48*time.Hour),
+			newTestAtomicSwap(
+				testCryptos[0],
+				i,
+				48*time.Hour,
+				buyerExchanger.stageMap(),
+				sellerExchanger.stageMap(),
+			),
 		)
 	}
 }
@@ -81,44 +99,64 @@ func newTestHandlers(pf printfFunc) StageHandlerMap {
 	}
 }
 
-func newTestAtomicSwapRedeem(btc, alt *testCrypto, htlcDuration time.Duration) func(*testing.T) {
+func newTestAtomicSwap(btc, alt *testCrypto, htlcDuration time.Duration, buyerSHM, sellerSHM StageHandlerMap) func(*testing.T) {
 	return func(t *testing.T) {
-		// generate communication channel
-		a2b := make(chan []byte, 0)
-		defer close(a2b)
 		// parse cryptos names
 		altCrypto, err := cryptos.Parse(alt.crypto)
 		require.NoError(t, err, "can't parse alt crypto")
 		btcCrypto, err := cryptos.Parse(btc.crypto)
 		require.NoError(t, err, "can't parse btc crypto")
 		// set the buyer proposal values
-		buyerTrade := NewTrade().
-			WithRole(roles.Buyer).
-			WithDuration(htlcDuration).
-			WithStages(DefaultTradeStages[roles.Buyer]...).
-			WithOwnAmountCrypto(types.Amount("1"), btcCrypto).
-			WithTraderAmountCrypto(types.Amount("1"), altCrypto)
-		sellerTrade := NewTrade().
-			WithRole(roles.Seller).
-			WithStages(DefaultTradeStages[roles.Seller]...)
+		buyerTrade := NewBuy(
+			types.Amount("1"), btcCrypto,
+			types.Amount("1"), altCrypto,
+			htlcDuration,
+		)
+		sellerTrade := NewSell()
 		eg := &errgroup.Group{}
-		// alice (alt)
+		// alice, seller, alt
 		eg.Go(func() error {
-			// generate-lock wait-locked-funds lock-funds wait-funds-redeemed redeem
-			pf := newPrintf(t.Logf, "alice ("+alt.crypto+")")
-			me := newTestExchanger(a2b, pf)
-			tradeHandler := NewStageHandler(me.stageMap())
-			tradeHandler.InstallHandlers(newTestHandlers(pf))
-			return tradeHandler.HandleTrade(sellerTrade)
+			b, err := yaml.Marshal(sellerTrade)
+			if err != nil {
+				return err
+			}
+			if err = yaml.Unmarshal(b, sellerTrade); err != nil {
+				return err
+			}
+			th := NewHandler(sellerSHM)
+			if us := th.Unhandled(sellerTrade.Stages.Stages()...); len(us) > 0 {
+				return StagesNotHandlerError(us)
+			}
+			for {
+				if err := th.HandleStage(sellerTrade.Stages.Stage(), sellerTrade); err != nil {
+					return err
+				}
+				if s := sellerTrade.Stages.NextStage(); s == stages.Done {
+					return nil
+				}
+			}
 		})
-		// bob (BTC)
+		// bob, buyer, btc
 		eg.Go(func() error {
-			// generate-lock wait-locked-funds lock-funds redeem
-			pf := newPrintf(t.Logf, "bob ("+btc.crypto+")")
-			me := newTestExchanger(a2b, pf)
-			tradeHandler := NewStageHandler(me.stageMap())
-			tradeHandler.InstallHandlers(newTestHandlers(pf))
-			return tradeHandler.HandleTrade(buyerTrade)
+			b, err := yaml.Marshal(buyerTrade)
+			if err != nil {
+				return err
+			}
+			if err = yaml.Unmarshal(b, buyerTrade); err != nil {
+				return err
+			}
+			th := NewHandler(buyerSHM)
+			if us := th.Unhandled(buyerTrade.Stages.Stages()...); len(us) > 0 {
+				return StagesNotHandlerError(us)
+			}
+			for {
+				if err := th.HandleStage(buyerTrade.Stages.Stage(), buyerTrade); err != nil {
+					return err
+				}
+				if s := buyerTrade.Stages.NextStage(); s == stages.Done {
+					return nil
+				}
+			}
 		})
 		err = eg.Wait()
 		require.NoError(t, err, "unexpected error")
@@ -470,28 +508,15 @@ func TestTradeMarshalUnamarshal(t *testing.T) {
 			require.NoError(t, err, "can't parse coin name")
 			traderCrypto, err := cryptos.Parse(i.crypto)
 			require.NoError(t, err, "can't parse coin name")
-			redeemKey := newTestPrivateKey(t, traderCrypto)
-			recoveryKey := newTestPrivateKey(t, ownCrypto)
-			trade := &Trade{
-				Role:     roles.Buyer,
-				Duration: Duration(48 * time.Hour),
-				OwnInfo: &TraderInfo{
-					Crypto: ownCrypto,
-					Amount: "1",
-				},
-				TraderInfo: &TraderInfo{
-					Crypto: traderCrypto,
-					Amount: "1",
-				},
-				RedeemKey:        redeemKey,
-				RecoveryKey:      recoveryKey,
-				RedeemableFunds:  newTestFundsData(t, traderCrypto),
-				RecoverableFunds: newTestFundsData(t, ownCrypto),
-				Stages:           stages.NewStager(stages.Done),
-			}
-			token, err := readRandomToken()
-			require.NoError(t, err, "can't read random token")
-			trade.SetToken(token)
+			trade := NewBuy(
+				types.Amount("1"), ownCrypto,
+				types.Amount("1"), traderCrypto,
+				48*time.Hour,
+			)
+			_, err = trade.GenerateToken()
+			require.NoError(t, err, "can't generate token")
+			err = trade.GenerateKeys()
+			require.NoError(t, err, "can't generate keys")
 			b, err := yaml.Marshal(trade)
 			require.NoError(t, err, "can't marshal")
 			trade2 := &Trade{}
@@ -504,8 +529,6 @@ func TestTradeMarshalUnamarshal(t *testing.T) {
 			requireTradeInfoEqual(t, trade.TraderInfo, trade2.TraderInfo)
 			require.Equal(t, trade.RedeemKey, trade2.RedeemKey, "redeem keys mismatch")
 			require.Equal(t, trade.RecoveryKey, trade2.RecoveryKey, "recovery keys mismatch")
-			require.Equal(t, trade.RedeemableFunds, trade2.RedeemableFunds, "redeemable funds mismatch")
-			require.Equal(t, trade.RecoverableFunds, trade2.RecoverableFunds, "recoverable funds mismatch")
 		})
 	}
 }

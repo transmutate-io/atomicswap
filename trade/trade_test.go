@@ -1,6 +1,7 @@
 package trade
 
 import (
+	"encoding/hex"
 	"testing"
 	"time"
 
@@ -8,7 +9,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v2"
 	"transmutate.io/pkg/atomicswap/cryptos"
-	"transmutate.io/pkg/atomicswap/stages"
+	"transmutate.io/pkg/atomicswap/key"
 	"transmutate.io/pkg/cryptocore"
 	"transmutate.io/pkg/cryptocore/types"
 )
@@ -66,53 +67,47 @@ func init() {
 
 func TestAtomicSwapRedeem(t *testing.T) {
 	for _, i := range testCryptos[1:] {
-		a2b := make(chan []byte, 0)
-		buyerExchanger := newTestExchanger(
-			a2b,
-			newPrintf(t.Logf, "bob, buyer, "+testCryptos[0].crypto),
-			testCryptos[0],
-			i,
-		)
-		sellerExchanger := newTestExchanger(
-			a2b,
-			newPrintf(t.Logf, "alice, seller, "+i.crypto),
-			i,
-			testCryptos[0],
-		)
+		buyerExchanger, sellerExchanger := newTestExchangers(testCryptos[0], i, t.Logf)
 		t.Run("bitcoin_"+i.crypto,
-			newTestAtomicSwap(
+			newTestAtomicSwapRedeem(
 				testCryptos[0],
 				i,
 				48*time.Hour,
-				buyerExchanger.stageMap(),
-				sellerExchanger.stageMap(),
+				buyerExchanger,
+				sellerExchanger,
 			),
 		)
 	}
 }
 
-func newTestHandlers(pf printfFunc) StageHandlerMap {
-	return StageHandlerMap{
-		stages.GenerateKeys:  newGenerateKeysHandler(pf),
-		stages.GenerateToken: newGenerateTokenHandler(pf),
-		stages.Done:          newDoneHandler(pf),
-	}
+func newTestExchangers(buyer, seller *testCrypto, pf printfFunc) (*testExchanger, *testExchanger) {
+	a2b := make(chan []byte, 0)
+	return newTestExchanger(a2b, newPrintf(pf, "bob, buyer, "+buyer.crypto), buyer, seller),
+		newTestExchanger(a2b, newPrintf(pf, "alice, seller, "+seller.crypto), seller, buyer)
 }
 
-func newTestAtomicSwap(btc, alt *testCrypto, htlcDuration time.Duration, buyerSHM, sellerSHM StageHandlerMap) func(*testing.T) {
+func newTestAtomicSwapTrades(btc, alt *testCrypto, htlcDuration time.Duration) (*Trade, *Trade, error) {
+	// parse cryptos names
+	altCrypto, err := cryptos.Parse(alt.crypto)
+	if err != nil {
+		return nil, nil, err
+	}
+	btcCrypto, err := cryptos.Parse(btc.crypto)
+	if err != nil {
+		return nil, nil, err
+	}
+	// set the buyer proposal values
+	return NewBuy(
+		types.Amount("1"), btcCrypto,
+		types.Amount("1"), altCrypto,
+		htlcDuration,
+	), NewSell(), nil
+}
+
+func newTestAtomicSwapRedeem(btc, alt *testCrypto, htlcDuration time.Duration, buyerEx, sellerEx *testExchanger) func(*testing.T) {
 	return func(t *testing.T) {
-		// parse cryptos names
-		altCrypto, err := cryptos.Parse(alt.crypto)
-		require.NoError(t, err, "can't parse alt crypto")
-		btcCrypto, err := cryptos.Parse(btc.crypto)
-		require.NoError(t, err, "can't parse btc crypto")
-		// set the buyer proposal values
-		buyerTrade := NewBuy(
-			types.Amount("1"), btcCrypto,
-			types.Amount("1"), altCrypto,
-			htlcDuration,
-		)
-		sellerTrade := NewSell()
+		buyerTrade, sellerTrade, err := newTestAtomicSwapTrades(btc, alt, htlcDuration)
+		require.NoError(t, err, "can't create trades")
 		eg := &errgroup.Group{}
 		// alice, seller, alt
 		eg.Go(func() error {
@@ -123,18 +118,7 @@ func newTestAtomicSwap(btc, alt *testCrypto, htlcDuration time.Duration, buyerSH
 			if err = yaml.Unmarshal(b, sellerTrade); err != nil {
 				return err
 			}
-			th := NewHandler(sellerSHM)
-			if us := th.Unhandled(sellerTrade.Stages.Stages()...); len(us) > 0 {
-				return StagesNotHandlerError(us)
-			}
-			for {
-				if err := th.HandleStage(sellerTrade.Stages.Stage(), sellerTrade); err != nil {
-					return err
-				}
-				if s := sellerTrade.Stages.NextStage(); s == stages.Done {
-					return nil
-				}
-			}
+			return NewHandler(sellerEx.redeemStageMap()).HandleTrade(sellerTrade)
 		})
 		// bob, buyer, btc
 		eg.Go(func() error {
@@ -145,360 +129,96 @@ func newTestAtomicSwap(btc, alt *testCrypto, htlcDuration time.Duration, buyerSH
 			if err = yaml.Unmarshal(b, buyerTrade); err != nil {
 				return err
 			}
-			th := NewHandler(buyerSHM)
-			if us := th.Unhandled(buyerTrade.Stages.Stages()...); len(us) > 0 {
-				return StagesNotHandlerError(us)
-			}
-			for {
-				if err := th.HandleStage(buyerTrade.Stages.Stage(), buyerTrade); err != nil {
-					return err
-				}
-				if s := buyerTrade.Stages.NextStage(); s == stages.Done {
-					return nil
-				}
-			}
+			return NewHandler(buyerEx.redeemStageMap()).HandleTrade(buyerTrade)
 		})
 		err = eg.Wait()
 		require.NoError(t, err, "unexpected error")
 	}
 }
 
-// // handle stages
-// func handleStage(
-// 	pf printfFunc,
-// 	a2b chan interface{},
-// 	at *atomicswap.Trade,
-// 	ownCrypto *testCrypto,
-// 	traderCrypto *testCrypto,
-// 	nOutputs int,
-// ) error {
-// 	switch at.Stage {
-// 	case stages.SharePublicKeyHash:
-// 		// use a channel to exchange data back and forth
-// 		a2b <- types.Bytes(hash.Hash160(at.Own.RedeemKey.Public().SerializeCompressed()))
-// 		pf("sent public key hash\n")
-// 	case stages.ReceivePublicKeyHash:
-// 		// use a channel to exchange data back and forth
-// 		at.Trader.RedeemKeyHash = (<-a2b).(types.Bytes)
-// 		pf("received public key hash: %s\n", at.Trader.RedeemKeyHash.Hex())
-// 	case stages.ShareTokenHash:
-// 		// use a channel to exchange data back and forth
-// 		a2b <- at.TokenHash()
-// 		pf("sent token hash\n")
-// 	case stages.ReceiveTokenHash:
-// 		// use a channel to exchange data back and forth
-// 		at.SetTokenHash((<-a2b).(types.Bytes))
-// 		pf("received token hash: %s\n", at.TokenHash().Hex())
-// 	case stages.ReceiveLockScript:
-// 		// use a channel to exchange data back and forth
-// 		ls := (<-a2b).(types.Bytes)
-// 		ds, err := script.DisassembleString(ls)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		// check lock script
-// 		if err := at.CheckTraderLockScript(ls); err != nil {
-// 			pf("received invalid lock script: %s %s\n", ls.Hex(), ds)
-// 			return err
-// 		}
-// 		// save lock script after checking
-// 		at.Trader.LockScript = ls
-// 		pf("received lock script: %s %s\n", ls.Hex(), ds)
-// 	case stages.GenerateLockScript:
-// 		// generate lock script
-// 		if err := at.GenerateOwnLockScript(); err != nil {
-// 			return err
-// 		}
-// 		pf("generated lock script: %s\n", at.Own.LockScript.Hex())
-// 	case stages.ShareLockScript:
-// 		// use a channel to exchange data back and forth
-// 		a2b <- at.Own.LockScript
-// 		pf("sent lock script\n")
-// 	case stages.WaitLockTransaction:
-// 		for i := 0; i < nOutputs; i++ {
-// 			// use the client to find a deposit
-// 			txOut, err := waitDeposit(
-// 				traderCrypto,
-// 				params.Networks[traderCrypto.crypto][params.RegressionNet],
-// 				at.Trader.LastBlockHeight,
-// 				hash.Hash160(at.Trader.LockScript),
-// 			)
-// 			if err != nil {
-// 				return err
-// 			}
-// 			// save redeeamable output
-// 			at.AddRedeemableOutput(&atomicswap.Output{
-// 				TxID:   txOut.txID,
-// 				N:      txOut.n,
-// 				Amount: txOut.amount,
-// 			})
-// 			at.Trader.LastBlockHeight = txOut.blockHeight + 1
-// 			pf(
-// 				"found lock transaction: txid: %s, n: %d amount: %d (block %d)\n",
-// 				hex.EncodeToString(txOut.txID),
-// 				txOut.n,
-// 				txOut.amount,
-// 				txOut.blockHeight,
-// 			)
-// 		}
-// 	case stages.LockFunds:
-// 		for i := 0; i < nOutputs; i++ {
-// 			// calculate deposit address
-// 			depositAddr, err := params.Networks[ownCrypto.crypto][params.RegressionNet].P2SH(hash.Hash160(at.Own.LockScript))
-// 			if err != nil {
-// 				return err
-// 			}
-// 			pf("deposit address: %s\n", depositAddr)
-// 			txID, err := ownCrypto.cl.SendToAddress(depositAddr, types.NewAmount(at.Own.Amount.UInt64(ownCrypto.decimals), 8))
-// 			if err != nil {
-// 				return err
-// 			}
-// 			if _, err = ownCrypto.cl.GenerateToAddress(101, ownCrypto.minerAddr); err != nil {
-// 				return err
-// 			}
-// 			// find transaction
-// 			tx, err := ownCrypto.cl.Transaction(txID)
-// 			if err != nil {
-// 				return err
-// 			}
-// 			pf("deposit tx: %s\n", txID.Hex())
-// 			// save recoverable output
-// 			for _, i := range tx.Outputs {
-// 				pf("\toutput: %#v\n", i.UnlockScript)
-// 				if i.UnlockScript.Type == "scripthash" && len(i.UnlockScript.Addresses) > 0 && i.UnlockScript.Addresses[0] == depositAddr {
-// 					at.AddRecoverableOutput(&atomicswap.Output{
-// 						TxID:   txID,
-// 						N:      uint32(i.N),
-// 						Amount: i.Value.UInt64(ownCrypto.decimals),
-// 					})
-// 					break
-// 				}
-// 			}
-// 			if at.Outputs == nil || at.Outputs.Recoverable == nil {
-// 				return errors.New("recoverable output not found")
-// 			}
-// 			pf("funds locked: tx %s\n", txID.Hex())
-// 		}
-// 	case stages.WaitRedeemTransaction:
-// 		// use the client to find the trader redeem transaction and extract token
-// 		token, err := waitRedeem(ownCrypto.cl, params.Networks[ownCrypto.crypto][params.RegressionNet], at.Own.LastBlockHeight, at.Outputs.Recoverable[0].TxID, int(at.Outputs.Recoverable[0].N))
-// 		if err != nil {
-// 			return err
-// 		}
-// 		// save token
-// 		at.SetToken(token)
-// 		pf("redeem transaction found: token %s\n", hex.EncodeToString(token))
-// 	case stages.RedeemFunds:
-// 		redeemTx, err := at.RedeemTransaction(stdFeePerByte)
-// 		b, err := redeemTx.Serialize()
-// 		if err != nil {
-// 			return err
-// 		}
-// 		txID, err := traderCrypto.cl.SendRawTransaction(b)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		if _, err = traderCrypto.cl.GenerateToAddress(101, traderCrypto.minerAddr); err != nil {
-// 			return err
-// 		}
-// 		pf("funds redeemed: tx %s\n", txID.Hex())
-// 	default:
-// 		return errors.New("invalid stage")
-// 	}
-// 	return nil
-// }
-
-// func handleTrade(
-// 	pf printfFunc,
-// 	a2b chan interface{},
-// 	ownCrypto *testCrypto,
-// 	traderCrypto *testCrypto,
-// 	htlcDuration time.Duration,
-// 	at *atomicswap.Trade,
-// 	failToRedeem bool,
-// 	nOutputs int,
-// ) error {
-// 	for {
-// 		pf("stage done: %s\n", at.Stage)
-// 		if at.Stage == stages.Done {
-// 			break
-// 		}
-// 		if err := handleStage(pf, a2b, at, ownCrypto, traderCrypto, nOutputs); err != nil {
-// 			pf("got a oopsie: %v\n", err)
-// 			return err
-// 		}
-// 		at.NextStage()
-// 		if failToRedeem && (at.Stage == stages.RedeemFunds || at.Stage == stages.WaitRedeemTransaction) {
-// 			break
-// 		}
-// 	}
-// 	b, err := yaml.Marshal(at)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	pf("trade data:\n%s\n", string(b))
-// 	at2 := &atomicswap.Trade{}
-// 	if err = yaml.Unmarshal(b, at2); err != nil {
-// 		return err
-// 	}
-// 	if !reflect.DeepEqual(at, at) {
-// 		return errors.New("marshal/unmarshal error")
-// 	}
-// 	return nil
-// }
-
-// type txOut struct {
-// 	blockHeight uint64
-// 	txID        []byte
-// 	n           uint32
-// 	amount      uint64
-// }
-
-// func waitDeposit(crypto *testCrypto, chainParams params.Params, startBlockHeight uint64, scriptHash []byte) (*txOut, error) {
-// 	depositAddr, err := chainParams.P2SH(scriptHash)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	next, closeIter := cryptocore.NewBlockIterator(crypto.cl, startBlockHeight)
-// 	defer closeIter()
-// 	for {
-// 		blk, err := next()
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		for _, i := range blk.Transactions {
-// 			tx, err := crypto.cl.Transaction(i)
-// 			if err != nil {
-// 				return nil, err
-// 			}
-// 			for _, j := range tx.Outputs {
-// 				if j.UnlockScript.Type != "scripthash" {
-// 					continue
-// 				}
-// 				if len(j.UnlockScript.Addresses) < 1 {
-// 					continue
-// 				}
-// 				if j.UnlockScript.Addresses[0] != depositAddr {
-// 					continue
-// 				}
-// 				return &txOut{
-// 					blockHeight: startBlockHeight,
-// 					txID:        tx.ID,
-// 					n:           uint32(j.N),
-// 					amount:      j.Value.UInt64(crypto.decimals),
-// 				}, nil
-// 			}
-// 		}
-// 		startBlockHeight++
-// 	}
-// }
-
-// func waitRedeem(cl cryptocore.Client, chainParams params.Params, startBlockHeight uint64, txID []byte, idx int) ([]byte, error) {
-// 	next, closeIter := cryptocore.NewTransactionIterator(cl, startBlockHeight)
-// 	defer closeIter()
-// 	for {
-// 		tx, err := next()
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		for _, j := range tx.Inputs {
-// 			if !bytes.Equal(j.TransactionID, txID) || j.N != idx {
-// 				continue
-// 			}
-// 			inst := strings.Split(j.LockScript.Asm, " ")
-// 			if len(inst) != 5 || !strings.HasSuffix(inst[0], "[ALL]") || inst[3] != "0" {
-// 				continue
-// 			}
-// 			b, err := hex.DecodeString(inst[2])
-// 			if err != nil {
-// 				continue
-// 			}
-// 			return b, nil
-// 		}
-// 	}
-// }
-
-// const stdFeePerByte = 5
-
-// func recoverFunds(ownCrypto *testCrypto, at *atomicswap.Trade, pf printfFunc) error {
-// 	tx, err := at.RecoveryTransaction(stdFeePerByte)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	b, err := tx.Serialize()
-// 	if err != nil {
-// 		return err
-// 	}
-// 	txID, err := ownCrypto.cl.SendRawTransaction(b)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	if _, err = ownCrypto.cl.GenerateToAddress(1, ownCrypto.minerAddr); err != nil {
-// 		return err
-// 	}
-// 	pf("funds recovered: tx: %s\n", txID.Hex())
-// 	return nil
-// }
-
-func newTestAtomicSwapRecover(btc, alt *testCrypto) func(*testing.T) {
-	return func(t *testing.T) {
-		// 		// generate communication channel
-		// 		a2b := make(chan interface{})
-		// 		defer close(a2b)
-		// 		eg := &errgroup.Group{}
-		// 		const htlcDuration = 0
-		// 		const nOutputs = 2
-		// 		altCrypto, err := cryptos.ParseCrypto(alt.crypto)
-		// 		require.NoError(t, err, "can't parse alt")
-		// 		btcCrypto, err := cryptos.ParseCrypto("bitcoin")
-		// 		require.NoError(t, err, "can't parse bitcoin")
-		// 		// alice (alt)
-		// 		eg.Go(func() error {
-		// 			at, err := atomicswap.NewBuyerTrade(
-		// 				types.Amount("1"),
-		// 				altCrypto,
-		// 				types.Amount("1"),
-		// 				btcCrypto,
-		// 			)
-		// 			if err != nil {
-		// 				return err
-		// 			}
-		// 			pf := newPrintf(t.Logf, "alice (buyer)")
-		// 			err = handleTrade(pf, a2b, alt, btc, htlcDuration, at, true, nOutputs)
-		// 			if err != nil {
-		// 				return err
-		// 			}
-		// 			time.Sleep(htlcDuration * 2)
-		// 			return recoverFunds(alt, at, pf)
-		// 		})
-		// 		// bob (BTC)
-		// 		eg.Go(func() error {
-		// 			at, err := atomicswap.NewSellerTrade(
-		// 				types.Amount("1"),
-		// 				btcCrypto,
-		// 				types.Amount("1"),
-		// 				altCrypto,
-		// 			)
-		// 			if err != nil {
-		// 				return err
-		// 			}
-		// 			pf := newPrintf(t.Logf, "bob (seller)")
-		// 			err = handleTrade(pf, a2b, btc, alt, htlcDuration, at, true, nOutputs)
-		// 			if err != nil {
-		// 				return err
-		// 			}
-		// 			time.Sleep(htlcDuration * 2)
-		// 			return recoverFunds(btc, at, pf)
-		// 		})
-		// 		err = eg.Wait()
-		// 		require.NoError(t, err, "unexpected error")
+func TestAtomicSwapRecover(t *testing.T) {
+	for _, i := range testCryptos[1:] {
+		buyerExchanger, sellerExchanger := newTestExchangers(testCryptos[0], i, t.Logf)
+		t.Run("bitcoin_"+i.crypto, newTestAtomicSwapRecover(
+			testCryptos[0],
+			i,
+			2*time.Second,
+			buyerExchanger,
+			sellerExchanger,
+		))
 	}
 }
 
-func TestAtomicSwapRecover(t *testing.T) {
-	for _, i := range testCryptos[1:] {
-		t.Run("bitcoin_"+i.crypto, newTestAtomicSwapRecover(testCryptos[0], i))
+func newTestAtomicSwapRecover(btc, alt *testCrypto, htlcDuration time.Duration, buyerEx, sellerEx *testExchanger) func(*testing.T) {
+	return func(t *testing.T) {
+		buyerTrade, sellerTrade, err := newTestAtomicSwapTrades(btc, alt, htlcDuration)
+		require.NoError(t, err, "can't create trades")
+		eg := &errgroup.Group{}
+		// alice, seller, alt
+		eg.Go(func() error {
+			b, err := yaml.Marshal(sellerTrade)
+			if err != nil {
+				return err
+			}
+			if err = yaml.Unmarshal(b, sellerTrade); err != nil {
+				return err
+			}
+			if err = NewHandler(sellerEx.recoverStageMap()).HandleTrade(sellerTrade); err != nil {
+				return err
+			}
+			return recover(sellerTrade, alt.cl, alt.minerAddr, sellerEx.pf)
+		})
+		// bob, buyer, btc
+		eg.Go(func() error {
+			b, err := yaml.Marshal(buyerTrade)
+			if err != nil {
+				return err
+			}
+			if err = yaml.Unmarshal(b, buyerTrade); err != nil {
+				return err
+			}
+			if err = NewHandler(buyerEx.recoverStageMap()).HandleTrade(buyerTrade); err != nil {
+				return err
+			}
+			return recover(buyerTrade, btc.cl, btc.minerAddr, buyerEx.pf)
+		})
+		err = eg.Wait()
+		require.NoError(t, err, "unexpected error")
 	}
+}
+
+func recover(t *Trade, cl cryptocore.Client, minerAddr string, pf printfFunc) error {
+	ld, err := t.RecoverableFunds.Lock().LockData()
+	if err != nil {
+		return err
+	}
+	if remDur := ld.Locktime.Add(time.Second).Sub(time.Now()); remDur > 0 {
+		pf("waiting for %s\n", remDur)
+		time.Sleep(remDur)
+	}
+	recKey, err := key.NewPrivate(t.OwnInfo.Crypto)
+	if err != nil {
+		return err
+	}
+	pf("new key generated\n")
+	tx, err := t.RecoveryTx(recKey.Public().KeyData(), stdFeePerByte)
+	if err != nil {
+		return err
+	}
+	b, err := tx.Serialize()
+	if err != nil {
+		return err
+	}
+	pf("tx: %s\n", hex.EncodeToString(b))
+	txid, err := cl.SendRawTransaction(b)
+	if err != nil {
+		return err
+	}
+	if err = generateToAddress(cl, minerAddr, 101); err != nil {
+		return err
+	}
+	pf("txid: %s\n", txid.Hex())
+	return nil
 }
 
 func TestTradeMarshalUnamarshal(t *testing.T) {

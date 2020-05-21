@@ -244,13 +244,27 @@ func (eng *engineBTC) HTLCRedeemBytes(sig, key, token, locksScript []byte) []byt
 		eng.DataBytes(sig),
 		eng.DataBytes(key),
 		eng.DataBytes(token),
-		eng.DataBytes([]byte{txscript.OP_0}),
+		eng.Int64Bytes(0),
 		eng.DataBytes(locksScript),
 	)
 }
 
 func (eng *engineBTC) HTLCRedeem(sig, key, token, locksScript []byte) Engine {
 	eng.Append(eng.HTLCRedeemBytes(sig, key, token, locksScript))
+	return eng
+}
+
+func (eng *engineBTC) HTLCRecoverBytes(sig, key, locksScript []byte) []byte {
+	return bytesJoin(
+		eng.DataBytes(sig),
+		eng.DataBytes(key),
+		eng.Int64Bytes(1),
+		eng.DataBytes(locksScript),
+	)
+}
+
+func (eng *engineBTC) HTLCRecover(sig, key, locksScript []byte) Engine {
+	eng.Append(eng.HTLCRecoverBytes(sig, key, locksScript))
 	return eng
 }
 

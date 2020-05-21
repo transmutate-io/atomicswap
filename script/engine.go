@@ -86,6 +86,8 @@ type (
 		HTLC(lockScript, tokenHash, timeLockedScript, hashLockedScript []byte) Engine
 		HTLCRedeemBytes(sig, key, token, locksScript []byte) []byte
 		HTLCRedeem(sig, key, token, locksScript []byte) Engine
+		HTLCRecoverBytes(sig, key, locksScript []byte) []byte
+		HTLCRecover(sig, key, locksScript []byte) Engine
 	}
 
 	MSTLC interface {

@@ -154,9 +154,12 @@ func (m *testExchanger) receiveProposalResponse(t *Trade) error {
 		m.pf("can't unmarshal err: %#v\n", err)
 		return err
 	}
-	t.SetLocks(resp)
 	m.pf("proposal response received: %s\n", buyProposalResponseString(resp))
-	return nil
+	err = t.SetLocks(resp)
+	if err != nil {
+		panic(err)
+	}
+	return err
 }
 
 func (m *testExchanger) waitLockedFunds(t *Trade) error {
@@ -269,7 +272,7 @@ func (m *testExchanger) redeem(t *Trade) error {
 		return err
 	}
 	m.pf("generated key: %s\n", destKey.Public().KeyData().Hex())
-	rtx, err := t.RedeemTransaction(destKey.Public().KeyData(), stdFeePerByte)
+	rtx, err := t.RedeemTx(destKey.Public().KeyData(), stdFeePerByte)
 	if err != nil {
 		return err
 	}
@@ -285,12 +288,30 @@ func (m *testExchanger) redeem(t *Trade) error {
 	return nil
 }
 
-func (m *testExchanger) stageMap() StageHandlerMap {
+func (m *testExchanger) redeemStageMap() StageHandlerMap {
 	return StageHandlerMap{
 		stages.WaitLockedFunds:         m.waitLockedFunds,
 		stages.LockFunds:               m.lockFunds,
 		stages.WaitFundsRedeemed:       m.waitFundsRedeem,
 		stages.RedeemFunds:             m.redeem,
+		stages.SendProposal:            m.sendProposal,
+		stages.ReceiveProposal:         m.receiveProposal,
+		stages.SendProposalResponse:    m.sendProposalResponse,
+		stages.ReceiveProposalResponse: m.receiveProposalResponse,
+		stages.GenerateToken:           newGenerateTokenHandler(m.pf),
+		stages.GenerateKeys:            newGenerateKeysHandler(m.pf),
+		stages.Done:                    newDoneHandler(m.pf),
+	}
+}
+
+func stageNOP(_ *Trade) error { return nil }
+
+func (m *testExchanger) recoverStageMap() StageHandlerMap {
+	return StageHandlerMap{
+		stages.WaitLockedFunds:         stageNOP,
+		stages.WaitFundsRedeemed:       stageNOP,
+		stages.RedeemFunds:             stageNOP,
+		stages.LockFunds:               m.lockFunds,
 		stages.SendProposal:            m.sendProposal,
 		stages.ReceiveProposal:         m.receiveProposal,
 		stages.SendProposalResponse:    m.sendProposalResponse,

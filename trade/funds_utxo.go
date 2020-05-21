@@ -45,9 +45,7 @@ func (fl fundsUTXOLock) Bytes() types.Bytes { return types.Bytes(fl) }
 
 func (fl fundsUTXOLock) Data() types.Bytes { return fl.Bytes() }
 
-func (fl fundsUTXOLock) LockData() (*LockData, error) {
-	return parseLockScript(fl)
-}
+func (fl fundsUTXOLock) LockData() (*LockData, error) { return parseLockScript(fl) }
 
 func (fl fundsUTXOLock) Address(crypto *cryptos.Crypto, chain params.Chain) (string, error) {
 	return networks.AllByName[crypto.Name][chain].P2SH(hash.Hash160(fl))
@@ -98,27 +96,13 @@ func parseLockScript(ls []byte) (*LockData, error) {
 	if r.TokenHash, err = hex.DecodeString(inst[11]); err != nil {
 		return nil, err
 	}
-	// // redeem key hash
-	// if r.redeemKeyHash, err = hex.DecodeString(inst[15]); err != nil {
-	// 	return nil, err
-	// }
+	// recovery key hash
+	if r.RecoveryKeyData, err = hex.DecodeString(inst[6]); err != nil {
+		return nil, err
+	}
+	// redeem key hash
+	if r.RedeemKeyData, err = hex.DecodeString(inst[15]); err != nil {
+		return nil, err
+	}
 	return r, nil
 }
-
-// // CheckTraderLockScript verifies the trader lock script
-// func (t *Trade) CheckTraderLockScript(tradeLockScript []byte) error {
-// 	lsd, err := parseLockScript(tradeLockScript)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	if t.Duration != 0 && time.Now().UTC().Add(time.Duration(t.Duration)).After(lsd.timeLock) {
-// 		return ErrInvalidLockScript
-// 	}
-// 	if !bytes.Equal(lsd.TokenHash, t.TokenHash) {
-// 		return ErrInvalidLockScript
-// 	}
-// 	if !bytes.Equal(lsd.redeemKeyHash, t.Own.RedeemKey.Public().Hash160()) {
-// 		return ErrInvalidLockScript
-// 	}
-// 	return nil
-// }

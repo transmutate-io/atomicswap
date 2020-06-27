@@ -1,0 +1,31 @@
+imports:
+- ../cmd/tpl_gen/yaml/settings.yaml
+value_sets:
+  go:
+    package: trade
+templates:
+- template: funds.go.tpl
+  out: funds.gen.go
+  value_sets:
+  - go
+  - cryptos
+- template: funds_btc_like.go.tpl
+  out: funds_ltc.gen.go
+  value_sets:
+  - go
+  - ltc_data
+- template: funds_btc_like.go.tpl
+  out: funds_doge.gen.go
+  value_sets:
+  - go
+  - doge_data
+- template: funds_btc_like.go.tpl
+  out: funds_bch.gen.go
+  value_sets:
+  - go
+  - bch_data
+- template: funds_btc_like.go.tpl
+  out: funds_dcr.gen.go
+  value_sets:
+  - go
+  - dcr_data

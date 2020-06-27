@@ -42,12 +42,14 @@ func (v *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
 const (
 	UTXO Type = iota
 	StateBased
+	ERC20Token
 )
 
 var (
 	_Type = map[Type]string{
 		UTXO:       "utxo",
 		StateBased: "state-based",
+		ERC20Token: "erc20-token",
 	}
 	_TypeNames map[string]Type
 )

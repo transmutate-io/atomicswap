@@ -13,13 +13,9 @@ templates:
   out: tx_ltc.gen.go
   value_sets:
   - go
-  values:
-    short: LTC
-    name: litecoin
+  - ltc_data
 - template: tx_btc_like.go.tpl
   out: tx_doge.gen.go
   value_sets:
   - go
-  values:
-    short: DOGE
-    name: dogecoin
+  - doge_data

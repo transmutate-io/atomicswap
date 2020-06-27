@@ -98,6 +98,6 @@ func (k *PublicBCH) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return err
 }
 
-func (k *PublicBCH) Hash160() []byte { return hash.Hash160(k.SerializeCompressed()) }
+func (k *PublicBCH) Hash160() []byte { return hash.NewBCH().Hash160(k.SerializeCompressed()) }
 
 func (k *PublicBCH) KeyData() KeyData { return k.Hash160() }

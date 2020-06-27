@@ -1,0 +1,26 @@
+imports:
+- ../cmd/tpl_gen/yaml/settings.yaml
+value_sets:
+  go:
+    package: script
+templates:
+- template: scripts.go.tpl
+  out: scripts.gen.go
+  value_sets:
+  - go
+  - cryptos
+- template: script_btc_like.go.tpl
+  out: script_ltc.gen.go
+  value_sets:
+  - go
+  - ltc_data
+- template: script_btc_like.go.tpl
+  out: script_doge.gen.go
+  value_sets:
+  - go
+  - doge_data
+- template: script_btc_like.go.tpl
+  out: script_bch.gen.go
+  value_sets:
+  - go
+  - bch_data

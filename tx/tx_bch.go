@@ -16,14 +16,14 @@ import (
 // tx represents a transaction
 type txBCH struct {
 	*wire.MsgTx
-	inputsAmounts []uint64
+	InputsAmounts []uint64
 }
 
 // NewBCH creates a new *txBCH
 func NewBCH() (Tx, error) {
 	return &txBCH{
 		MsgTx:         wire.NewMsgTx(wire.TxVersion),
-		inputsAmounts: make([]uint64, 0, 16),
+		InputsAmounts: make([]uint64, 0, 16),
 	}, nil
 }
 
@@ -39,7 +39,7 @@ func (tx *txBCH) AddInput(txID []byte, idx uint32, script []byte, amount uint64)
 		return err
 	}
 	tx.MsgTx.AddTxIn(wire.NewTxIn(wire.NewOutPoint(h, idx), script))
-	tx.inputsAmounts = append(tx.inputsAmounts, amount)
+	tx.InputsAmounts = append(tx.InputsAmounts, amount)
 	return nil
 }
 
@@ -51,7 +51,7 @@ func (tx *txBCH) InputSignature(idx int, hashType uint32, privKey key.Private) (
 		tx.TxIn[idx].SignatureScript,
 		txscript.SigHashType(hashType)|txscript.SigHashForkID,
 		privKey.Key().(*bchec.PrivateKey),
-		int64(tx.inputsAmounts[idx]),
+		int64(tx.InputsAmounts[idx]),
 	)
 }
 
@@ -88,13 +88,7 @@ func (tx *txBCH) SignP2PKInput(idx int, hashType uint32, privKey key.Private) er
 	if err != nil {
 		return err
 	}
-	s, err := script.NewEngineBTC().
-		Data(sig).
-		Validate()
-	if err != nil {
-		return err
-	}
-	tx.SetInputSignatureScript(idx, s)
+	tx.SetInputSignatureScript(idx, script.NewGeneratorBCH().Data(sig))
 	return nil
 }
 
@@ -104,13 +98,10 @@ func (tx *txBCH) SignP2PKHInput(idx int, hashType uint32, privKey key.Private) e
 	if err != nil {
 		return err
 	}
-	s, err := script.NewEngineBTC().
+	s := script.NewEngineBCH().
 		Data(sig).
 		Data(privKey.Public().SerializeCompressed()).
-		Validate()
-	if err != nil {
-		return err
-	}
+		Bytes()
 	tx.SetInputSignatureScript(idx, s)
 	return nil
 }
@@ -128,10 +119,10 @@ func (tx *txBCH) Serialize() ([]byte, error) {
 func (tx *txBCH) SerializedSize() uint64 { return uint64(tx.MsgTx.SerializeSize()) }
 
 // TxUTXO returns a TxUTXO transaction
-func (tx *txBCH) TxUTXO() TxUTXO { return tx }
+func (tx *txBCH) TxUTXO() (TxUTXO, bool) { return tx, true }
 
 // TxStateBased returns a TxStateBased transaction
-func (tx *txBCH) TxStateBased() TxStateBased { panic(ErrNotStateBased) }
+func (tx *txBCH) TxStateBased() (TxStateBased, bool) { return nil, false }
 
 func (tx *txBCH) Crypto() *cryptos.Crypto { return cryptos.Cryptos["bitcoin"] }
 
@@ -139,10 +130,10 @@ func (tx *txBCH) Crypto() *cryptos.Crypto { return cryptos.Cryptos["bitcoin"] }
 func (tx *txBCH) Copy() Tx {
 	r := &txBCH{
 		MsgTx:         tx.MsgTx.Copy(),
-		inputsAmounts: make([]uint64, 0, len(tx.inputsAmounts)),
+		InputsAmounts: make([]uint64, 0, len(tx.InputsAmounts)),
 	}
-	for _, i := range tx.inputsAmounts {
-		r.inputsAmounts = append(r.inputsAmounts, i)
+	for _, i := range tx.InputsAmounts {
+		r.InputsAmounts = append(r.InputsAmounts, i)
 	}
 	return r
 }

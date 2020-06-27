@@ -57,9 +57,9 @@ type (
 
 		// Copy returns a copy of tx
 		// TxUTXO returns a TxUTXO transaction
-		TxUTXO() TxUTXO
+		TxUTXO() (TxUTXO, bool)
 		// TxStateBased returns a TxStateBased transaction
-		TxStateBased() TxStateBased
+		TxStateBased() (TxStateBased, bool)
 		// Type returns the crypto/message type
 	}
 )

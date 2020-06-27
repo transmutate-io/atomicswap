@@ -44,7 +44,7 @@ func (p *bchParams) P2PKH(pubHash []byte) (string, error) {
 
 // P2PKHFromKey returns the p2pkh address for a key
 func (p *bchParams) P2PKHFromKey(pub []byte) (string, error) {
-	return p.P2PKH(hash.Hash160(pub))
+	return p.P2PKH(hash.NewBCH().Hash160(pub))
 }
 
 // P2SH returns the p2sh address for a script hash
@@ -58,7 +58,7 @@ func (p *bchParams) P2SH(scriptHash []byte) (string, error) {
 
 // P2SHFromScript returns the p2sh address for a script
 func (p *bchParams) P2SHFromScript(script []byte) (string, error) {
-	return p.P2SH(hash.Hash160(script))
+	return p.P2SH(hash.NewBCH().Hash160(script))
 }
 
 var (

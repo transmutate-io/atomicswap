@@ -10,7 +10,6 @@ import (
 	"transmutate.io/pkg/atomicswap/duration"
 	"transmutate.io/pkg/atomicswap/hash"
 	"transmutate.io/pkg/atomicswap/key"
-	"transmutate.io/pkg/atomicswap/params"
 	"transmutate.io/pkg/atomicswap/roles"
 	"transmutate.io/pkg/atomicswap/script"
 	"transmutate.io/pkg/atomicswap/stages"
@@ -20,86 +19,60 @@ import (
 )
 
 type (
-	Trade struct {
-		Role             roles.Role        `yaml:"role"`
-		Duration         duration.Duration `yaml:"duration,omitempty"`
-		Token            types.Bytes       `yaml:"token,omitempty"`
-		TokenHash        types.Bytes       `yaml:"token_hash,omitempty"`
-		OwnInfo          *TraderInfo       `yaml:"own,omitempty"`
-		TraderInfo       *TraderInfo       `yaml:"trader,omitempty"`
-		RedeemKey        key.Private       `yaml:"redeem_key,omitempty"`
-		RecoveryKey      key.Private       `yaml:"recover_key,omitempty"`
-		RedeemableFunds  FundsData         `yaml:"redeemable_funds,omitempty"`
-		RecoverableFunds FundsData         `yaml:"recoverable_funds,omitempty"`
-		Stages           *stages.Stager    `yaml:"stages,omitempty"`
-	}
-
 	TraderInfo struct {
 		Crypto *cryptos.Crypto `yaml:"crypto"`
 		Amount types.Amount    `yaml:"amount"`
 	}
 
-	FundsData interface {
-		AddFunds(funds interface{})
-		Funds() interface{}
-		SetLock(lock Lock)
-		Lock() Lock
-	}
+	Trade interface {
+		Role() roles.Role
+		Duration() duration.Duration
+		Token() types.Bytes
+		TokenHash() types.Bytes
+		OwnInfo() *TraderInfo
+		TraderInfo() *TraderInfo
+		RedeemKey() key.Private
+		RecoveryKey() key.Private
+		RedeemableFunds() FundsData
+		RecoverableFunds() FundsData
+		Stager() *stages.Stager
 
-	Lock interface {
-		Bytes() types.Bytes
-		LockData() (*LockData, error)
-		Address(crypto *cryptos.Crypto, chain params.Chain) (string, error)
-	}
+		GenerateToken() (types.Bytes, error)
+		GenerateKeys() error
+		GenerateBuyProposal() (*BuyProposal, error)
+		AcceptBuyProposal(prop *BuyProposal) error
+		SetLocks(locks *BuyProposalResponse) error
+		SetToken(token types.Bytes)
+		RedeemTxFixedFee(dest key.KeyData, fee uint64) (tx.Tx, error)
+		RedeemTx(dest key.KeyData, feePerByte uint64) (tx.Tx, error)
+		RecoveryTxFixedFee(dest key.KeyData, fee uint64) (tx.Tx, error)
+		RecoveryTx(dest key.KeyData, feePerByte uint64) (tx.Tx, error)
 
-	LockData struct {
-		Locktime        time.Time
-		TokenHash       []byte
-		RedeemKeyData   key.KeyData
-		RecoveryKeyData key.KeyData
+		// newRedeemTxUTXO(dest key.KeyData, fee uint64) (tx.Tx, error)
+		// newRedeemTx(dest key.KeyData, fee uint64) (tx.Tx, error)
+		// newRecoveryTxUTXO(dest key.KeyData, fee uint64) (tx.Tx, error)
+		// newRecoveryTx(dest key.KeyData, fee uint64) (tx.Tx, error)
 	}
 )
 
-// type (
-// 	Buy  interface{}
-// 	Sell interface{}
-// )
+var _ Trade = (*OnChainTrade)(nil)
 
-// NewBuy returns a new buyer trade
-func NewBuy(
-	ownAmount types.Amount,
-	ownCrypto *cryptos.Crypto,
-	traderAmount types.Amount,
-	traderCrypto *cryptos.Crypto,
-	dur time.Duration,
-) *Trade {
-	return &Trade{
-		Role:     roles.Buyer,
-		Duration: duration.Duration(dur),
-		Stages:   stages.NewStager(tradeStages[roles.Buyer]...),
-		OwnInfo: &TraderInfo{
-			Amount: ownAmount,
-			Crypto: ownCrypto,
-		},
-		TraderInfo: &TraderInfo{
-			Amount: traderAmount,
-			Crypto: traderCrypto,
-		},
-		RecoverableFunds: newFundsData(ownCrypto),
-		RedeemableFunds:  newFundsData(traderCrypto),
-	}
-}
-
-// NewSell returns a new seller trade
-func NewSell() *Trade {
-	return &Trade{
-		Role:   roles.Seller,
-		Stages: stages.NewStager(tradeStages[roles.Seller]...),
-	}
+type baseTrade struct {
+	Role             roles.Role        `yaml:"role"`
+	Duration         duration.Duration `yaml:"duration,omitempty"`
+	Token            types.Bytes       `yaml:"token,omitempty"`
+	TokenHash        types.Bytes       `yaml:"token_hash,omitempty"`
+	OwnInfo          *TraderInfo       `yaml:"own,omitempty"`
+	TraderInfo       *TraderInfo       `yaml:"trader,omitempty"`
+	RedeemKey        key.Private       `yaml:"redeem_key,omitempty"`
+	RecoveryKey      key.Private       `yaml:"recover_key,omitempty"`
+	RedeemableFunds  FundsData         `yaml:"redeemable_funds,omitempty"`
+	RecoverableFunds FundsData         `yaml:"recoverable_funds,omitempty"`
+	Stager           *stages.Stager    `yaml:"stages,omitempty"`
 }
 
 // UnmarshalYAML implements yaml.Unmarshaler
-func (t *Trade) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (bt *baseTrade) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	// find which cryptos first
 	tc := &struct {
 		OwnInfo    *TraderInfo `yaml:"own,omitempty"`
@@ -119,16 +92,24 @@ func (t *Trade) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		if err != nil {
 			return err
 		}
-		td = reflection.MustReplaceTypeFields(&Trade{}, reflection.FieldReplacementMap{
+		ownFundsdata, err := newFundsData(tc.OwnInfo.Crypto)
+		if err != nil {
+			return err
+		}
+		traderFundsData, err := newFundsData(tc.TraderInfo.Crypto)
+		if err != nil {
+			return err
+		}
+		td = reflection.MustReplaceTypeFields(&baseTrade{}, reflection.FieldReplacementMap{
 			"RedeemKey":        interface{}(redeemKey),
 			"RecoveryKey":      interface{}(recoveryKey),
-			"RedeemableFunds":  newFundsData(tc.TraderInfo.Crypto),
-			"RecoverableFunds": newFundsData(tc.OwnInfo.Crypto),
+			"RedeemableFunds":  traderFundsData,
+			"RecoverableFunds": ownFundsdata,
 		})
 	} else {
 		td = reflection.NewStructBuilder().
 			WithField("Role", roles.Role(0), `yaml:"role,omitempty"`).
-			WithField("Stages", &stages.Stager{}, `yaml:"stages,omitempty"`).
+			WithField("Stager", &stages.Stager{}, `yaml:"stages,omitempty"`).
 			BuildPointer()
 	}
 	// unmarshal
@@ -136,18 +117,20 @@ func (t *Trade) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	// copy fields
-	if err := reflection.CopyFields(td, t); err != nil {
+	if err := reflection.CopyFields(td, bt); err != nil {
 		return err
 	}
 	return nil
 }
 
+func TokenHash(t []byte) []byte { return hash.Ripemd160Sum(hash.Sha256Sum(t)) }
+
 // SetToken sets the token
-func (t *Trade) SetToken(token types.Bytes) {
+func (bt *baseTrade) SetToken(token types.Bytes) {
 	// set token
-	t.Token = token
+	bt.Token = token
 	// set token hash
-	t.TokenHash = hash.Hash160(token)
+	bt.TokenHash = TokenHash(token)
 }
 
 // ErrNotEnoughBytes is returned the is not possible to read enough random bytes
@@ -170,27 +153,25 @@ const tokenSize = 32
 // read random token
 func readRandomToken() ([]byte, error) { return readRandom(tokenSize) }
 
-// GenerateToken generates and sets the token
-func (t *Trade) GenerateToken() (types.Bytes, error) {
+func (bt *baseTrade) GenerateToken() (types.Bytes, error) {
 	// generate token
 	rt, err := readRandomToken()
 	if err != nil {
 		return nil, err
 	}
 	// save token
-	t.SetToken(rt)
+	bt.SetToken(rt)
 	return rt, nil
 }
 
-// GenerateKeys generates and sets the redeem and recovery keys
-func (t *Trade) GenerateKeys() error {
+func (bt *baseTrade) GenerateKeys() error {
 	var err error
 	// generate recovery key
-	if t.RecoveryKey, err = key.NewPrivate(t.OwnInfo.Crypto); err != nil {
+	if bt.RecoveryKey, err = key.NewPrivate(bt.OwnInfo.Crypto); err != nil {
 		return err
 	}
 	// generate redeem key
-	t.RedeemKey, err = key.NewPrivate(t.TraderInfo.Crypto)
+	bt.RedeemKey, err = key.NewPrivate(bt.TraderInfo.Crypto)
 	return err
 }
 
@@ -199,49 +180,64 @@ var (
 	ErrNotASellerTrade = errors.New("not a seller trade")
 )
 
-// GenerateBuyProposal returns a buy proposal from the values set
-func (t *Trade) GenerateBuyProposal() (*BuyProposal, error) {
+func (bt *baseTrade) GenerateBuyProposal() (*BuyProposal, error) {
 	// only a buyer can generate a proposal
-	if t.Role != roles.Buyer {
+	if bt.Role != roles.Buyer {
 		return nil, ErrNotABuyerTrade
 	}
 	return &BuyProposal{
 		Buyer: &BuyProposalInfo{
-			Crypto:       t.OwnInfo.Crypto,
-			Amount:       t.OwnInfo.Amount,
-			LockDuration: t.Duration,
+			Crypto:       bt.OwnInfo.Crypto,
+			Amount:       bt.OwnInfo.Amount,
+			LockDuration: bt.Duration,
 		},
 		Seller: &BuyProposalInfo{
-			Crypto:       t.TraderInfo.Crypto,
-			Amount:       t.TraderInfo.Amount,
-			LockDuration: t.Duration / 2,
+			Crypto:       bt.TraderInfo.Crypto,
+			Amount:       bt.TraderInfo.Amount,
+			LockDuration: bt.Duration / 2,
 		},
-		RecoveryKeyData: t.RecoveryKey.Public().KeyData(),
-		RedeemKeyData:   t.RedeemKey.Public().KeyData(),
-		TokenHash:       t.TokenHash,
+		RecoveryKeyData: bt.RecoveryKey.Public().KeyData(),
+		RedeemKeyData:   bt.RedeemKey.Public().KeyData(),
+		TokenHash:       bt.TokenHash,
 	}, nil
 }
 
-// AcceptBuyProposal accepts a buy proposal
-func (t *Trade) AcceptBuyProposal(prop *BuyProposal) error {
+// generates a lock
+func generateTimeLock(c *cryptos.Crypto, lockTime time.Time, tokenHash []byte, redeem, recovery key.KeyData) (Lock, error) {
+	gen, err := script.NewGenerator(c)
+	if err != nil {
+		return nil, err
+	}
+	return newFundsLock(
+		c,
+		gen.HTLC(
+			gen.LockTime(lockTime.UTC().Unix()),
+			tokenHash,
+			gen.P2PKHHash(recovery),
+			gen.P2PKHHash(redeem),
+		),
+	)
+}
+
+func (bt *baseTrade) AcceptBuyProposal(prop *BuyProposal) error {
 	// only the seller can accept a trade
-	if t.Role != roles.Seller {
+	if bt.Role != roles.Seller {
 		return ErrNotASellerTrade
 	}
 	// set token hash
-	t.TokenHash = prop.TokenHash
+	bt.TokenHash = prop.TokenHash
 	// own info
-	t.OwnInfo = &TraderInfo{
+	bt.OwnInfo = &TraderInfo{
 		Amount: prop.Seller.Amount,
 		Crypto: prop.Seller.Crypto,
 	}
 	// trader info
-	t.TraderInfo = &TraderInfo{
+	bt.TraderInfo = &TraderInfo{
 		Amount: prop.Buyer.Amount,
 		Crypto: prop.Buyer.Crypto,
 	}
 	// generate keys
-	if err := t.GenerateKeys(); err != nil {
+	if err := bt.GenerateKeys(); err != nil {
 		return err
 	}
 	// now
@@ -251,60 +247,42 @@ func (t *Trade) AcceptBuyProposal(prop *BuyProposal) error {
 		prop.Buyer.Crypto,
 		timeNow.Add(time.Duration(prop.Buyer.LockDuration)),
 		prop.TokenHash,
-		t.RedeemKey.Public().KeyData(),
+		bt.RedeemKey.Public().KeyData(),
 		prop.RecoveryKeyData,
 	)
 	if err != nil {
 		return err
 	}
-	t.RedeemableFunds = newFundsData(prop.Buyer.Crypto)
-	t.RedeemableFunds.SetLock(lock)
+	if bt.RedeemableFunds, err = newFundsData(prop.Buyer.Crypto); err != nil {
+		return err
+	}
+	bt.RedeemableFunds.SetLock(lock)
 	// generate seller lock
 	lock, err = generateTimeLock(
 		prop.Seller.Crypto,
 		timeNow.Add(time.Duration(prop.Seller.LockDuration)),
 		prop.TokenHash,
 		prop.RedeemKeyData,
-		t.RecoveryKey.Public().KeyData(),
+		bt.RecoveryKey.Public().KeyData(),
 	)
 	if err != nil {
 		return err
 	}
-	t.RecoverableFunds = newFundsData(prop.Seller.Crypto)
-	t.RecoverableFunds.SetLock(lock)
+	if bt.RecoverableFunds, err = newFundsData(prop.Seller.Crypto); err != nil {
+		return err
+	}
+	bt.RecoverableFunds.SetLock(lock)
 	return nil
 }
 
-// generates a lock
-func generateTimeLock(c *cryptos.Crypto, lockTime time.Time, tokenHash []byte, redeem, recovery key.KeyData) (Lock, error) {
-	switch c.Type {
-	case cryptos.UTXO:
-		eng, err := script.NewEngine(c)
-		if err != nil {
-			return nil, err
-		}
-		lock, err := eng.HTLC(
-			eng.LockTimeBytes(lockTime.UTC().Unix()),
-			tokenHash,
-			eng.P2PKHHashBytes(recovery),
-			eng.P2PKHHashBytes(redeem),
-		).Validate()
-		return fundsUTXOLock(lock), nil
-	case cryptos.StateBased:
-		panic("not implemented")
-	default:
-		panic("not implemented")
-	}
-}
-
 var (
-	ErrMismatchTokenHash  = errors.New("mismatching token hash")
-	ErrInvalidLockInteval = errors.New("invalid lock interval")
-	ErrMismatchKeyData    = errors.New("mismatching key data")
+	ErrMismatchTokenHash   = errors.New("mismatching token hash")
+	ErrInvalidLockInterval = errors.New("invalid lock interval")
+	ErrMismatchKeyData     = errors.New("mismatching key data")
 )
 
 // SetLocks sets the buyer and seller locks
-func (t *Trade) SetLocks(locks *BuyProposalResponse) error {
+func (bt *baseTrade) SetLocks(locks *BuyProposalResponse) error {
 	bd, err := locks.Buyer.LockData()
 	if err != nil {
 		return err
@@ -313,72 +291,68 @@ func (t *Trade) SetLocks(locks *BuyProposalResponse) error {
 	if err != nil {
 		return err
 	}
-	if bd.Locktime.Sub(sd.Locktime) != time.Duration(t.Duration)/2 {
-		return ErrInvalidLockInteval
+	if bd.Locktime.Sub(sd.Locktime) != time.Duration(bt.Duration)/2 {
+		return ErrInvalidLockInterval
 	}
-	if !bytes.Equal(bd.TokenHash, sd.TokenHash) || !bytes.Equal(bd.TokenHash, t.TokenHash) {
+	if !bytes.Equal(bd.TokenHash, sd.TokenHash) || !bytes.Equal(bd.TokenHash, bt.TokenHash) {
 		return ErrMismatchTokenHash
 	}
-	if !bytes.Equal(bd.RecoveryKeyData, t.RecoveryKey.Public().KeyData()) {
+	if !bytes.Equal(bd.RecoveryKeyData, bt.RecoveryKey.Public().KeyData()) {
 		return ErrMismatchKeyData
 	}
-	if !bytes.Equal(sd.RedeemKeyData, t.RedeemKey.Public().KeyData()) {
+	if !bytes.Equal(sd.RedeemKeyData, bt.RedeemKey.Public().KeyData()) {
 		return ErrMismatchKeyData
 	}
-	t.RecoverableFunds.SetLock(locks.Buyer)
-	t.RedeemableFunds.SetLock(locks.Seller)
+	bt.RecoverableFunds.SetLock(locks.Buyer)
+	bt.RedeemableFunds.SetLock(locks.Seller)
 	return nil
 }
 
-func (t *Trade) newRedeemTxUTXO(dest key.KeyData, fee uint64) (tx.Tx, error) {
-	r, err := tx.New(t.TraderInfo.Crypto)
+var ErrNotUTXO = errors.New("not a utxo crypto")
+
+func (bt *baseTrade) newRedeemTxUTXO(dest key.KeyData, fee uint64) (tx.Tx, error) {
+	r, err := tx.New(bt.TraderInfo.Crypto)
 	if err != nil {
 		return nil, err
 	}
-	tx := r.TxUTXO()
+	tx, ok := r.TxUTXO()
+	if !ok {
+		return nil, ErrNotUTXO
+	}
 	amount := uint64(0)
-	redeemableOutputs := t.RedeemableFunds.Funds().([]*Output)
+	redeemableOutputs := bt.RedeemableFunds.Funds().([]*Output)
 	for _, i := range redeemableOutputs {
 		amount += i.Amount
-		if err = tx.AddInput(i.TxID, i.N, t.RedeemableFunds.Lock().Bytes(), i.Amount); err != nil {
+		if err = tx.AddInput(i.TxID, i.N, bt.RedeemableFunds.Lock().Bytes(), i.Amount); err != nil {
 			return nil, err
 		}
 	}
-	eng, err := script.NewEngine(t.TraderInfo.Crypto)
+	gen, err := script.NewGenerator(bt.TraderInfo.Crypto)
 	if err != nil {
 		return nil, err
 	}
-	b, err := eng.P2PKHHash(dest).Validate()
-	if err != nil {
-		return nil, err
-	}
-	tx.AddOutput(amount-fee, b)
+	tx.AddOutput(amount-fee, gen.P2PKHHash(dest))
 	for i := range redeemableOutputs {
-		sig, err := tx.InputSignature(i, 1, t.RedeemKey)
+		sig, err := tx.InputSignature(i, 1, bt.RedeemKey)
 		if err != nil {
 			return nil, err
 		}
-		b, err = eng.
-			Reset().
-			HTLCRedeem(
+		tx.SetInputSignatureScript(i,
+			gen.HTLCRedeem(
 				sig,
-				t.RedeemKey.Public().SerializeCompressed(),
-				t.Token,
-				t.RedeemableFunds.Lock().Bytes(),
-			).
-			Validate()
-		if err != nil {
-			return nil, err
-		}
-		tx.SetInputSignatureScript(i, b)
+				bt.RedeemKey.Public().SerializeCompressed(),
+				bt.Token,
+				bt.RedeemableFunds.Lock().Bytes(),
+			),
+		)
 	}
 	return r, nil
 }
 
-func (t *Trade) newRedeemTx(dest key.KeyData, fee uint64) (tx.Tx, error) {
-	switch t.TraderInfo.Crypto.Type {
+func (bt *baseTrade) newRedeemTx(dest key.KeyData, fee uint64) (tx.Tx, error) {
+	switch bt.TraderInfo.Crypto.Type {
 	case cryptos.UTXO:
-		return t.newRedeemTxUTXO(dest, fee)
+		return bt.newRedeemTxUTXO(dest, fee)
 	case cryptos.StateBased:
 		panic("not implemented")
 	default:
@@ -387,70 +361,67 @@ func (t *Trade) newRedeemTx(dest key.KeyData, fee uint64) (tx.Tx, error) {
 }
 
 // RedeemTxFixedFee returns the redeem transaction for the locked funds with a fixed fee
-func (t *Trade) RedeemTxFixedFee(dest key.KeyData, fee uint64) (tx.Tx, error) {
-	return t.newRedeemTx(dest, fee)
+func (bt *baseTrade) RedeemTxFixedFee(dest key.KeyData, fee uint64) (tx.Tx, error) {
+	return bt.newRedeemTx(dest, fee)
 }
 
 // RedeemTx returns the redeem transaction for the locked funds
-func (t *Trade) RedeemTx(dest key.KeyData, feePerByte uint64) (tx.Tx, error) {
-	tx, err := t.newRedeemTx(dest, 0)
+func (bt *baseTrade) RedeemTx(dest key.KeyData, feePerByte uint64) (tx.Tx, error) {
+	tx, err := bt.newRedeemTx(dest, 0)
 	if err != nil {
 		return nil, err
 	}
-	return t.newRedeemTx(dest, feePerByte*tx.SerializedSize())
+	return bt.newRedeemTx(dest, feePerByte*tx.SerializedSize())
 }
 
-func (t *Trade) newRecoveryTxUTXO(dest key.KeyData, fee uint64) (tx.Tx, error) {
-	r, err := tx.New(t.OwnInfo.Crypto)
+func (bt *baseTrade) newRecoveryTxUTXO(dest key.KeyData, fee uint64) (tx.Tx, error) {
+	r, err := tx.New(bt.OwnInfo.Crypto)
 	if err != nil {
 		return nil, err
 	}
-	tx := r.TxUTXO()
+	tx, ok := r.TxUTXO()
+	if !ok {
+		return nil, ErrNotUTXO
+	}
 	amount := uint64(0)
-	outputs := t.RecoverableFunds.Funds().([]*Output)
+	outputs := bt.RecoverableFunds.Funds().([]*Output)
 	for ni, i := range outputs {
 		amount += i.Amount
-		if err := tx.AddInput(i.TxID, i.N, t.RecoverableFunds.Lock().Bytes(), i.Amount); err != nil {
+		if err := tx.AddInput(i.TxID, i.N, bt.RecoverableFunds.Lock().Bytes(), i.Amount); err != nil {
 			return nil, err
 		}
 		tx.SetInputSequenceNumber(ni, 0xfffffffe)
 	}
-	eng, err := script.NewEngine(t.OwnInfo.Crypto)
+	gen, err := script.NewGenerator(bt.OwnInfo.Crypto)
 	if err != nil {
 		return nil, err
 	}
-	b, err := eng.P2PKHHash(dest).Validate()
-	if err != nil {
-		return nil, err
-	}
-	tx.AddOutput(amount-fee, b)
-	lst, err := t.RecoverableFunds.Lock().LockData()
+	tx.AddOutput(amount-fee, gen.P2PKHHash(dest))
+	lst, err := bt.RecoverableFunds.Lock().LockData()
 	if err != nil {
 		return nil, err
 	}
 	tx.SetLockTime(lst.Locktime.UTC())
 	for i := range outputs {
-		sig, err := tx.InputSignature(i, 1, t.RecoveryKey)
+		sig, err := tx.InputSignature(i, 1, bt.RecoveryKey)
 		if err != nil {
 			return nil, err
 		}
-		b, err := eng.Reset().HTLCRecover(
-			sig,
-			t.RecoveryKey.Public().SerializeCompressed(),
-			t.RecoverableFunds.Lock().Bytes(),
-		).Validate()
-		if err != nil {
-			return nil, err
-		}
-		tx.SetInputSignatureScript(i, b)
+		tx.SetInputSignatureScript(i,
+			gen.HTLCRecover(
+				sig,
+				bt.RecoveryKey.Public().SerializeCompressed(),
+				bt.RecoverableFunds.Lock().Bytes(),
+			),
+		)
 	}
 	return r, nil
 }
 
-func (t *Trade) newRecoveryTx(dest key.KeyData, fee uint64) (tx.Tx, error) {
-	switch txType := t.OwnInfo.Crypto.Type; txType {
+func (bt *baseTrade) newRecoveryTx(dest key.KeyData, fee uint64) (tx.Tx, error) {
+	switch txType := bt.OwnInfo.Crypto.Type; txType {
 	case cryptos.UTXO:
-		return t.newRecoveryTxUTXO(dest, fee)
+		return bt.newRecoveryTxUTXO(dest, fee)
 	case cryptos.StateBased:
 		panic("not implemented")
 	default:
@@ -459,15 +430,15 @@ func (t *Trade) newRecoveryTx(dest key.KeyData, fee uint64) (tx.Tx, error) {
 }
 
 // RecoveryTxFixedFee returns the recovery transaction for the locked funds with a fixed fee
-func (t *Trade) RecoveryTxFixedFee(dest key.KeyData, fee uint64) (tx.Tx, error) {
-	return t.newRecoveryTx(dest, fee)
+func (bt *baseTrade) RecoveryTxFixedFee(dest key.KeyData, fee uint64) (tx.Tx, error) {
+	return bt.newRecoveryTx(dest, fee)
 }
 
 // RecoveryTx returns the recovery transaction for the locked funds
-func (t *Trade) RecoveryTx(dest key.KeyData, feePerByte uint64) (tx.Tx, error) {
-	tx, err := t.newRecoveryTx(dest, 0)
+func (bt *baseTrade) RecoveryTx(dest key.KeyData, feePerByte uint64) (tx.Tx, error) {
+	tx, err := bt.newRecoveryTx(dest, 0)
 	if err != nil {
 		return nil, err
 	}
-	return t.newRecoveryTx(dest, tx.SerializedSize()*feePerByte)
+	return bt.newRecoveryTx(dest, tx.SerializedSize()*feePerByte)
 }

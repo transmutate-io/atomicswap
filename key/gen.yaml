@@ -13,11 +13,14 @@ templates:
   out: key_ltc.gen.go
   value_sets:
   - go
-  values:
-    short: LTC
+  - ltc_data
 - template: key_btc_like.go.tpl
   out: key_doge.gen.go
   value_sets:
   - go
-  values:
-    short: DOGE
+  - doge_data
+- template: key_test.gen.go.tpl
+  out: key_test.gen.go
+  value_sets:
+  - go
+  - cryptos

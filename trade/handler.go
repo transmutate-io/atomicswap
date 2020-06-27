@@ -8,7 +8,7 @@ import (
 )
 
 type (
-	StageHandlerFunc = func(trade *Trade) error
+	StageHandlerFunc = func(trade Trade) error
 	StageHandlerMap  = map[stages.Stage]StageHandlerFunc
 	Handler          struct{ handlers StageHandlerMap }
 )
@@ -45,7 +45,7 @@ func (sh *Handler) Unhandled(s ...stages.Stage) []stages.Stage {
 	return r
 }
 
-func (sh *Handler) HandleStage(s stages.Stage, t *Trade) error {
+func (sh *Handler) HandleStage(s stages.Stage, t Trade) error {
 	h, ok := sh.handlers[s]
 	if !ok {
 		return StagesNotHandlerError([]stages.Stage{s})
@@ -53,16 +53,17 @@ func (sh *Handler) HandleStage(s stages.Stage, t *Trade) error {
 	return h(t)
 }
 
-func (sh *Handler) HandleTrade(t *Trade) error {
-	h := sh.Unhandled(t.Stages.Stages()...)
+func (sh *Handler) HandleTrade(t Trade) error {
+	stager := t.Stager()
+	h := sh.Unhandled(stager.Stages()...)
 	if len(h) > 0 {
 		return StagesNotHandlerError(h)
 	}
 	for {
-		if err := sh.HandleStage(t.Stages.Stage(), t); err != nil {
+		if err := sh.HandleStage(stager.Stage(), t); err != nil {
 			return err
 		}
-		if s := t.Stages.NextStage(); s == stages.Done {
+		if s := stager.NextStage(); s == stages.Done {
 			return nil
 		}
 	}
@@ -81,9 +82,9 @@ func (e StagesNotHandlerError) Error() string {
 
 var (
 	DefaultStageHandlers = StageHandlerMap{
-		stages.Done:         func(_ *Trade) error { return nil },
-		stages.GenerateKeys: func(tr *Trade) error { return tr.GenerateKeys() },
-		stages.GenerateToken: func(tr *Trade) error {
+		stages.Done:         func(_ Trade) error { return nil },
+		stages.GenerateKeys: func(tr Trade) error { return tr.GenerateKeys() },
+		stages.GenerateToken: func(tr Trade) error {
 			_, err := tr.GenerateToken()
 			return err
 		},

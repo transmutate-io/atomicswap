@@ -11,6 +11,11 @@ var cryptoFuncs = map[string]newFuncs{
 		priv:      NewPrivateBTC,
 		pub:       NewPublicBTC,
 	},
+	"decred": newFuncs{
+		parsePriv: ParsePrivateDCR,
+		priv:      NewPrivateDCR,
+		pub:       NewPublicDCR,
+	},
 	"dogecoin": newFuncs{
 		parsePriv: ParsePrivateDOGE,
 		priv:      NewPrivateDOGE,

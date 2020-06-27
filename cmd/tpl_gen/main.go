@@ -85,10 +85,20 @@ func defaultString(d, s string) string {
 	return d
 }
 
+func dashedToCamel(s string) string {
+	parts := strings.Split(s, "-")
+	for i := 1; i < len(parts); i++ {
+		parts[i] = strings.Title(parts[i])
+	}
+	return strings.Join(parts, "")
+}
+
 var funcMap = template.FuncMap{
-	"default": defaultString,
-	"lower":   strings.ToLower,
-	"upper":   strings.ToUpper,
+	"default":         defaultString,
+	"lower":           strings.ToLower,
+	"upper":           strings.ToUpper,
+	"dashed_to_camel": dashedToCamel,
+	"title":           strings.Title,
 }
 
 func generateCode(gd *genData) error {

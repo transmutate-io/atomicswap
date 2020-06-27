@@ -71,10 +71,17 @@ type BuyProposalResponse struct {
 func UnamrshalBuyProposalResponse(buyer, seller *cryptos.Crypto, b []byte) (*BuyProposalResponse, error) {
 	r := &BuyProposalResponse{}
 	// replace fields
-	v, err := reflection.ReplaceFieldsType(r, map[string]reflection.Any{
-		"Buyer":  newFundsData(buyer).Lock(),
-		"Seller": newFundsData(seller).Lock(),
-	})
+	replaceMap := make(map[string]reflection.Any, 2)
+	fd, err := newFundsData(buyer)
+	if err != nil {
+		return nil, err
+	}
+	replaceMap["Buyer"] = fd.Lock()
+	if fd, err = newFundsData(seller); err != nil {
+		return nil, err
+	}
+	replaceMap["Seller"] = fd.Lock()
+	v, err := reflection.ReplaceFieldsType(r, replaceMap)
 	if err != nil {
 		return nil, err
 	}

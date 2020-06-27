@@ -8,13 +8,6 @@ import (
 	"transmutate.io/pkg/atomicswap/cryptos"
 )
 
-var testCryptos = []string{
-	"bitcoin",
-	"litecoin",
-	"dogecoin",
-	"bitcoin-cash",
-}
-
 func TestKeys(t *testing.T) {
 	for _, name := range testCryptos {
 		t.Run(name, func(t *testing.T) {
@@ -35,6 +28,7 @@ func TestKeys(t *testing.T) {
 			// sign
 			msg := []byte("hello world")
 			sig, err := k1.Sign(msg)
+			require.NoError(t, err, "can't sign")
 			// verify
 			err = k2.Public().Verify(sig, msg)
 			require.NoError(t, err, "can't verify signature")

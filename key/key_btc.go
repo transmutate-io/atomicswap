@@ -98,6 +98,6 @@ func (k *PublicBTC) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return err
 }
 
-func (k *PublicBTC) Hash160() []byte { return hash.Hash160(k.SerializeCompressed()) }
+func (k *PublicBTC) Hash160() []byte { return hash.NewBTC().Hash160(k.SerializeCompressed()) }
 
 func (k *PublicBTC) KeyData() KeyData { return k.Hash160() }

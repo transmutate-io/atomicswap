@@ -1,4 +1,44 @@
 value_sets:
+  # roles
+  roles:
+    consts:
+    - name: Buyer
+      value: buyer
+    - name: Seller
+      value: seller
+
+  # trade stages
+  stages:
+    consts:
+    # keys and token generation
+    - name: GenerateKeys
+      value: generate-keys
+    - name: GenerateToken
+      value: generate-token
+    # proposal exchange
+    - name: SendProposal
+      value: send-proposal
+    - name: ReceiveProposal
+      value: receive-proposal
+    - name: SendProposalResponse
+      value: send-proposal-response
+    - name: ReceiveProposalResponse
+      value: receive-proposal-response
+    # funds locking
+    - name: LockFunds
+      value: lock-funds
+    - name: WaitLockedFunds
+      value: wait-locked-funds
+    # redeem and wait for funds redeem
+    - name: WaitFundsRedeemed
+      value: wait-funds-redeemed
+    - name: RedeemFunds
+      value: redeem
+    # done
+    - name: Done
+      value: done
+
+  # networks
   networks:
     consts:
     - name: MainNet
@@ -9,12 +49,18 @@ value_sets:
       value: simnet
     - name: RegressionNet
       value: regnet
+
+  # types of cryptocurrencies
   crypto_types:
     consts:
     - name: UTXO
       value: utxo
     - name: StateBased
       value: state-based
+    - name: ERC20Token
+      value: erc20-token
+
+  # cryptos
   cryptos:
     cryptos:
       BTC:
@@ -33,43 +79,29 @@ value_sets:
         name: bitcoin-cash
         type: UTXO
         decimals: 8
-  roles:
-    consts:
-    - name: Buyer
-      value: buyer
-    - name: Seller
-      value: seller
-  stages:
-    consts:
-    # keys and token generation
-    - name: GenerateKeys
-      value: generate-keys
-    - name: GenerateToken
-      value: generate-token
+      DCR:
+        name: decred
+        type: UTXO
+        decimals: 8
 
-    # proposal exchange
-    - name: SendProposal
-      value: send-proposal
-    - name: ReceiveProposal
-      value: receive-proposal
-    - name: SendProposalResponse
-      value: send-proposal-response
-    - name: ReceiveProposalResponse
-      value: receive-proposal-response
-
-    # funds locking
-    - name: LockFunds
-      value: lock-funds
-    - name: WaitLockedFunds
-      value: wait-locked-funds
-
-    # redeem and wait for funds redeem
-    - name: WaitFundsRedeemed
-      value: wait-funds-redeemed
-    - name: RedeemFunds
-      value: redeem
-
-    # done
-    - name: Done
-      value: done
-
+  # crypto data
+  ltc_data:
+    name: litecoin
+    short: LTC
+    type: UTXO
+    decimals: 8
+  doge_data:
+    name: dogecoin
+    short: DOGE
+    type: UTXO
+    decimals: 8
+  bch_data:
+    name: bitcoin-cash
+    short: BCH
+    type: UTXO
+    decimals: 8
+  dcr_data:
+    name: decred
+    short: DCR
+    type: UTXO
+    decimals: 8

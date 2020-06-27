@@ -89,13 +89,7 @@ func (tx *txBTC) SignP2PKInput(idx int, hashType uint32, privKey key.Private) er
 	if err != nil {
 		return err
 	}
-	s, err := script.NewEngineBTC().
-		Data(sig).
-		Validate()
-	if err != nil {
-		return err
-	}
-	tx.SetInputSignatureScript(idx, s)
+	tx.SetInputSignatureScript(idx, script.NewGeneratorBTC().Data(sig))
 	return nil
 }
 
@@ -105,13 +99,10 @@ func (tx *txBTC) SignP2PKHInput(idx int, hashType uint32, privKey key.Private) e
 	if err != nil {
 		return err
 	}
-	s, err := script.NewEngineBTC().
+	s := script.NewEngineBTC().
 		Data(sig).
 		Data(privKey.Public().SerializeCompressed()).
-		Validate()
-	if err != nil {
-		return err
-	}
+		Bytes()
 	tx.SetInputSignatureScript(idx, s)
 	return nil
 }
@@ -129,10 +120,10 @@ func (tx *txBTC) Serialize() ([]byte, error) {
 func (tx *txBTC) SerializedSize() uint64 { return uint64(tx.tx().SerializeSize()) }
 
 // TxUTXO returns a TxUTXO transaction
-func (tx *txBTC) TxUTXO() TxUTXO { return tx }
+func (tx *txBTC) TxUTXO() (TxUTXO, bool) { return tx, true }
 
 // TxStateBased returns a TxStateBased transaction
-func (tx *txBTC) TxStateBased() TxStateBased { panic(ErrNotStateBased) }
+func (tx *txBTC) TxStateBased() (TxStateBased, bool) { return nil, false }
 
 func (tx *txBTC) Crypto() *cryptos.Crypto { return cryptos.Cryptos["bitcoin"] }
 

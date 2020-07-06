@@ -5,9 +5,8 @@ import (
 	"encoding/base64"
 	"errors"
 
-	"transmutate.io/pkg/atomicswap/hash"
-
 	"github.com/decred/dcrd/chaincfg/chainec"
+	"github.com/transmutate-io/atomicswap/hash"
 )
 
 type PrivateDCR struct{ chainec.PrivateKey }

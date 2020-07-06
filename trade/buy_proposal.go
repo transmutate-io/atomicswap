@@ -1,12 +1,12 @@
 package trade
 
 import (
+	"github.com/transmutate-io/atomicswap/cryptos"
+	"github.com/transmutate-io/atomicswap/duration"
+	"github.com/transmutate-io/atomicswap/key"
+	"github.com/transmutate-io/cryptocore/types"
+	"github.com/transmutate-io/reflection"
 	"gopkg.in/yaml.v2"
-	"transmutate.io/pkg/atomicswap/cryptos"
-	"transmutate.io/pkg/atomicswap/duration"
-	"transmutate.io/pkg/atomicswap/key"
-	"transmutate.io/pkg/cryptocore/types"
-	"transmutate.io/pkg/reflection"
 )
 
 // BuyProposalInfo represents a buy proposal trader info

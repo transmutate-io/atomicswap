@@ -1,6 +1,6 @@
-module transmutate.io/pkg/atomicswap
+module github.com/transmutate-io/atomicswap
 
-go 1.13
+go 1.14
 
 require (
 	github.com/btcsuite/btcd v0.20.1-beta
@@ -25,11 +25,11 @@ require (
 	golang.org/x/crypto v0.0.0-20200302210943-78000ba7a073
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	gopkg.in/yaml.v2 v2.2.4
-	transmutate.io/pkg/cryptocore v0.0.1
-	transmutate.io/pkg/reflection v0.0.1
+	github.com/transmutate-io/cryptocore v0.0.1
+	github.com/transmutate-io/reflection v0.0.1
 )
 
 replace (
-	transmutate.io/pkg/cryptocore => ../cryptocore
-	transmutate.io/pkg/reflection => ../reflection
+	github.com/transmutate-io/cryptocore => ../cryptocore
+	github.com/transmutate-io/reflection => ../reflection
 )

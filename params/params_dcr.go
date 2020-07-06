@@ -4,7 +4,7 @@ import (
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrutil"
-	"transmutate.io/pkg/atomicswap/hash"
+	"github.com/transmutate-io/atomicswap/hash"
 )
 
 // dcrParams represents a network parameter set

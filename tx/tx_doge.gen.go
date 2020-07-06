@@ -1,6 +1,6 @@
 package tx
 
-import "transmutate.io/pkg/atomicswap/cryptos"
+import "github.com/transmutate-io/atomicswap/cryptos"
 
 type txDOGE struct{ *txBTC }
 

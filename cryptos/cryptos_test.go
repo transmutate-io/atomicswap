@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"transmutate.io/pkg/atomicswap/cryptos"
+	"github.com/transmutate-io/atomicswap/cryptos"
 )
 
 func TestParseCrypto(t *testing.T) {

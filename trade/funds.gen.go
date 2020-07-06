@@ -1,6 +1,6 @@
 package trade
 
-import "transmutate.io/pkg/cryptocore/types"
+import "github.com/transmutate-io/cryptocore/types"
 
 var (
 	newFundsDataFuncs = map[string]func() FundsData{

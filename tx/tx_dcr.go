@@ -8,9 +8,9 @@ import (
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
-	"transmutate.io/pkg/atomicswap/cryptos"
-	"transmutate.io/pkg/atomicswap/key"
-	"transmutate.io/pkg/atomicswap/script"
+	"github.com/transmutate-io/atomicswap/cryptos"
+	"github.com/transmutate-io/atomicswap/key"
+	"github.com/transmutate-io/atomicswap/script"
 )
 
 // tx represents a transaction

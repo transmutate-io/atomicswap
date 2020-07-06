@@ -1,6 +1,6 @@
 package {{ .Values.package }}
 
-import "transmutate.io/pkg/atomicswap/cryptos"
+import "github.com/transmutate-io/atomicswap/cryptos"
 
 type tx{{ .Values.short }} struct{ *txBTC }
 

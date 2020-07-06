@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"transmutate.io/pkg/atomicswap/stages"
+	"github.com/transmutate-io/atomicswap/stages"
 )
 
 type (

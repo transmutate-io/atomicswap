@@ -1,10 +1,10 @@
 package trade
 
 import (
-	"transmutate.io/pkg/atomicswap/cryptos"
-	"transmutate.io/pkg/atomicswap/networks"
-	"transmutate.io/pkg/atomicswap/params"
-	"transmutate.io/pkg/cryptocore/types"
+	"github.com/transmutate-io/atomicswap/cryptos"
+	"github.com/transmutate-io/atomicswap/networks"
+	"github.com/transmutate-io/atomicswap/params"
+	"github.com/transmutate-io/cryptocore/types"
 )
 
 type fundsDataDCR struct{ *fundsDataBTC }

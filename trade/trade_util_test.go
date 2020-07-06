@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/transmutate-io/atomicswap/internal/testutil"
+	"github.com/transmutate-io/atomicswap/key"
+	"github.com/transmutate-io/atomicswap/networks"
+	"github.com/transmutate-io/atomicswap/roles"
+	"github.com/transmutate-io/atomicswap/stages"
+	"github.com/transmutate-io/cryptocore/tx"
 	"gopkg.in/yaml.v2"
-	"transmutate.io/pkg/atomicswap/internal/testutil"
-	"transmutate.io/pkg/atomicswap/key"
-	"transmutate.io/pkg/atomicswap/networks"
-	"transmutate.io/pkg/atomicswap/roles"
-	"transmutate.io/pkg/atomicswap/stages"
-	"transmutate.io/pkg/cryptocore/tx"
 )
 
 func newPrintf(oldPrintf printfFunc, name string) printfFunc {

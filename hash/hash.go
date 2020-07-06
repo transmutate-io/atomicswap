@@ -3,9 +3,8 @@ package hash
 import (
 	"crypto/sha256"
 
-	"transmutate.io/pkg/atomicswap/cryptos"
-
 	"github.com/decred/dcrd/crypto/blake256"
+	"github.com/transmutate-io/atomicswap/cryptos"
 	"golang.org/x/crypto/ripemd160"
 )
 

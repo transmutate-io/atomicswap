@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/btcsuite/btcd/btcec"
-	"transmutate.io/pkg/atomicswap/hash"
+	"github.com/transmutate-io/atomicswap/hash"
 )
 
 type PrivateBTC struct{ *btcec.PrivateKey }

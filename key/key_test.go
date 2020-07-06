@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/transmutate-io/atomicswap/cryptos"
 	"gopkg.in/yaml.v2"
-	"transmutate.io/pkg/atomicswap/cryptos"
 )
 
 func TestKeys(t *testing.T) {

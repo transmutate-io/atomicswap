@@ -3,12 +3,12 @@ package trade
 import (
 	"time"
 
-	"transmutate.io/pkg/atomicswap/cryptos"
-	"transmutate.io/pkg/atomicswap/duration"
-	"transmutate.io/pkg/atomicswap/key"
-	"transmutate.io/pkg/atomicswap/roles"
-	"transmutate.io/pkg/atomicswap/stages"
-	"transmutate.io/pkg/cryptocore/types"
+	"github.com/transmutate-io/atomicswap/cryptos"
+	"github.com/transmutate-io/atomicswap/duration"
+	"github.com/transmutate-io/atomicswap/key"
+	"github.com/transmutate-io/atomicswap/roles"
+	"github.com/transmutate-io/atomicswap/stages"
+	"github.com/transmutate-io/cryptocore/types"
 )
 
 type OnChainTrade struct{ *baseTrade }
@@ -21,41 +21,23 @@ func NewOnChainBuy(
 	traderCrypto *cryptos.Crypto,
 	dur time.Duration,
 ) (Trade, error) {
-	ownFundsData, err := newFundsData(ownCrypto)
+	bt, err := newBuyerBaseTrade(
+		dur,
+		onChainTradeStages[roles.Buyer],
+		ownAmount,
+		ownCrypto,
+		traderAmount,
+		traderCrypto,
+	)
 	if err != nil {
 		return nil, err
 	}
-	traderFundData, err := newFundsData(traderCrypto)
-	if err != nil {
-		return nil, err
-	}
-	return &OnChainTrade{
-		baseTrade: &baseTrade{
-			Role:     roles.Buyer,
-			Duration: duration.Duration(dur),
-			Stager:   stages.NewStager(tradeStages[roles.Buyer]...),
-			OwnInfo: &TraderInfo{
-				Amount: ownAmount,
-				Crypto: ownCrypto,
-			},
-			TraderInfo: &TraderInfo{
-				Amount: traderAmount,
-				Crypto: traderCrypto,
-			},
-			RecoverableFunds: ownFundsData,
-			RedeemableFunds:  traderFundData,
-		},
-	}, nil
+	return &OnChainTrade{baseTrade: bt}, nil
 }
 
 // NewOnChainSell returns a new seller on-chain trade
 func NewOnChainSell() Trade {
-	return &OnChainTrade{
-		baseTrade: &baseTrade{
-			Role:   roles.Seller,
-			Stager: stages.NewStager(tradeStages[roles.Seller]...),
-		},
-	}
+	return &OnChainTrade{baseTrade: newSellerBaseTrade(onChainTradeStages[roles.Seller])}
 }
 
 func (t *OnChainTrade) Role() roles.Role { return t.baseTrade.Role }

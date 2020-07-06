@@ -3,7 +3,7 @@ package script
 import (
 	"strings"
 
-	"transmutate.io/pkg/atomicswap/cryptos"
+	"github.com/transmutate-io/atomicswap/cryptos"
 )
 
 type Disassembler interface {

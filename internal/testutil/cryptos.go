@@ -6,11 +6,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"transmutate.io/pkg/atomicswap/cryptos"
-	"transmutate.io/pkg/atomicswap/params"
-	"transmutate.io/pkg/cryptocore"
-	"transmutate.io/pkg/cryptocore/tx"
-	"transmutate.io/pkg/cryptocore/types"
+	"github.com/transmutate-io/atomicswap/cryptos"
+	"github.com/transmutate-io/atomicswap/params"
+	"github.com/transmutate-io/cryptocore"
+	"github.com/transmutate-io/cryptocore/tx"
+	"github.com/transmutate-io/cryptocore/types"
 )
 
 type Crypto struct {

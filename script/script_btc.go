@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/btcsuite/btcd/txscript"
-	"transmutate.io/pkg/atomicswap/hash"
+	"github.com/transmutate-io/atomicswap/hash"
 )
 
 type generatorBTC struct{}

@@ -1,8 +1,8 @@
 package networks
 
 import (
-	"transmutate.io/pkg/atomicswap/cryptos"
-	"transmutate.io/pkg/atomicswap/params"
+	"github.com/transmutate-io/atomicswap/cryptos"
+	"github.com/transmutate-io/atomicswap/params"
 )
 
 type chains = map[params.Chain]params.Params

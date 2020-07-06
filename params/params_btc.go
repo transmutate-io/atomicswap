@@ -3,7 +3,7 @@ package params
 import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil"
-	"transmutate.io/pkg/atomicswap/hash"
+	"github.com/transmutate-io/atomicswap/hash"
 )
 
 // btcParams represents a network parameter set

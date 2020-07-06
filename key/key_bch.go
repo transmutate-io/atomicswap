@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/gcash/bchd/bchec"
-	"transmutate.io/pkg/atomicswap/hash"
+	"github.com/transmutate-io/atomicswap/hash"
 )
 
 type PrivateBCH struct{ *bchec.PrivateKey }

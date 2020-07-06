@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
-	"transmutate.io/pkg/atomicswap/cryptos"
-	"transmutate.io/pkg/atomicswap/key"
+	"github.com/transmutate-io/atomicswap/cryptos"
+	"github.com/transmutate-io/atomicswap/key"
 )
 
 type (

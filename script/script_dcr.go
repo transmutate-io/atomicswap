@@ -2,7 +2,7 @@ package script
 
 import (
 	"github.com/decred/dcrd/txscript/v3"
-	"transmutate.io/pkg/atomicswap/hash"
+	"github.com/transmutate-io/atomicswap/hash"
 )
 
 type generatorDCR struct{ generatorBTC }

@@ -1,13 +1,18 @@
 package trade
 
 import (
-	"transmutate.io/pkg/atomicswap/roles"
-	"transmutate.io/pkg/atomicswap/stages"
+	"github.com/transmutate-io/atomicswap/roles"
+	"github.com/transmutate-io/atomicswap/stages"
+)
+
+type (
+	tradeStages   []stages.Stage
+	tradeStageMap map[roles.Role]tradeStages
 )
 
 var (
-	tradeStages = map[roles.Role][]stages.Stage{
-		roles.Buyer: []stages.Stage{
+	onChainTradeStages = tradeStageMap{
+		roles.Buyer: tradeStages{
 			// generate keys and token
 			stages.GenerateKeys,
 			stages.GenerateToken,
@@ -35,5 +40,9 @@ var (
 			// finished
 			stages.Done,
 		},
+	}
+	offChainTradeStages = tradeStageMap{
+		roles.Buyer:  tradeStages{},
+		roles.Seller: tradeStages{},
 	}
 )

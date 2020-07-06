@@ -1,7 +1,7 @@
 package script
 
 import (
-	"transmutate.io/pkg/atomicswap/cryptos"
+	"github.com/transmutate-io/atomicswap/cryptos"
 )
 
 type IntParser interface{ ParseInt64(v []byte) (int64, error) }

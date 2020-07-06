@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"transmutate.io/pkg/atomicswap/hash"
+	"github.com/transmutate-io/atomicswap/hash"
 )
 
 func errorExit(code int, f string, a ...interface{}) {

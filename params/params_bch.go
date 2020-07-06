@@ -3,7 +3,7 @@ package params
 import (
 	"github.com/gcash/bchd/chaincfg"
 	"github.com/gcash/bchutil"
-	"transmutate.io/pkg/atomicswap/hash"
+	"github.com/transmutate-io/atomicswap/hash"
 )
 
 // bchParams represents a network parameter set

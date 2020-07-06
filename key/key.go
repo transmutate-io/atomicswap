@@ -1,8 +1,8 @@
 package key
 
 import (
-	"transmutate.io/pkg/atomicswap/cryptos"
-	"transmutate.io/pkg/cryptocore/types"
+	"github.com/transmutate-io/atomicswap/cryptos"
+	"github.com/transmutate-io/cryptocore/types"
 )
 
 type (

@@ -6,16 +6,16 @@ import (
 	"errors"
 	"time"
 
-	"transmutate.io/pkg/atomicswap/cryptos"
-	"transmutate.io/pkg/atomicswap/duration"
-	"transmutate.io/pkg/atomicswap/hash"
-	"transmutate.io/pkg/atomicswap/key"
-	"transmutate.io/pkg/atomicswap/roles"
-	"transmutate.io/pkg/atomicswap/script"
-	"transmutate.io/pkg/atomicswap/stages"
-	"transmutate.io/pkg/atomicswap/tx"
-	"transmutate.io/pkg/cryptocore/types"
-	"transmutate.io/pkg/reflection"
+	"github.com/transmutate-io/atomicswap/cryptos"
+	"github.com/transmutate-io/atomicswap/duration"
+	"github.com/transmutate-io/atomicswap/hash"
+	"github.com/transmutate-io/atomicswap/key"
+	"github.com/transmutate-io/atomicswap/roles"
+	"github.com/transmutate-io/atomicswap/script"
+	"github.com/transmutate-io/atomicswap/stages"
+	"github.com/transmutate-io/atomicswap/tx"
+	"github.com/transmutate-io/cryptocore/types"
+	"github.com/transmutate-io/reflection"
 )
 
 type (
@@ -47,15 +47,8 @@ type (
 		RedeemTx(dest key.KeyData, feePerByte uint64) (tx.Tx, error)
 		RecoveryTxFixedFee(dest key.KeyData, fee uint64) (tx.Tx, error)
 		RecoveryTx(dest key.KeyData, feePerByte uint64) (tx.Tx, error)
-
-		// newRedeemTxUTXO(dest key.KeyData, fee uint64) (tx.Tx, error)
-		// newRedeemTx(dest key.KeyData, fee uint64) (tx.Tx, error)
-		// newRecoveryTxUTXO(dest key.KeyData, fee uint64) (tx.Tx, error)
-		// newRecoveryTx(dest key.KeyData, fee uint64) (tx.Tx, error)
 	}
 )
-
-var _ Trade = (*OnChainTrade)(nil)
 
 type baseTrade struct {
 	Role             roles.Role        `yaml:"role"`
@@ -69,6 +62,39 @@ type baseTrade struct {
 	RedeemableFunds  FundsData         `yaml:"redeemable_funds,omitempty"`
 	RecoverableFunds FundsData         `yaml:"recoverable_funds,omitempty"`
 	Stager           *stages.Stager    `yaml:"stages,omitempty"`
+}
+
+func newBuyerBaseTrade(dur time.Duration, st []stages.Stage, ownAmount types.Amount, ownCrypto *cryptos.Crypto, traderAmount types.Amount, traderCrypto *cryptos.Crypto) (*baseTrade, error) {
+	ownFundsData, err := newFundsData(ownCrypto)
+	if err != nil {
+		return nil, err
+	}
+	traderFundData, err := newFundsData(traderCrypto)
+	if err != nil {
+		return nil, err
+	}
+	return &baseTrade{
+		Role:     roles.Buyer,
+		Duration: duration.Duration(dur),
+		Stager:   stages.NewStager(st...),
+		OwnInfo: &TraderInfo{
+			Amount: ownAmount,
+			Crypto: ownCrypto,
+		},
+		TraderInfo: &TraderInfo{
+			Amount: traderAmount,
+			Crypto: traderCrypto,
+		},
+		RecoverableFunds: ownFundsData,
+		RedeemableFunds:  traderFundData,
+	}, nil
+}
+
+func newSellerBaseTrade(st []stages.Stage) *baseTrade {
+	return &baseTrade{
+		Role:   roles.Seller,
+		Stager: stages.NewStager(st...),
+	}
 }
 
 // UnmarshalYAML implements yaml.Unmarshaler

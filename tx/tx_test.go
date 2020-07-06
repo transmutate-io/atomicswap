@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/transmutate-io/atomicswap/cryptos"
+	"github.com/transmutate-io/atomicswap/internal/testutil"
+	"github.com/transmutate-io/atomicswap/key"
+	"github.com/transmutate-io/cryptocore/types"
 	"gopkg.in/yaml.v2"
-	"transmutate.io/pkg/atomicswap/cryptos"
-	"transmutate.io/pkg/atomicswap/internal/testutil"
-	"transmutate.io/pkg/atomicswap/key"
-	"transmutate.io/pkg/cryptocore/types"
 )
 
 func init() {

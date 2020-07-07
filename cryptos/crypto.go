@@ -2,7 +2,17 @@ package cryptos
 
 import (
 	"fmt"
+	"strings"
 )
+
+var CryptosShort map[string]*Crypto
+
+func init() {
+	CryptosShort = make(map[string]*Crypto, len(Cryptos))
+	for _, c := range Cryptos {
+		CryptosShort[c.Short] = c
+	}
+}
 
 type newCryptoFunc = func() *Crypto
 
@@ -13,7 +23,15 @@ func (e InvalidCryptoError) Error() string {
 }
 
 func Parse(s string) (*Crypto, error) {
-	r, ok := Cryptos[s]
+	r, ok := Cryptos[strings.ToLower(s)]
+	if !ok {
+		return nil, InvalidCryptoError(s)
+	}
+	return r, nil
+}
+
+func ParseShort(s string) (*Crypto, error) {
+	r, ok := CryptosShort[strings.ToUpper(s)]
 	if !ok {
 		return nil, InvalidCryptoError(s)
 	}

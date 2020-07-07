@@ -21,12 +21,15 @@ require (
 	github.com/decred/dcrd/wire v1.3.0
 	github.com/gcash/bchd v0.15.2
 	github.com/gcash/bchutil v0.0.0-20191012211144-98e73ec336ba
+	github.com/mitchellh/go-homedir v1.1.0
+	github.com/spf13/cobra v1.0.0
+	github.com/spf13/pflag v1.0.3
 	github.com/stretchr/testify v1.5.1
+	github.com/transmutate-io/cryptocore v0.0.1
+	github.com/transmutate-io/reflection v0.0.1
 	golang.org/x/crypto v0.0.0-20200302210943-78000ba7a073
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	gopkg.in/yaml.v2 v2.2.4
-	github.com/transmutate-io/cryptocore v0.0.1
-	github.com/transmutate-io/reflection v0.0.1
 )
 
 replace (

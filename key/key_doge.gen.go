@@ -23,6 +23,13 @@ func (k *PrivateDOGE) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+func (k *PrivateDOGE) MarshalYAML() (interface{}, error) {
+	if k == nil {
+		return nil, nil
+	}
+	return k.PrivateBTC.MarshalYAML()
+}
+
 type PublicDOGE struct{ *PublicBTC }
 
 func NewPublicDOGE(b []byte) (Public, error) {

@@ -23,6 +23,13 @@ func (k *PrivateLTC) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+func (k *PrivateLTC) MarshalYAML() (interface{}, error) {
+	if k == nil {
+		return nil, nil
+	}
+	return k.PrivateBTC.MarshalYAML()
+}
+
 type PublicLTC struct{ *PublicBTC }
 
 func NewPublicLTC(b []byte) (Public, error) {

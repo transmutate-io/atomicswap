@@ -36,6 +36,9 @@ func (k *PrivateBTC) Sign(b []byte) ([]byte, error) {
 }
 
 func (k *PrivateBTC) MarshalYAML() (interface{}, error) {
+	if k == nil {
+		return nil, nil
+	}
 	return base64.RawStdEncoding.EncodeToString(k.Serialize()), nil
 }
 

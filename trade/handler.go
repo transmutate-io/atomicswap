@@ -15,7 +15,9 @@ type (
 
 func NewHandler(hm StageHandlerMap) *Handler {
 	r := &Handler{handlers: make(StageHandlerMap, 16)}
-	r.InstallStageHandlers(hm)
+	if hm != nil {
+		r.InstallStageHandlers(hm)
+	}
 	return r
 }
 
@@ -48,7 +50,7 @@ func (sh *Handler) Unhandled(s ...stages.Stage) []stages.Stage {
 func (sh *Handler) HandleStage(s stages.Stage, t Trade) error {
 	h, ok := sh.handlers[s]
 	if !ok {
-		return StagesNotHandlerError([]stages.Stage{s})
+		return StagesNotHandledError([]stages.Stage{s})
 	}
 	return h(t)
 }
@@ -57,7 +59,7 @@ func (sh *Handler) HandleTrade(t Trade) error {
 	stager := t.Stager()
 	h := sh.Unhandled(stager.Stages()...)
 	if len(h) > 0 {
-		return StagesNotHandlerError(h)
+		return StagesNotHandledError(h)
 	}
 	for {
 		if err := sh.HandleStage(stager.Stage(), t); err != nil {
@@ -69,9 +71,9 @@ func (sh *Handler) HandleTrade(t Trade) error {
 	}
 }
 
-type StagesNotHandlerError []stages.Stage
+type StagesNotHandledError []stages.Stage
 
-func (e StagesNotHandlerError) Error() string {
+func (e StagesNotHandledError) Error() string {
 	s := []stages.Stage(e)
 	ss := make([]string, 0, len(s))
 	for _, i := range s {
@@ -81,6 +83,7 @@ func (e StagesNotHandlerError) Error() string {
 }
 
 var (
+	NoOpHandler          = func(_ Trade) error { return nil }
 	DefaultStageHandlers = StageHandlerMap{
 		stages.Done:         func(_ Trade) error { return nil },
 		stages.GenerateKeys: func(tr Trade) error { return tr.GenerateKeys() },

@@ -20,7 +20,7 @@ type BuyProposalInfo struct {
 type BuyProposal struct {
 	Buyer           *BuyProposalInfo `yaml:"buyer"`
 	Seller          *BuyProposalInfo `yaml:"seller"`
-	TokenHash       []byte           `yaml:"token_hash"`
+	TokenHash       types.Bytes      `yaml:"token_hash"`
 	RedeemKeyData   key.KeyData      `yaml:"redeem_key_data"`
 	RecoveryKeyData key.KeyData      `yaml:"recovery_key_data"`
 }

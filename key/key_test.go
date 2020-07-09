@@ -41,3 +41,10 @@ func TestKeys(t *testing.T) {
 		})
 	}
 }
+
+func TestMarshal(t *testing.T) {
+	v := struct{ K Private }{K: (*PrivateBTC)(nil)}
+	b, err := yaml.Marshal(v)
+	require.NoError(t, err, "can't marshal")
+	t.Log(string(b))
+}

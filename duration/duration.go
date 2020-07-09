@@ -23,3 +23,5 @@ func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*d = Duration(nd)
 	return nil
 }
+
+func (d Duration) String() string { return time.Duration(d).String() }

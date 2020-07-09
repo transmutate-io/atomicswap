@@ -23,6 +23,13 @@ func (k *Private{{ .Values.short }}) UnmarshalYAML(unmarshal func(interface{}) e
 	return nil
 }
 
+func (k *Private{{ .Values.short }}) MarshalYAML() (interface{}, error) {
+	if k == nil {
+		return nil, nil
+	}
+	return k.PrivateBTC.MarshalYAML()
+}
+
 type Public{{ .Values.short }} struct{ *PublicBTC }
 
 func NewPublic{{ .Values.short }}(b []byte) (Public, error) {

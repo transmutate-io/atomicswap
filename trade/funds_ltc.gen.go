@@ -46,7 +46,7 @@ func (fl *fundsLockLTC) Address(chain params.Chain) (string, error) {
 	return networks.All[cryptos.Litecoin][chain].P2SHFromScript(fl.fundsLockBTC)
 }
 
-func (fl *fundsLockLTC) MarshalYAML() (interface{}, error) { return fl.fundsLockBTC, nil }
+func (fl *fundsLockLTC) MarshalYAML() (interface{}, error) { return fl.fundsLockBTC.Bytes().Hex(), nil }
 
 func (fl *fundsLockLTC) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	r := fundsLockBTC{}

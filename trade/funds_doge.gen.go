@@ -46,7 +46,9 @@ func (fl *fundsLockDOGE) Address(chain params.Chain) (string, error) {
 	return networks.All[cryptos.Dogecoin][chain].P2SHFromScript(fl.fundsLockBTC)
 }
 
-func (fl *fundsLockDOGE) MarshalYAML() (interface{}, error) { return fl.fundsLockBTC, nil }
+func (fl *fundsLockDOGE) MarshalYAML() (interface{}, error) {
+	return fl.fundsLockBTC.Bytes().Hex(), nil
+}
 
 func (fl *fundsLockDOGE) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	r := fundsLockBTC{}

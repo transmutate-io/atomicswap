@@ -46,8 +46,7 @@ func (fl *fundsLock{{ .Values.short }}) Address(chain params.Chain) (string, err
 	return networks.All[cryptos.{{ title ( dashed_to_camel .Values.name ) }}][chain].P2SHFromScript(fl.fundsLockBTC)
 }
 
-
-func (fl *fundsLock{{ .Values.short }}) MarshalYAML() (interface{}, error) { return fl.fundsLockBTC, nil }
+func (fl *fundsLock{{ .Values.short }}) MarshalYAML() (interface{}, error) { return fl.fundsLockBTC.Bytes().Hex(), nil }
 
 func (fl *fundsLock{{ .Values.short }}) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	r := fundsLockBTC{}

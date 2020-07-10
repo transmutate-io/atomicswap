@@ -28,7 +28,7 @@ type (
 
 	LockData struct {
 		Locktime        time.Time
-		TokenHash       []byte
+		TokenHash       types.Bytes
 		RedeemKeyData   key.KeyData
 		RecoveryKeyData key.KeyData
 	}

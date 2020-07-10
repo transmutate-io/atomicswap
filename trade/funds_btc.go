@@ -41,3 +41,14 @@ func (fl fundsLockBTC) LockData() (*LockData, error) {
 func (fl fundsLockBTC) Address(chain params.Chain) (string, error) {
 	return networks.All[cryptos.Bitcoin][chain].P2SHFromScript(fl)
 }
+
+func (fl fundsLockBTC) MarshalYAML() (interface{}, error) { return types.Bytes(fl).Hex(), nil }
+
+func (fl *fundsLockBTC) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	r := types.Bytes([]byte{})
+	if err := unmarshal(&r); err != nil {
+		return err
+	}
+	*fl = fundsLockBTC(r)
+	return nil
+}

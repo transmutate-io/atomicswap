@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/transmutate-io/atomicswap/cryptos"
 	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
 	"github.com/transmutate-io/cryptocore/types"
@@ -63,19 +62,6 @@ func init() {
 	}
 }
 
-func tradesDir(dataDir string) string { return filepath.Join(dataDir, "trades") }
-
-func parseCrypto(c string) (*cryptos.Crypto, error) {
-	if r, err := cryptos.ParseShort(c); err == nil {
-		return r, nil
-	}
-	r, err := cryptos.Parse(c)
-	if err != nil {
-		return nil, err
-	}
-	return r, nil
-}
-
 func cmdNewTrade(cmd *cobra.Command, args []string) {
 	out, closeOut := openOutput(cmd)
 	defer closeOut()
@@ -126,27 +112,6 @@ func cmdNewTrade(cmd *cobra.Command, args []string) {
 	if err = yaml.NewEncoder(f).Encode(tr); err != nil {
 		errorExit(cantCreateTrade, "can't create trade: %#v\n", err)
 	}
-}
-
-var filepathSeparator = string([]rune{filepath.Separator})
-
-func eachTrade(td string, f func(string, trade.Trade) error) error {
-	tdPrefix := td + filepathSeparator
-	return filepath.Walk(td, func(path string, info os.FileInfo, err error) error {
-		if info.IsDir() {
-			return nil
-		}
-		tf, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer tf.Close()
-		tr := &trade.OnChainTrade{}
-		if err = yaml.NewDecoder(tf).Decode(tr); err != nil {
-			return err
-		}
-		return f(strings.TrimPrefix(path, tdPrefix), tr)
-	})
 }
 
 func cmdListTrades(cmd *cobra.Command, args []string) {

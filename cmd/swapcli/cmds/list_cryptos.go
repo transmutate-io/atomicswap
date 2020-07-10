@@ -25,8 +25,6 @@ func init() {
 }
 
 func cmdListCryptos(cmd *cobra.Command, args []string) {
-	out, closeOut := openOutput(cmd)
-	defer closeOut()
 	vl := verboseLevel(cmd.Flags(), len(cryptosListTemplates)-1)
 	tpl, err := template.New("main").Parse(cryptosListTemplates[vl])
 	if err != nil {
@@ -37,6 +35,8 @@ func cmdListCryptos(cmd *cobra.Command, args []string) {
 		names = append(names, strings.ToLower(i.Name))
 	}
 	sort.Strings(names)
+	out, closeOut := openOutput(cmd)
+	defer closeOut()
 	for _, i := range names {
 		if err = tpl.Execute(out, cryptos.Cryptos[i]); err != nil {
 			errorExit(ECBadTemplate, "bad template: %#v\n", err)

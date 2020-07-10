@@ -68,8 +68,6 @@ func init() {
 }
 
 func cmdAutoComplete(cmd *cobra.Command, args []string, gen func(io.Writer) error) {
-	out, closeOut := openOutput(cmd)
-	defer closeOut()
 	if gen == nil {
 		// try to guess shell
 		switch sh := filepath.Base(os.Getenv("SHELL")); sh {
@@ -86,6 +84,8 @@ func cmdAutoComplete(cmd *cobra.Command, args []string, gen func(io.Writer) erro
 			gen = cmd.Root().GenPowerShellCompletion
 		}
 	}
+	out, closeOut := openOutput(cmd)
+	defer closeOut()
 	if err := gen(out); err != nil {
 		errorExit(ECUnknownShell, "can't generate completion file: %#v\n", err)
 	}

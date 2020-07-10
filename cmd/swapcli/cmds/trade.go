@@ -1,7 +1,6 @@
 package cmds
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,8 +62,6 @@ func init() {
 }
 
 func cmdNewTrade(cmd *cobra.Command, args []string) {
-	out, closeOut := openOutput(cmd)
-	defer closeOut()
 	fs := cmd.Flags()
 	ownCrypto, err := parseCrypto(fs.Arg(2))
 	if err != nil {
@@ -87,7 +84,8 @@ func cmdNewTrade(cmd *cobra.Command, args []string) {
 		errorExit(ECCantCreateTrade, "can't create trade: %#v\n", err)
 	}
 	h := trade.NewHandler(trade.DefaultStageHandlers)
-	errInterrupt := errors.New("interrupt")
+	out, closeOut := openOutput(cmd)
+	defer closeOut()
 	h.InstallStageHandler(stages.SendProposal, func(tr trade.Trade) error {
 		prop, err := tr.GenerateBuyProposal()
 		if err != nil {
@@ -96,12 +94,12 @@ func cmdNewTrade(cmd *cobra.Command, args []string) {
 		if err = yaml.NewEncoder(out).Encode(prop); err != nil {
 			return err
 		}
-		return errInterrupt
+		return trade.ErrInterruptTrade
 	})
 	for _, i := range h.Unhandled(tr.Stager().Stages()...) {
 		h.InstallStageHandler(i, trade.NoOpHandler)
 	}
-	if err = h.HandleTrade(tr); err != nil && err != errInterrupt {
+	if err = h.HandleTrade(tr); err != nil && err != trade.ErrInterruptTrade {
 		errorExit(ECCantCreateTrade, "can't create trade: %#v\n", err.Error())
 	}
 	f, err := createFile(filepath.Join(tradesDir(dataDir(cmd)), fs.Arg(0)))
@@ -115,13 +113,13 @@ func cmdNewTrade(cmd *cobra.Command, args []string) {
 }
 
 func cmdListTrades(cmd *cobra.Command, args []string) {
-	out, closeOut := openOutput(cmd)
-	defer closeOut()
 	vl := verboseLevel(cmd.Flags(), len(tradeListTemplates)-1)
 	tpl, err := template.New("main").Parse(tradeListTemplates[vl])
 	if err != nil {
 		errorExit(ECBadTemplate, "bad template: %#v\n", err)
 	}
+	out, closeOut := openOutput(cmd)
+	defer closeOut()
 	err = eachTrade(tradesDir(dataDir(cmd)), func(name string, tr trade.Trade) error {
 		return tpl.Execute(out, &listEntry{
 			Name:  name,

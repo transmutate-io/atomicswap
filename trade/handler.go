@@ -1,6 +1,7 @@
 package trade
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -92,4 +93,5 @@ var (
 			return err
 		},
 	}
+	ErrInterruptTrade = errors.New("trade interrupted")
 )

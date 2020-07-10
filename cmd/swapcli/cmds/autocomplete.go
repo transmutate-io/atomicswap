@@ -87,6 +87,6 @@ func cmdAutoComplete(cmd *cobra.Command, args []string, gen func(io.Writer) erro
 		}
 	}
 	if err := gen(out); err != nil {
-		errorExit(unknownShell, "can't generate completion file: %#v\n", err)
+		errorExit(ECUnknownShell, "can't generate completion file: %#v\n", err)
 	}
 }

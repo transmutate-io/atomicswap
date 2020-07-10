@@ -68,15 +68,15 @@ func cmdNewTrade(cmd *cobra.Command, args []string) {
 	fs := cmd.Flags()
 	ownCrypto, err := parseCrypto(fs.Arg(2))
 	if err != nil {
-		errorExit(unknownCrypto, "unknown crypto: %s\n", fs.Arg(2))
+		errorExit(ECUnknownCrypto, "unknown crypto: %s\n", fs.Arg(2))
 	}
 	traderCrypto, err := parseCrypto(fs.Arg(4))
 	if err != nil {
-		errorExit(unknownCrypto, "unknown crypto: %s\n", fs.Arg(4))
+		errorExit(ECUnknownCrypto, "unknown crypto: %s\n", fs.Arg(4))
 	}
 	dur, err := time.ParseDuration(fs.Arg(5))
 	if err != nil {
-		errorExit(invalidDuration, "invalid duration: %s\n", fs.Arg(5))
+		errorExit(ECInvalidDuration, "invalid duration: %s\n", fs.Arg(5))
 	}
 	tr, err := trade.NewOnChainBuy(
 		types.Amount(fs.Arg(1)), ownCrypto,
@@ -84,7 +84,7 @@ func cmdNewTrade(cmd *cobra.Command, args []string) {
 		dur,
 	)
 	if err != nil {
-		errorExit(cantCreateTrade, "can't create trade: %#v\n", err)
+		errorExit(ECCantCreateTrade, "can't create trade: %#v\n", err)
 	}
 	h := trade.NewHandler(trade.DefaultStageHandlers)
 	errInterrupt := errors.New("interrupt")
@@ -102,15 +102,15 @@ func cmdNewTrade(cmd *cobra.Command, args []string) {
 		h.InstallStageHandler(i, trade.NoOpHandler)
 	}
 	if err = h.HandleTrade(tr); err != nil && err != errInterrupt {
-		errorExit(cantCreateTrade, "can't create trade: %#v\n", err.Error())
+		errorExit(ECCantCreateTrade, "can't create trade: %#v\n", err.Error())
 	}
 	f, err := createFile(filepath.Join(tradesDir(dataDir(cmd)), fs.Arg(0)))
 	if err != nil {
-		errorExit(cantCreateTrade, "can't create trade: %#v\n", err)
+		errorExit(ECCantCreateTrade, "can't create trade: %#v\n", err)
 	}
 	defer f.Close()
 	if err = yaml.NewEncoder(f).Encode(tr); err != nil {
-		errorExit(cantCreateTrade, "can't create trade: %#v\n", err)
+		errorExit(ECCantCreateTrade, "can't create trade: %#v\n", err)
 	}
 }
 
@@ -120,7 +120,7 @@ func cmdListTrades(cmd *cobra.Command, args []string) {
 	vl := verboseLevel(cmd.Flags(), len(tradeListTemplates)-1)
 	tpl, err := template.New("main").Parse(tradeListTemplates[vl])
 	if err != nil {
-		errorExit(badTemplate, "bad template: %#v\n", err)
+		errorExit(ECBadTemplate, "bad template: %#v\n", err)
 	}
 	err = eachTrade(tradesDir(dataDir(cmd)), func(name string, tr trade.Trade) error {
 		return tpl.Execute(out, &listEntry{
@@ -129,7 +129,7 @@ func cmdListTrades(cmd *cobra.Command, args []string) {
 		})
 	})
 	if err != nil {
-		errorExit(cantListTrades, "can't list trades: %#v\n", err)
+		errorExit(ECCantListTrades, "can't list trades: %#v\n", err)
 	}
 }
 
@@ -148,7 +148,7 @@ var tradeListTemplates = []string{
 func cmdDeleteTrade(cmd *cobra.Command, args []string) {
 	err := os.Remove(filepath.Join(tradesDir(dataDir(cmd)), cmd.Flags().Arg(0)))
 	if err != nil {
-		errorExit(cantFindTrade, `can't delete trade: %#v\n`, err)
+		errorExit(ECCantFindTrade, `can't delete trade: %#v\n`, err)
 	}
 }
 
@@ -169,16 +169,16 @@ func cmdShowTrade(cmd *cobra.Command, args []string) {
 		return nil
 	})
 	if err != nil {
-		errorExit(cantShowTrades, "can't show trades: %#v\n", err)
+		errorExit(ECCantShowTrades, "can't show trades: %#v\n", err)
 	}
 	n := make([]string, 0, len(names))
 	for i := range names {
 		n = append(n, i)
 	}
 	if len(names) > 0 {
-		errorExit(cantShowTrades, "missing trades: %s\n", strings.Join(n, ", "))
+		errorExit(ECCantShowTrades, "missing trades: %s\n", strings.Join(n, ", "))
 	}
 	if err = yaml.NewEncoder(out).Encode(trades); err != nil {
-		errorExit(cantShowTrades, "can't marshal trades: %#v\n", err)
+		errorExit(ECCantShowTrades, "can't marshal trades: %#v\n", err)
 	}
 }

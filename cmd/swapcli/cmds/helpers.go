@@ -16,33 +16,35 @@ import (
 )
 
 const (
-	noOutput         = -1
-	cantOpenOutput   = -2
-	cantGetFlag      = -3
-	unknownShell     = -4
-	unknownCrypto    = -5
-	invalidDuration  = -6
-	cantCreateTrade  = -7
-	cantFindTrade    = -8
-	badTemplate      = -9
-	cantListTrades   = -10
-	cantShowTrades   = -11
-	cantShowProposal = -12
-	cantListProposal = -13
-	cantOpenTrade    = -14
+	ECNoOutput         = -1
+	ECCantOpenOutput   = -2
+	ECCantGetFlag      = -3
+	ECUnknownShell     = -4
+	ECUnknownCrypto    = -5
+	ECInvalidDuration  = -6
+	ECCantCreateTrade  = -7
+	ECCantFindTrade    = -8
+	ECBadTemplate      = -9
+	ECCantListTrades   = -10
+	ECCantShowTrades   = -11
+	ECCantShowProposal = -12
+	ECCantListProposal = -13
+	ECCantOpenTrade    = -14
+	ECCantOpenProposal = -15
+	ECInvalidProposal  = -16
 )
 
 func openOutput(cmd *cobra.Command) (io.Writer, func() error) {
 	outfn, err := cmd.Root().PersistentFlags().GetString("output")
 	if err != nil {
-		errorExit(noOutput, "can't get output: %#v\n", err)
+		errorExit(ECNoOutput, "can't get output: %#v\n", err)
 	}
 	if outfn == "-" {
 		return os.Stdout, func() error { return nil }
 	}
 	f, err := os.Create(outfn)
 	if err != nil {
-		errorExit(cantOpenOutput, "can't create output file: %#v\n", err)
+		errorExit(ECCantOpenOutput, "can't create output file: %#v\n", err)
 	}
 	return f, func() error { return f.Close() }
 }
@@ -68,7 +70,7 @@ func createFile(p string) (*os.File, error) {
 func verboseLevel(fs *pflag.FlagSet, max int) int {
 	r, err := fs.GetCount("verbose")
 	if err != nil {
-		errorExit(cantGetFlag, "can't get flag: %#v\n", err)
+		errorExit(ECCantGetFlag, "can't get flag: %#v\n", err)
 	}
 	if r > max {
 		return max
@@ -111,7 +113,7 @@ func eachTrade(td string, f func(string, trade.Trade) error) error {
 func flagString(fs *pflag.FlagSet, name string) string {
 	r, err := fs.GetString(name)
 	if err != nil {
-		errorExit(cantGetFlag, "can't get flag: %#v\n", err)
+		errorExit(ECCantGetFlag, "can't get flag: %#v\n", err)
 	}
 	return r
 }
@@ -119,7 +121,7 @@ func flagString(fs *pflag.FlagSet, name string) string {
 func flagDuration(fs *pflag.FlagSet, name string) time.Duration {
 	r, err := fs.GetDuration(name)
 	if err != nil {
-		errorExit(cantGetFlag, "can't get flag: %#v\n", err)
+		errorExit(ECCantGetFlag, "can't get flag: %#v\n", err)
 	}
 	return r
 }
@@ -127,7 +129,7 @@ func flagDuration(fs *pflag.FlagSet, name string) time.Duration {
 func flagBool(fs *pflag.FlagSet, name string) bool {
 	r, err := fs.GetBool(name)
 	if err != nil {
-		errorExit(cantGetFlag, "can't get flag: %#v\n", err)
+		errorExit(ECCantGetFlag, "can't get flag: %#v\n", err)
 	}
 	return r
 }

@@ -16,11 +16,6 @@ var (
 		Short: "atomic swaps cli tool",
 		Long:  "swapcli is a command line tool to perform atomic swaps",
 	}
-	rootCmds = []*cobra.Command{
-		cmds.ListCryptosCmd,
-		cmds.AutoCompleteCmd,
-		cmds.TradeCmd,
-	}
 )
 
 func init() {
@@ -29,7 +24,12 @@ func init() {
 		fmt.Fprintf(os.Stderr, "can't get homedir: %v\n", err)
 		os.Exit(-1)
 	}
-	for _, i := range rootCmds {
+	for _, i := range []*cobra.Command{
+		cmds.ListCryptosCmd,
+		cmds.AutoCompleteCmd,
+		cmds.TradeCmd,
+		cmds.ProposalCmd,
+	} {
 		rootCmd.AddCommand(i)
 	}
 	pf := rootCmd.PersistentFlags()

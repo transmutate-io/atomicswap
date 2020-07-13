@@ -11,27 +11,30 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/transmutate-io/atomicswap/cryptos"
+	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
 	"gopkg.in/yaml.v2"
 )
 
 const (
-	ECNoOutput         = -1
-	ECCantOpenOutput   = -2
-	ECCantGetFlag      = -3
-	ECUnknownShell     = -4
-	ECUnknownCrypto    = -5
-	ECInvalidDuration  = -6
-	ECCantCreateTrade  = -7
-	ECCantFindTrade    = -8
-	ECBadTemplate      = -9
-	ECCantListTrades   = -10
-	ECCantShowTrades   = -11
-	ECCantShowProposal = -12
-	ECCantListProposal = -13
-	ECCantOpenTrade    = -14
-	ECCantOpenProposal = -15
-	ECInvalidProposal  = -16
+	ECNoOutput           = -1
+	ECCantOpenOutput     = -2
+	ECCantGetFlag        = -3
+	ECUnknownShell       = -4
+	ECUnknownCrypto      = -5
+	ECInvalidDuration    = -6
+	ECCantCreateTrade    = -7
+	ECCantFindTrade      = -8
+	ECBadTemplate        = -9
+	ECCantListTrades     = -10
+	ECCantExportTrades   = -11
+	ECCantExportProposal = -12
+	ECCantListProposal   = -13
+	ECCantOpenTrade      = -14
+	ECCantOpenProposal   = -15
+	ECInvalidProposal    = -16
+	ECCantImportTrades   = -17
+	ECNoInput            = -18
 )
 
 func openOutput(cmd *cobra.Command) (io.Writer, func() error) {
@@ -45,6 +48,21 @@ func openOutput(cmd *cobra.Command) (io.Writer, func() error) {
 	f, err := os.Create(outfn)
 	if err != nil {
 		errorExit(ECCantOpenOutput, "can't create output file: %#v\n", err)
+	}
+	return f, func() error { return f.Close() }
+}
+
+func openInput(cmd *cobra.Command) (io.Reader, func() error) {
+	infn, err := cmd.Root().PersistentFlags().GetString("input")
+	if err != nil {
+		errorExit(ECNoInput, "can't get input: %#v\n", err)
+	}
+	if infn == "-" {
+		return os.Stdin, func() error { return nil }
+	}
+	f, err := os.Open(infn)
+	if err != nil {
+		errorExit(ECNoInput, "can't open input file: %#v\n", err)
 	}
 	return f, func() error { return f.Close() }
 }
@@ -94,7 +112,7 @@ var filepathSeparator = string([]rune{filepath.Separator})
 func eachTrade(td string, f func(string, trade.Trade) error) error {
 	tdPrefix := td + filepathSeparator
 	return filepath.Walk(td, func(path string, info os.FileInfo, err error) error {
-		if info.IsDir() {
+		if info == nil || info.IsDir() {
 			return nil
 		}
 		tf, err := os.Open(path)
@@ -108,6 +126,46 @@ func eachTrade(td string, f func(string, trade.Trade) error) error {
 		}
 		return f(strings.TrimPrefix(path, tdPrefix), tr)
 	})
+}
+
+func eachProposal(td string, f func(string, trade.Trade) error) error {
+	return eachTrade(td, func(name string, tr trade.Trade) error {
+		if tr.Stager().Stage() != stages.SendProposal {
+			return nil
+		}
+		return f(name, tr)
+	})
+}
+
+func eachLockSet(td string, f func(string, trade.Trade) error) error {
+	return eachTrade(td, func(name string, tr trade.Trade) error {
+		if tr.Stager().Stage() != stages.ReceiveProposalResponse {
+			return nil
+		}
+		return f(name, tr)
+	})
+}
+
+func openTrade(cmd *cobra.Command, name string) (trade.Trade, error) {
+	f, err := os.Open(filepath.Join(tradesDir(dataDir(cmd)), name))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	r := &trade.OnChainTrade{}
+	if err = yaml.NewDecoder(f).Decode(r); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+func saveTrade(cmd *cobra.Command, name string, tr trade.Trade) error {
+	f, err := createFile(filepath.Join(tradesDir(dataDir(cmd)), name))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return yaml.NewEncoder(f).Encode(tr)
 }
 
 func flagString(fs *pflag.FlagSet, name string) string {
@@ -134,18 +192,18 @@ func flagBool(fs *pflag.FlagSet, name string) bool {
 	return r
 }
 
-func addVerboseFlag(fs *pflag.FlagSet) {
+func addFlagVerbose(fs *pflag.FlagSet) {
 	fs.CountP("verbose", "v", "increse verbose level")
 }
 
-func addFormatFlag(fs *pflag.FlagSet) {
+func addFlagFormat(fs *pflag.FlagSet) {
 	fs.StringP("format", "g", "", "go template format string for output")
 }
 
-func addForceFlag(fs *pflag.FlagSet) {
+func addFlagForce(fs *pflag.FlagSet) {
 	fs.BoolP("force", "f", false, "force")
 }
 
-func addAllFlag(fs *pflag.FlagSet) {
+func addFlagAll(fs *pflag.FlagSet) {
 	fs.BoolP("all", "a", false, "all")
 }

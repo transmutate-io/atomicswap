@@ -17,7 +17,7 @@ import (
 var (
 	TradeCmd = &cobra.Command{
 		Use:     "trade",
-		Short:   "trade autocomple",
+		Short:   "trade commands",
 		Aliases: []string{"t"},
 	}
 	newTradeCmd = &cobra.Command{
@@ -40,22 +40,29 @@ var (
 		Args:    cobra.ExactArgs(1),
 		Run:     cmdDeleteTrade,
 	}
-	showTradeCmd = &cobra.Command{
-		Use:     "show [name] [name]",
-		Short:   "show trade(s)",
-		Aliases: []string{"s"},
-		Run:     cmdShowTrade,
+	exportTradesCmd = &cobra.Command{
+		Use:     "export [name1] [name2] [...]",
+		Short:   "export trade(s)",
+		Aliases: []string{"exp", "e"},
+		Run:     cmdExportTrades,
+	}
+	importTradesCmd = &cobra.Command{
+		Use:     "import",
+		Short:   "import trade(s)",
+		Aliases: []string{"imp", "i"},
+		Run:     cmdImportTrades,
 	}
 )
 
 func init() {
-	addVerboseFlag(listTradesCmd.Flags())
-	addAllFlag(showTradeCmd.Flags())
+	addFlagVerbose(listTradesCmd.Flags())
+	addFlagAll(exportTradesCmd.Flags())
 	for _, i := range []*cobra.Command{
 		newTradeCmd,
 		listTradesCmd,
 		deleteTradeCmd,
-		showTradeCmd,
+		exportTradesCmd,
+		importTradesCmd,
 	} {
 		TradeCmd.AddCommand(i)
 	}
@@ -102,12 +109,7 @@ func cmdNewTrade(cmd *cobra.Command, args []string) {
 	if err = h.HandleTrade(tr); err != nil && err != trade.ErrInterruptTrade {
 		errorExit(ECCantCreateTrade, "can't create trade: %#v\n", err.Error())
 	}
-	f, err := createFile(filepath.Join(tradesDir(dataDir(cmd)), fs.Arg(0)))
-	if err != nil {
-		errorExit(ECCantCreateTrade, "can't create trade: %#v\n", err)
-	}
-	defer f.Close()
-	if err = yaml.NewEncoder(f).Encode(tr); err != nil {
+	if err = saveTrade(cmd, fs.Arg(0), tr); err != nil {
 		errorExit(ECCantCreateTrade, "can't create trade: %#v\n", err)
 	}
 }
@@ -150,33 +152,47 @@ func cmdDeleteTrade(cmd *cobra.Command, args []string) {
 	}
 }
 
-func cmdShowTrade(cmd *cobra.Command, args []string) {
-	out, closeOut := openOutput(cmd)
-	defer closeOut()
-	showAll := flagBool(cmd.Flags(), "all")
+func cmdExportTrades(cmd *cobra.Command, args []string) {
+	exportAll := flagBool(cmd.Flags(), "all")
 	names := make(map[string]struct{}, len(args))
 	for _, i := range args {
 		names[i] = struct{}{}
 	}
 	trades := make(map[string]trade.Trade, 16)
 	err := eachTrade(tradesDir(dataDir(cmd)), func(name string, tr trade.Trade) error {
-		if _, show := names[name]; show || showAll {
+		if _, exp := names[name]; exp || exportAll {
 			delete(names, name)
 			trades[name] = tr
 		}
 		return nil
 	})
 	if err != nil {
-		errorExit(ECCantShowTrades, "can't show trades: %#v\n", err)
+		errorExit(ECCantExportTrades, "can't export trades: %#v\n", err)
 	}
 	n := make([]string, 0, len(names))
 	for i := range names {
 		n = append(n, i)
 	}
 	if len(names) > 0 {
-		errorExit(ECCantShowTrades, "missing trades: %s\n", strings.Join(n, ", "))
+		errorExit(ECCantExportTrades, "missing trades: %s\n", strings.Join(n, ", "))
 	}
+	out, closeOut := openOutput(cmd)
+	defer closeOut()
 	if err = yaml.NewEncoder(out).Encode(trades); err != nil {
-		errorExit(ECCantShowTrades, "can't marshal trades: %#v\n", err)
+		errorExit(ECCantExportTrades, "can't marshal trades: %#v\n", err)
+	}
+}
+
+func cmdImportTrades(cmd *cobra.Command, args []string) {
+	in, closeIn := openInput(cmd)
+	defer closeIn()
+	trades := make(map[string]*trade.OnChainTrade, 16)
+	if err := yaml.NewDecoder(in).Decode(trades); err != nil {
+		errorExit(ECCantImportTrades, "can't import trades: %#v\n", err)
+	}
+	for n, tr := range trades {
+		if err := saveTrade(cmd, n, tr); err != nil {
+			errorExit(ECCantImportTrades, "can't import trade \"%s\": %#v\n", n, err)
+		}
 	}
 }

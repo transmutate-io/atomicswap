@@ -20,8 +20,8 @@ var (
 
 func init() {
 	fs := ListCryptosCmd.Flags()
-	addVerboseFlag(fs)
-	addFormatFlag(fs)
+	addFlagVerbose(fs)
+	addFlagFormat(fs)
 }
 
 func cmdListCryptos(cmd *cobra.Command, args []string) {

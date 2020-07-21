@@ -89,7 +89,11 @@ var (
 		stages.Done:         func(_ Trade) error { return nil },
 		stages.GenerateKeys: func(tr Trade) error { return tr.GenerateKeys() },
 		stages.GenerateToken: func(tr Trade) error {
-			_, err := tr.GenerateToken()
+			btr, err := tr.Buyer()
+			if err != nil {
+				return err
+			}
+			_, err = btr.GenerateToken()
 			return err
 		},
 	}

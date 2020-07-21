@@ -31,7 +31,9 @@ func testTradeMarshalUnamarshal(t *testing.T, tc *testutil.Crypto) {
 		48*time.Hour,
 	)
 	require.NoError(t, err, "can't create the buy")
-	_, err = trade.GenerateToken()
+	btr, err := trade.Buyer()
+	require.NoError(t, err, "can't get buyer trade")
+	_, err = btr.GenerateToken()
 	require.NoError(t, err, "can't generate token")
 	err = trade.GenerateKeys()
 	require.NoError(t, err, "can't generate keys")

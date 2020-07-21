@@ -72,3 +72,17 @@ func (t *OnChainTrade) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	t.baseTrade = r
 	return nil
 }
+
+func (t *OnChainTrade) Buyer() (BuyerTrade, error) {
+	if t.baseTrade.Role != roles.Buyer {
+		return nil, ErrNotABuyerTrade
+	}
+	return t, nil
+}
+
+func (t *OnChainTrade) Seller() (SellerTrade, error) {
+	if t.baseTrade.Role != roles.Seller {
+		return nil, ErrNotASellerTrade
+	}
+	return t, nil
+}

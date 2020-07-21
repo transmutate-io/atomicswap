@@ -29,6 +29,7 @@ func init() {
 		cmds.AutoCompleteCmd,
 		cmds.TradeCmd,
 		cmds.ProposalCmd,
+		cmds.LockSetCmd,
 	} {
 		rootCmd.AddCommand(i)
 	}
@@ -36,6 +37,8 @@ func init() {
 	pf.StringP("data", "D", filepath.Join(hd, ".swapcli"), "set datadir")
 	pf.StringP("output", "o", "-", "set output")
 	pf.StringP("input", "i", "-", "set input")
+	pf.Bool("testnet", false, "use testnet")
+	pf.Bool("local", false, "use local net")
 }
 
 func main() {

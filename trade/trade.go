@@ -24,6 +24,17 @@ type (
 		Amount types.Amount    `yaml:"amount"`
 	}
 
+	BuyerTrade interface {
+		GenerateToken() (types.Bytes, error)
+		GenerateBuyProposal() (*BuyProposal, error)
+		SetLocks(locks *BuyProposalResponse) error
+	}
+
+	SellerTrade interface {
+		AcceptBuyProposal(prop *BuyProposal) error
+		Locks() *BuyProposalResponse
+	}
+
 	Trade interface {
 		Role() roles.Role
 		Duration() duration.Duration
@@ -36,17 +47,14 @@ type (
 		RedeemableFunds() FundsData
 		RecoverableFunds() FundsData
 		Stager() *stages.Stager
-
-		GenerateToken() (types.Bytes, error)
 		GenerateKeys() error
-		GenerateBuyProposal() (*BuyProposal, error)
-		AcceptBuyProposal(prop *BuyProposal) error
-		SetLocks(locks *BuyProposalResponse) error
 		SetToken(token types.Bytes)
 		RedeemTxFixedFee(dest key.KeyData, fee uint64) (tx.Tx, error)
 		RedeemTx(dest key.KeyData, feePerByte uint64) (tx.Tx, error)
 		RecoveryTxFixedFee(dest key.KeyData, fee uint64) (tx.Tx, error)
 		RecoveryTx(dest key.KeyData, feePerByte uint64) (tx.Tx, error)
+		Buyer() (BuyerTrade, error)
+		Seller() (SellerTrade, error)
 	}
 )
 
@@ -208,9 +216,6 @@ var (
 
 func (bt *baseTrade) GenerateBuyProposal() (*BuyProposal, error) {
 	// only a buyer can generate a proposal
-	if bt.Role != roles.Buyer {
-		return nil, ErrNotABuyerTrade
-	}
 	return &BuyProposal{
 		Buyer: &BuyProposalInfo{
 			Crypto:       bt.OwnInfo.Crypto,
@@ -246,10 +251,6 @@ func generateTimeLock(c *cryptos.Crypto, lockTime time.Time, tokenHash []byte, r
 }
 
 func (bt *baseTrade) AcceptBuyProposal(prop *BuyProposal) error {
-	// only the seller can accept a trade
-	if bt.Role != roles.Seller {
-		return ErrNotASellerTrade
-	}
 	// set token hash
 	bt.TokenHash = prop.TokenHash
 	// own info
@@ -332,6 +333,13 @@ func (bt *baseTrade) SetLocks(locks *BuyProposalResponse) error {
 	bt.RecoverableFunds.SetLock(locks.Buyer)
 	bt.RedeemableFunds.SetLock(locks.Seller)
 	return nil
+}
+
+func (bt *baseTrade) Locks() *BuyProposalResponse {
+	return &BuyProposalResponse{
+		Buyer:  bt.RedeemableFunds.Lock(),
+		Seller: bt.RecoverableFunds.Lock(),
+	}
 }
 
 var ErrNotUTXO = errors.New("not a utxo crypto")

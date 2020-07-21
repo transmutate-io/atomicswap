@@ -3,7 +3,6 @@ package cmds
 import (
 	"sort"
 	"strings"
-	"text/template"
 
 	"github.com/spf13/cobra"
 	"github.com/transmutate-io/atomicswap/cryptos"
@@ -25,11 +24,7 @@ func init() {
 }
 
 func cmdListCryptos(cmd *cobra.Command, args []string) {
-	vl := verboseLevel(cmd.Flags(), len(cryptosListTemplates)-1)
-	tpl, err := template.New("main").Parse(cryptosListTemplates[vl])
-	if err != nil {
-		errorExit(ECBadTemplate, "bad template: %#v\n", err)
-	}
+	tpl := outputTemplate(cmd, cryptosListTemplates, nil)
 	names := make([]string, 0, len(cryptos.Cryptos))
 	for _, i := range cryptos.Cryptos {
 		names = append(names, strings.ToLower(i.Name))
@@ -38,8 +33,8 @@ func cmdListCryptos(cmd *cobra.Command, args []string) {
 	out, closeOut := openOutput(cmd)
 	defer closeOut()
 	for _, i := range names {
-		if err = tpl.Execute(out, cryptos.Cryptos[i]); err != nil {
-			errorExit(ECBadTemplate, "bad template: %#v\n", err)
+		if err := tpl.Execute(out, cryptos.Cryptos[i]); err != nil {
+			errorExit(ecBadTemplate, err)
 		}
 	}
 }

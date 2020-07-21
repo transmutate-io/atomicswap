@@ -79,7 +79,7 @@ func cmdAutoComplete(cmd *cobra.Command, args []string, gen func(io.Writer) erro
 			gen = cmd.Root().GenZshCompletion
 		default:
 			if os.Getenv("ComSpec") == "" {
-				errorExit(-4, "can't identify shell")
+				errorExit(ecUnknownShell, "")
 			}
 			gen = cmd.Root().GenPowerShellCompletion
 		}
@@ -87,6 +87,6 @@ func cmdAutoComplete(cmd *cobra.Command, args []string, gen func(io.Writer) erro
 	out, closeOut := openOutput(cmd)
 	defer closeOut()
 	if err := gen(out); err != nil {
-		errorExit(ECUnknownShell, "can't generate completion file: %#v\n", err)
+		errorExit(ecUnknownShell, err)
 	}
 }

@@ -80,7 +80,11 @@ func trySend(c chan []byte, b []byte) bool {
 }
 
 func (m *testExchanger) sendProposal(t Trade) error {
-	prop, err := t.GenerateBuyProposal()
+	bt, err := t.Buyer()
+	if err != nil {
+		return err
+	}
+	prop, err := bt.GenerateBuyProposal()
 	if err != nil {
 		return err
 	}
@@ -116,14 +120,19 @@ func (m *testExchanger) receiveProposal(t Trade) error {
 		return err
 	}
 	m.pf("got a proposal: %s\n", buyProposalString(prop))
-	return t.AcceptBuyProposal(prop)
+	st, err := t.Seller()
+	if err != nil {
+		return err
+	}
+	return st.AcceptBuyProposal(prop)
 }
 
 func (m *testExchanger) sendProposalResponse(t Trade) error {
-	resp := &BuyProposalResponse{
-		Buyer:  t.RedeemableFunds().Lock(),
-		Seller: t.RecoverableFunds().Lock(),
+	st, err := t.Seller()
+	if err != nil {
+		return err
 	}
+	resp := st.Locks()
 	b, err := yaml.Marshal(resp)
 	if err != nil {
 		return err
@@ -154,7 +163,11 @@ func (m *testExchanger) receiveProposalResponse(t Trade) error {
 		return err
 	}
 	m.pf("proposal response received: %s\n", buyProposalResponseString(resp))
-	return t.SetLocks(resp)
+	bt, err := t.Buyer()
+	if err != nil {
+		return err
+	}
+	return bt.SetLocks(resp)
 }
 
 func (m *testExchanger) lockFunds(t Trade) error {
@@ -379,7 +392,11 @@ func newGenerateKeysHandler(pf printfFunc) func(Trade) error {
 
 func newGenerateTokenHandler(pf printfFunc) func(Trade) error {
 	return func(t Trade) error {
-		if _, err := t.GenerateToken(); err != nil {
+		bt, err := t.Buyer()
+		if err != nil {
+			return err
+		}
+		if _, err := bt.GenerateToken(); err != nil {
 			return err
 		}
 		pf("token: %s\n", t.Token().Hex())

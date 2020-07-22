@@ -69,7 +69,7 @@ func cmdListLockSets(cmd *cobra.Command, args []string) {
 	out, closeOut := openOutput(cmd)
 	defer closeOut()
 	err := eachLockSet(tradesDir(dataDir(cmd)), func(name string, tr trade.Trade) error {
-		return tpl.Execute(out, &listEntry{Name: name, Trade: tr})
+		return tpl.Execute(out, &tradeInfo{Name: name, Trade: tr})
 	})
 	if err != nil {
 		errorExit(ecCantListLockSets, err)

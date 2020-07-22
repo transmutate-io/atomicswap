@@ -98,14 +98,14 @@ func cmdListTrades(cmd *cobra.Command, args []string) {
 	out, closeOut := openOutput(cmd)
 	defer closeOut()
 	err := eachTrade(tradesDir(dataDir(cmd)), func(name string, tr trade.Trade) error {
-		return tpl.Execute(out, &listEntry{Name: name, Trade: tr})
+		return tpl.Execute(out, &tradeInfo{Name: name, Trade: tr})
 	})
 	if err != nil {
 		errorExit(ecCantListTrades, err)
 	}
 }
 
-type listEntry struct {
+type tradeInfo struct {
 	Name  string
 	Trade trade.Trade
 }

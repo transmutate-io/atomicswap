@@ -18,20 +18,21 @@ var (
 	}
 	listProposalsCmd = &cobra.Command{
 		Use:     "list",
-		Short:   "list trade names with proposals",
+		Short:   "list trade names with exportable proposals to output",
 		Aliases: []string{"ls", "l"},
+		Args:    cobra.NoArgs,
 		Run:     cmdListProposals,
 	}
 	exportProposalCmd = &cobra.Command{
-		Use:     "export <name>",
-		Short:   "export proposal",
+		Use:     "export <trade_name>",
+		Short:   "export a proposal to output",
 		Aliases: []string{"exp", "e"},
 		Args:    cobra.ExactArgs(1),
 		Run:     cmdExportProposal,
 	}
 	acceptProposalCmd = &cobra.Command{
-		Use:     "accept <name>",
-		Short:   "accept proposal",
+		Use:     "accept <trade_name>",
+		Short:   "accept a proposal from input",
 		Aliases: []string{"a"},
 		Args:    cobra.ExactArgs(1),
 		Run:     cmdAcceptProposal,

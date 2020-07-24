@@ -27,30 +27,39 @@ var (
 	}
 	listTradesCmd = &cobra.Command{
 		Use:     "list",
-		Short:   "list trades",
+		Short:   "list trades to output",
 		Aliases: []string{"l", "ls"},
+		Args:    cobra.NoArgs,
 		Run:     cmdListTrades,
 	}
 	deleteTradeCmd = &cobra.Command{
 		Use:     "delete <name>",
-		Short:   "delete trade",
+		Short:   "delete a trade",
 		Aliases: []string{"d", "del", "rm"},
 		Args:    cobra.ExactArgs(1),
 		Run:     cmdDeleteTrade,
 	}
 	exportTradesCmd = &cobra.Command{
 		Use:     "export [name1] [name2] [...]",
-		Short:   "export trade(s)",
+		Short:   "export trades to output",
 		Aliases: []string{"exp", "e"},
+		Args:    cobra.NoArgs,
 		Run:     cmdExportTrades,
 	}
 	importTradesCmd = &cobra.Command{
 		Use:     "import",
-		Short:   "import trade(s)",
+		Short:   "import trades from input",
 		Aliases: []string{"imp", "i"},
+		Args:    cobra.NoArgs,
 		Run:     cmdImportTrades,
 	}
-	// TODO: add rename trade command
+	renameTradeCmd = &cobra.Command{
+		Use:     "rename <old_name> <new_name>",
+		Short:   "rename trade",
+		Aliases: []string{"ren", "r"},
+		Args:    cobra.ExactArgs(2),
+		Run:     cmdRenameTrade,
+	}
 )
 
 func init() {
@@ -166,5 +175,15 @@ func cmdImportTrades(cmd *cobra.Command, args []string) {
 		if err := saveTrade(cmd, n, tr); err != nil {
 			errorExit(ecCantImportTrades, err)
 		}
+	}
+}
+
+func cmdRenameTrade(cmd *cobra.Command, args []string) {
+	err := os.Rename(
+		filepath.Join(tradesDir(dataDir(cmd)), args[0]),
+		filepath.Join(tradesDir(dataDir(cmd)), args[1]),
+	)
+	if err != nil {
+		errorExit(ecCantRenameTrade, err)
 	}
 }

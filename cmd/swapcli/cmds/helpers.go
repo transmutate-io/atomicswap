@@ -33,6 +33,7 @@ const (
 	ecCantFindNetwork
 	ecCantGetFlag
 	ecCantImportTrades
+	ecCantRenameTrade
 	ecCantListLockSets
 	ecCantListProposals
 	ecCantListTrades
@@ -61,6 +62,7 @@ var ecMessages = map[int]string{
 	ecCantFindNetwork:      "can't find network for %s\n",
 	ecCantGetFlag:          "can't get flag: %s\n",
 	ecCantImportTrades:     "can't import trades: %s\n",
+	ecCantRenameTrade:      "can't rename trade: %s\n",
 	ecCantListLockSets:     "can't list locksets: %s\n",
 	ecCantListProposals:    "can't list proposals: %s\n",
 	ecCantListTrades:       "can't list trades: %s\n",

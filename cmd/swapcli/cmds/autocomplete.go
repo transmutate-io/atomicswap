@@ -19,8 +19,9 @@ var (
 func init() {
 	fishCommand := &cobra.Command{
 		Use:     "fish",
-		Short:   "generate fish autocomplete script",
+		Short:   "fish autocomplete script",
 		Aliases: []string{"f"},
+		Args:    cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdAutoComplete(cmd, args, func(w io.Writer) error {
 				return cmd.Root().GenFishCompletion(w, flagBool(cmd.Flags(), "desc"))
@@ -31,8 +32,9 @@ func init() {
 	for _, i := range []*cobra.Command{
 		{
 			Use:     "auto",
-			Short:   "generate autocomplete script (try to guess the shell)",
+			Short:   "autocomplete script (try to guess the shell)",
 			Aliases: []string{"a"},
+			Args:    cobra.NoArgs,
 			Run: func(cmd *cobra.Command, args []string) {
 				cmdAutoComplete(cmd, args, nil)
 			},
@@ -40,24 +42,27 @@ func init() {
 		fishCommand,
 		{
 			Use:     "bash",
-			Short:   "generate bash autocomplete script",
+			Short:   "bash autocomplete script",
 			Aliases: []string{"b"},
+			Args:    cobra.NoArgs,
 			Run: func(cmd *cobra.Command, args []string) {
 				cmdAutoComplete(cmd, args, cmd.Root().GenBashCompletion)
 			},
 		},
 		{
 			Use:     "zsh",
-			Short:   "generate zsh autocomplete script",
+			Short:   "zsh autocomplete script",
 			Aliases: []string{"z"},
+			Args:    cobra.NoArgs,
 			Run: func(cmd *cobra.Command, args []string) {
 				cmdAutoComplete(cmd, args, cmd.Root().GenZshCompletion)
 			},
 		},
 		{
 			Use:     "powershell",
-			Short:   "generate powershell autocomplete script",
+			Short:   "powershell autocomplete script",
 			Aliases: []string{"p"},
+			Args:    cobra.NoArgs,
 			Run: func(cmd *cobra.Command, args []string) {
 				cmdAutoComplete(cmd, args, cmd.Root().GenPowerShellCompletion)
 			},

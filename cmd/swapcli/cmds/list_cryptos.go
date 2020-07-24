@@ -11,8 +11,9 @@ import (
 var (
 	ListCryptosCmd = &cobra.Command{
 		Use:     "cryptos",
-		Short:   "list cryptos",
+		Short:   "list available cryptocurrencies",
 		Aliases: []string{"c"},
+		Args:    cobra.NoArgs,
 		Run:     cmdListCryptos,
 	}
 )

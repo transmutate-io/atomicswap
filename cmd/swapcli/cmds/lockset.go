@@ -20,27 +20,28 @@ var (
 	}
 	listLockSetsCmd = &cobra.Command{
 		Use:     "list",
-		Short:   "list trade names with lockset",
+		Short:   "list trade names with exportable locksets to output",
 		Aliases: []string{"ls", "l"},
+		Args:    cobra.NoArgs,
 		Run:     cmdListLockSets,
 	}
 	exportLockSetCmd = &cobra.Command{
-		Use:     "export <name>",
-		Short:   "export lock set",
+		Use:     "export <trade_name>",
+		Short:   "export a lockset to output",
 		Aliases: []string{"exp", "e"},
 		Args:    cobra.ExactArgs(1),
 		Run:     cmdExportLockSet,
 	}
 	acceptLockSetCmd = &cobra.Command{
-		Use:     "accept <name>",
-		Short:   "accept a lock set for a trade",
+		Use:     "accept <trade_name>",
+		Short:   "accept a lockset for a trade from input",
 		Aliases: []string{"a"},
 		Args:    cobra.ExactArgs(1),
 		Run:     cmdAcceptLockSet,
 	}
 	showLockSetInfoCmd = &cobra.Command{
-		Use:     "info <name>",
-		Short:   "show a lock set info against a trade",
+		Use:     "info <trade_name>",
+		Short:   "show a lockset info against a trade to output",
 		Aliases: []string{"i"},
 		Args:    cobra.ExactArgs(1),
 		Run:     cmdShowLockSetInfo,

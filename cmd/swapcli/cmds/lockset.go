@@ -52,9 +52,15 @@ func init() {
 	fs := listLockSetsCmd.Flags()
 	addFlagVerbose(fs)
 	addFlagFormat(fs)
+	addFlagOutput(fs)
 	fs = showLockSetInfoCmd.Flags()
 	addFlagVerbose(fs)
 	addFlagFormat(fs)
+	addFlagOutput(fs)
+	addFlagInput(showLockSetInfoCmd.Flags())
+	addFlagInput(acceptLockSetCmd.Flags())
+	addFlagOutput(exportLockSetCmd.Flags())
+	addFlagCryptoChain(fs)
 	for _, i := range []*cobra.Command{
 		listLockSetsCmd,
 		exportLockSetCmd,
@@ -69,8 +75,8 @@ func cmdListLockSets(cmd *cobra.Command, args []string) {
 	tpl := outputTemplate(cmd, tradeListTemplates, nil)
 	out, closeOut := openOutput(cmd)
 	defer closeOut()
-	err := eachLockSet(tradesDir(dataDir(cmd)), func(name string, tr trade.Trade) error {
-		return tpl.Execute(out, &tradeInfo{Name: name, Trade: tr})
+	err := eachLockSet(tradesDir(cmd), func(name string, tr trade.Trade) error {
+		return tpl.Execute(out, newTradeInfo(name, tr))
 	})
 	if err != nil {
 		errorExit(ecCantListLockSets, err)
@@ -100,11 +106,11 @@ func cmdAcceptLockSet(cmd *cobra.Command, args []string) {
 		errorExit(ecCantAcceptLockSet, err)
 	}
 	th := trade.NewHandler(trade.DefaultStageHandlers)
-	th.InstallStageHandler(stages.ReceiveProposalResponse, func(t trade.Trade) error {
-		return btr.SetLocks(openLockSet(in, tr.OwnInfo().Crypto, tr.TraderInfo().Crypto))
-	})
-	th.InstallStageHandler(stages.LockFunds, func(t trade.Trade) error {
-		return trade.ErrInterruptTrade
+	th.InstallStageHandlers(trade.StageHandlerMap{
+		stages.ReceiveProposalResponse: func(t trade.Trade) error {
+			return btr.SetLocks(openLockSet(in, tr.OwnInfo().Crypto, tr.TraderInfo().Crypto))
+		},
+		stages.LockFunds: trade.InterruptHandler,
 	})
 	for _, i := range th.Unhandled(tr.Stager().Stages()...) {
 		th.InstallStageHandler(i, trade.NoOpHandler)
@@ -112,9 +118,7 @@ func cmdAcceptLockSet(cmd *cobra.Command, args []string) {
 	if err = th.HandleTrade(tr); err != nil && err != trade.ErrInterruptTrade {
 		errorExit(ecCantAcceptLockSet, err)
 	}
-	if err = saveTrade(cmd, args[0], tr); err != nil {
-		errorExit(ecCantCreateTrade, err)
-	}
+	saveTrade(cmd, args[0], tr)
 }
 
 func cmdShowLockSetInfo(cmd *cobra.Command, args []string) {
@@ -125,57 +129,57 @@ func cmdShowLockSetInfo(cmd *cobra.Command, args []string) {
 	in, inClose := openInput(cmd)
 	defer inClose()
 	ls := openLockSet(in, tr.OwnInfo().Crypto, tr.TraderInfo().Crypto)
-	info := &lockSetInfo{
-		Trade:  tr,
-		Buyer:  newLockInfo(cmd, ls.Buyer, tr.OwnInfo().Crypto),
-		Seller: newLockInfo(cmd, ls.Seller, tr.TraderInfo().Crypto),
-	}
 	out, outClose := openOutput(cmd)
 	defer outClose()
 	tpl := outputTemplate(cmd, lockSetInfoTemplates, template.FuncMap{"now": time.Now})
-	if err := tpl.Execute(out, info); err != nil {
+	err := tpl.Execute(out, newLockSetInfo(
+		tr,
+		newLockInfo(cmd, ls.Buyer, tr.OwnInfo().Crypto),
+		newLockInfo(cmd, ls.Seller, tr.TraderInfo().Crypto),
+	))
+	if err != nil {
 		errorExit(ecBadTemplate, err)
 	}
 }
 
 var lockSetInfoTemplates = []string{
-	`hash: {{ if ne .Buyer.LockData.TokenHash.Hex .Seller.LockData.TokenHash.Hex }}mis{{ end }}match
+	`hash: {{ if ne .buyer.LockData.TokenHash.Hex .seller.LockData.TokenHash.Hex }}mis{{ end }}match
 buyer:
-  recovery key data: {{ if ne .Buyer.LockData.RecoveryKeyData.Hex .Trade.RecoveryKey.Public.KeyData.Hex }}mis{{ end }}match
-  time lock expiry: {{ .Buyer.LockData.Locktime.UTC }} (in {{ .Buyer.LockData.Locktime.UTC.Sub now.UTC  }})
-  time lock expiry: {{ .Buyer.LockData.Locktime.UTC }} (in {{ .Buyer.LockData.Locktime.UTC.Sub now.UTC  }})
+  recovery key data: {{ if ne .buyer.LockData.RecoveryKeyData.Hex .trade.RecoveryKey.Public.KeyData.Hex }}mis{{ end }}match
+  time lock expiry: {{ .buyer.LockData.Locktime.UTC }} (in {{ .buyer.LockData.Locktime.UTC.Sub now.UTC  }})
+  time lock expiry: {{ .buyer.LockData.Locktime.UTC }} (in {{ .buyer.LockData.Locktime.UTC.Sub now.UTC  }})
 seller:
-  redeem key data: {{ if ne .Seller.LockData.RedeemKeyData.Hex .Trade.RedeemKey.Public.KeyData.Hex }}mis{{ end }}match
-  time lock expiry: {{ .Seller.LockData.Locktime.UTC }} (in {{ .Seller.LockData.Locktime.UTC.Sub now.UTC  }}, {{ .Buyer.LockData.Locktime.UTC.Sub .Seller.LockData.Locktime.UTC }} before buyer)
+  redeem key data: {{ if ne .seller.LockData.RedeemKeyData.Hex .trade.RedeemKey.Public.KeyData.Hex }}mis{{ end }}match
+  time lock expiry: {{ .seller.LockData.Locktime.UTC }} (in {{ .seller.LockData.Locktime.UTC.Sub now.UTC  }}, {{ .buyer.LockData.Locktime.UTC.Sub .seller.LockData.Locktime.UTC }} before buyer)
 `,
-	`hash: {{ if ne .Buyer.LockData.TokenHash.Hex .Seller.LockData.TokenHash.Hex }}mis{{ end }}match
+	`hash: {{ if ne .buyer.LockData.TokenHash.Hex .seller.LockData.TokenHash.Hex }}mis{{ end }}match
 buyer:
-  deposit address: {{ .Buyer.DepositAddress}}
-  redeem key data: {{ .Buyer.LockData.RedeemKeyData.Hex }}
-  recovery key data: {{ if ne .Buyer.LockData.RecoveryKeyData.Hex .Trade.RecoveryKey.Public.KeyData.Hex }}mis{{ end }}match
-  time lock expiry: {{ .Buyer.LockData.Locktime.UTC }} (in {{ .Buyer.LockData.Locktime.UTC.Sub now.UTC  }})
+  deposit address: {{ .buyer.DepositAddress}}
+  redeem key data: {{ .buyer.LockData.RedeemKeyData.Hex }}
+  recovery key data: {{ if ne .buyer.LockData.RecoveryKeyData.Hex .trade.RecoveryKey.Public.KeyData.Hex }}mis{{ end }}match
+  time lock expiry: {{ .buyer.LockData.Locktime.UTC }} (in {{ .buyer.LockData.Locktime.UTC.Sub now.UTC  }})
 seller:
-  deposit address: {{ .Seller.DepositAddress }}
-  redeem key data: {{ if ne .Seller.LockData.RedeemKeyData.Hex .Trade.RedeemKey.Public.KeyData.Hex }}mis{{ end }}match
-  recovery key data: {{ .Seller.LockData.RecoveryKeyData.Hex }}
-  time lock expiry: {{ .Seller.LockData.Locktime.UTC }} (in {{ .Seller.LockData.Locktime.UTC.Sub now.UTC  }}, {{ .Buyer.LockData.Locktime.UTC.Sub .Seller.LockData.Locktime.UTC }} before buyer)
+  deposit address: {{ .seller.DepositAddress }}
+  redeem key data: {{ if ne .seller.LockData.RedeemKeyData.Hex .trade.RedeemKey.Public.KeyData.Hex }}mis{{ end }}match
+  recovery key data: {{ .seller.LockData.RecoveryKeyData.Hex }}
+  time lock expiry: {{ .seller.LockData.Locktime.UTC }} (in {{ .seller.LockData.Locktime.UTC.Sub now.UTC  }}, {{ .buyer.LockData.Locktime.UTC.Sub .seller.LockData.Locktime.UTC }} before buyer)
 `,
-	`hash: {{ if ne .Buyer.LockData.TokenHash.Hex .Seller.LockData.TokenHash.Hex }}mis{{ end }}match
+	`hash: {{ if ne .buyer.LockData.TokenHash.Hex .seller.LockData.TokenHash.Hex }}mis{{ end }}match
 buyer:
-  deposit address: {{ .Buyer.DepositAddress}} ({{ .Buyer.Chain }})
-  redeem key data: {{ .Buyer.LockData.RedeemKeyData.Hex }}
-  recovery key data: {{ if ne .Buyer.LockData.RecoveryKeyData.Hex .Trade.RecoveryKey.Public.KeyData.Hex }}mis{{ end }}match ({{ .Buyer.LockData.RecoveryKeyData.Hex }}, {{ .Trade.RecoveryKey.Public.KeyData.Hex }})
-  time lock expiry: {{ .Buyer.LockData.Locktime.UTC }} (in {{ .Buyer.LockData.Locktime.UTC.Sub now.UTC  }})
+  deposit address: {{ .buyer.DepositAddress}} ({{ .buyer.Chain }})
+  redeem key data: {{ .buyer.LockData.RedeemKeyData.Hex }}
+  recovery key data: {{ if ne .buyer.LockData.RecoveryKeyData.Hex .trade.RecoveryKey.Public.KeyData.Hex }}mis{{ end }}match ({{ .buyer.LockData.RecoveryKeyData.Hex }}, {{ .trade.RecoveryKey.Public.KeyData.Hex }})
+  time lock expiry: {{ .buyer.LockData.Locktime.UTC }} (in {{ .buyer.LockData.Locktime.UTC.Sub now.UTC  }})
 seller:
-  deposit address: {{ .Seller.DepositAddress }} ({{ .Seller.Chain }})
-  redeem key data: {{ if ne .Seller.LockData.RedeemKeyData.Hex .Trade.RedeemKey.Public.KeyData.Hex }}mis{{ end }}match ({{ .Seller.LockData.RedeemKeyData.Hex }}, {{ .Trade.RedeemKey.Public.KeyData.Hex }})
-  recovery key data: {{ .Seller.LockData.RecoveryKeyData.Hex }}
-  time lock expiry: {{ .Seller.LockData.Locktime.UTC }} (in {{ .Seller.LockData.Locktime.UTC.Sub now.UTC  }}, {{ .Buyer.LockData.Locktime.UTC.Sub .Seller.LockData.Locktime.UTC }} before buyer)
+  deposit address: {{ .seller.DepositAddress }} ({{ .seller.Chain }})
+  redeem key data: {{ if ne .seller.LockData.RedeemKeyData.Hex .trade.RedeemKey.Public.KeyData.Hex }}mis{{ end }}match ({{ .seller.LockData.RedeemKeyData.Hex }}, {{ .trade.RedeemKey.Public.KeyData.Hex }})
+  recovery key data: {{ .seller.LockData.RecoveryKeyData.Hex }}
+  time lock expiry: {{ .seller.LockData.Locktime.UTC }} (in {{ .seller.LockData.Locktime.UTC.Sub now.UTC  }}, {{ .buyer.LockData.Locktime.UTC.Sub .seller.LockData.Locktime.UTC }} before buyer)
 `,
 }
 
 func newLockInfo(cmd *cobra.Command, l trade.Lock, c *cryptos.Crypto) *lockInfo {
-	chain := cryptoChain(cmd, c)
+	chain := flagCryptoChain(cmd, c)
 	addr, err := l.Address(chain)
 	if err != nil {
 		errorExit(ecCantCalculateAddress, err)
@@ -197,8 +201,10 @@ type lockInfo struct {
 	LockData       *trade.LockData
 }
 
-type lockSetInfo struct {
-	Trade  trade.Trade
-	Buyer  *lockInfo
-	Seller *lockInfo
+func newLockSetInfo(trade trade.Trade, buyer *lockInfo, seller *lockInfo) templateData {
+	return templateData{
+		"trade":  trade,
+		"buyer":  buyer,
+		"seller": seller,
+	}
 }

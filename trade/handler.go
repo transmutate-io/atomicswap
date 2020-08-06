@@ -85,6 +85,7 @@ func (e StagesNotHandledError) Error() string {
 
 var (
 	NoOpHandler          = func(_ Trade) error { return nil }
+	InterruptHandler     = func(_ Trade) error { return ErrInterruptTrade }
 	DefaultStageHandlers = StageHandlerMap{
 		stages.Done:         func(_ Trade) error { return nil },
 		stages.GenerateKeys: func(tr Trade) error { return tr.GenerateKeys() },

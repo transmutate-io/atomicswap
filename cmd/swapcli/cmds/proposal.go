@@ -43,6 +43,9 @@ func init() {
 	fs := listProposalsCmd.Flags()
 	addFlagFormat(fs)
 	addFlagVerbose(fs)
+	addFlagOutput(fs)
+	addFlagInput(acceptProposalCmd.Flags())
+	addFlagOutput(exportProposalCmd.Flags())
 	for _, i := range []*cobra.Command{
 		listProposalsCmd,
 		exportProposalCmd,
@@ -56,8 +59,8 @@ func cmdListProposals(cmd *cobra.Command, args []string) {
 	tpl := outputTemplate(cmd, tradeListTemplates, nil)
 	out, closeOut := openOutput(cmd)
 	defer closeOut()
-	err := eachProposal(tradesDir(dataDir(cmd)), func(name string, tr trade.Trade) error {
-		return tpl.Execute(out, &tradeInfo{Name: name, Trade: tr})
+	err := eachProposal(tradesDir(cmd), func(name string, tr trade.Trade) error {
+		return tpl.Execute(out, newTradeInfo(name, tr))
 	})
 	if err != nil {
 		errorExit(ecCantListProposals, err)
@@ -89,26 +92,26 @@ func cmdAcceptProposal(cmd *cobra.Command, args []string) {
 	defer inClose()
 	newTrade := trade.NewOnChainSell()
 	th := trade.NewHandler(trade.DefaultStageHandlers)
-	th.InstallStageHandler(stages.ReceiveProposal, func(tr trade.Trade) error {
-		b, err := ioutil.ReadAll(in)
-		if err != nil {
-			return err
-		}
-		prop, err := trade.UnamrshalBuyProposal(b)
-		if err != nil {
-			return err
-		}
-		str, err := tr.Seller()
-		if err != nil {
-			return err
-		}
-		if err := str.AcceptBuyProposal(prop); err != nil {
-			return err
-		}
-		return nil
-	})
-	th.InstallStageHandler(stages.SendProposalResponse, func(tr trade.Trade) error {
-		return trade.ErrInterruptTrade
+	th.InstallStageHandlers(trade.StageHandlerMap{
+		stages.ReceiveProposal: func(tr trade.Trade) error {
+			b, err := ioutil.ReadAll(in)
+			if err != nil {
+				return err
+			}
+			prop, err := trade.UnamrshalBuyProposal(b)
+			if err != nil {
+				return err
+			}
+			str, err := tr.Seller()
+			if err != nil {
+				return err
+			}
+			if err := str.AcceptBuyProposal(prop); err != nil {
+				return err
+			}
+			return nil
+		},
+		stages.SendProposalResponse: trade.InterruptHandler,
 	})
 	for _, i := range th.Unhandled(newTrade.Stager().Stages()...) {
 		th.InstallStageHandler(i, trade.NoOpHandler)
@@ -116,7 +119,5 @@ func cmdAcceptProposal(cmd *cobra.Command, args []string) {
 	if err := th.HandleTrade(newTrade); err != nil && err != trade.ErrInterruptTrade {
 		errorExit(ecCantCreateTrade, err)
 	}
-	if err := saveTrade(cmd, args[0], newTrade); err != nil {
-		errorExit(ecCantCreateTrade, err)
-	}
+	saveTrade(cmd, args[0], newTrade)
 }

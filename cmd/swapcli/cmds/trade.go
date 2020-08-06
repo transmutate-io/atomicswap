@@ -2,6 +2,7 @@ package cmds
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -42,7 +43,6 @@ var (
 		Use:     "export [name1] [name2] [...]",
 		Short:   "export trades to output",
 		Aliases: []string{"exp", "e"},
-		Args:    cobra.MinimumNArgs(1),
 		Run:     cmdExportTrades,
 	}
 	importTradesCmd = &cobra.Command{
@@ -139,7 +139,7 @@ func cmdExportTrades(cmd *cobra.Command, args []string) {
 	err := eachTrade(tradesDir(cmd), func(name string, tr trade.Trade) error {
 		if _, exp := names[name]; exp || flagAll(cmd.Flags()) {
 			delete(names, name)
-			trades[name] = tr
+			trades[strings.Join(filepath.SplitList(name), "/")] = tr
 		}
 		return nil
 	})
@@ -168,6 +168,7 @@ func cmdImportTrades(cmd *cobra.Command, args []string) {
 		errorExit(ecCantImportTrades, err)
 	}
 	for n, tr := range trades {
+		n = filepath.Join(strings.Split(n, "/")...)
 		saveTrade(cmd, n, tr)
 	}
 }

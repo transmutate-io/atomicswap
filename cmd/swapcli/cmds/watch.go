@@ -81,9 +81,9 @@ func init() {
 }
 
 func cmdListWatchable(cmd *cobra.Command, args []string) {
-	out, closeOut := openOutput(cmd)
+	out, closeOut := openOutput(cmd.Flags())
 	defer closeOut()
-	tpl := outputTemplate(cmd, watchableTradesTemplates, nil)
+	tpl := outputTemplate(cmd.Flags(), watchableTradesTemplates, nil)
 	eachTrade(tradesDir(cmd), func(name string, tr trade.Trade) error {
 		switch tr.Stager().Stage() {
 		case stages.SendProposalResponse,
@@ -174,7 +174,7 @@ func cmdWatchDeposit(
 			signal.Notify(sig, os.Interrupt, os.Kill)
 			cryptoInfo := selectCryptoInfo(tr)
 			crypto := cryptoInfo.Crypto
-			cl := newClient(cmd, crypto)
+			cl := newClient(cmd.Flags(), crypto)
 			wd := openWatchData(cmd, tradeName)
 			fs := cmd.Flags()
 			bwd := selectWatchData(wd)
@@ -184,14 +184,14 @@ func cmdWatchDeposit(
 			if !ok {
 				return errors.New("not implemented")
 			}
-			out, closeOut := openOutput(cmd)
+			out, closeOut := openOutput(cmd.Flags())
 			defer closeOut()
-			outputTpl := outputTemplate(cmd, depositChunkLogTemplates, nil)
-			blockTpl := outputTemplate(cmd, blockInspectionTemplates, nil)
+			outputTpl := outputTemplate(cmd.Flags(), depositChunkLogTemplates, nil)
+			blockTpl := outputTemplate(cmd.Flags(), blockInspectionTemplates, nil)
 			outMap := make(map[string]uint64, len(outputs))
 			totalAmount := uint64(0)
 			targetAmount := cryptoInfo.Amount.UInt64(crypto.Decimals)
-			depositAddr, err := funds.Lock().Address(flagCryptoChain(cmd, crypto))
+			depositAddr, err := funds.Lock().Address(flagCryptoChain(crypto))
 			ignoreTarget := flagIgnoreTarget(fs)
 			if err != nil {
 				return err
@@ -332,8 +332,15 @@ func cmdWatchSecretToken(cmd *cobra.Command, args []string) {
 	// th := trade.NewHandler(nil)
 	// th.InstallStageHandlers(trade.StageHandlerMap{
 	// 	stages.WaitFundsRedeemed: func(tr trade.Trade) error {
-	// 		// sig := make(chan os.Signal, 0)
-	// 		// signal.Notify(sig, os.Interrupt, os.Kill)
+	// 		sig := make(chan os.Signal, 0)
+	// 		signal.Notify(sig, os.Interrupt, os.Kill)
+
+	// 		select {
+	// 		case <-sig:
+	// 			return nil
+	// 		default:
+	// 		}
+
 	// 		return nil
 	// 	},
 	// })

@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/transmutate-io/atomicswap/cryptos"
 	"github.com/transmutate-io/cryptocore"
 	"github.com/transmutate-io/cryptocore/block"
@@ -22,12 +22,11 @@ var newClientFuncs = map[string]newClientFunc{
 	cryptos.BitcoinCash.Name: cryptocore.NewClientBCH,
 }
 
-func newClient(cmd *cobra.Command, c *cryptos.Crypto) cryptocore.Client {
+func newClient(fs *pflag.FlagSet, c *cryptos.Crypto) cryptocore.Client {
 	nc, ok := newClientFuncs[c.Name]
 	if !ok {
 		errorExit(ecUnknownCrypto, c.Name)
 	}
-	fs := cmd.Flags()
 	return nc(
 		flagRPCAddress(fs),
 		flagRPCUsername(fs),

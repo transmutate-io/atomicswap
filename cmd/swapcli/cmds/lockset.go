@@ -72,8 +72,8 @@ func init() {
 }
 
 func cmdListLockSets(cmd *cobra.Command, args []string) {
-	tpl := outputTemplate(cmd, tradeListTemplates, nil)
-	out, closeOut := openOutput(cmd)
+	tpl := outputTemplate(cmd.Flags(), tradeListTemplates, nil)
+	out, closeOut := openOutput(cmd.Flags())
 	defer closeOut()
 	err := eachLockSet(tradesDir(cmd), func(name string, tr trade.Trade) error {
 		return tpl.Execute(out, newTradeInfo(name, tr))
@@ -90,7 +90,7 @@ func cmdExportLockSet(cmd *cobra.Command, args []string) {
 		errorExit(ecCantExportLockSet, err)
 	}
 	ls := str.Locks()
-	out, outClose := openOutput(cmd)
+	out, outClose := openOutput(cmd.Flags())
 	defer outClose()
 	if err := yaml.NewEncoder(out).Encode(ls); err != nil {
 		errorExit(ecCantExportLockSet, err)
@@ -102,7 +102,7 @@ func cmdAcceptLockSet(cmd *cobra.Command, args []string) {
 	th := trade.NewHandler(trade.DefaultStageHandlers)
 	th.InstallStageHandlers(trade.StageHandlerMap{
 		stages.ReceiveProposalResponse: func(t trade.Trade) error {
-			in, inClose := openInput(cmd)
+			in, inClose := openInput(cmd.Flags())
 			defer inClose()
 			btr, err := tr.Buyer()
 			if err != nil {
@@ -126,12 +126,12 @@ func cmdShowLockSetInfo(cmd *cobra.Command, args []string) {
 	if _, err := tr.Buyer(); err != nil {
 		errorExit(ecCantOpenTrade, err)
 	}
-	in, inClose := openInput(cmd)
+	in, inClose := openInput(cmd.Flags())
 	defer inClose()
 	ls := openLockSet(in, tr.OwnInfo().Crypto, tr.TraderInfo().Crypto)
-	out, outClose := openOutput(cmd)
+	out, outClose := openOutput(cmd.Flags())
 	defer outClose()
-	tpl := outputTemplate(cmd, lockSetInfoTemplates, template.FuncMap{"now": time.Now})
+	tpl := outputTemplate(cmd.Flags(), lockSetInfoTemplates, template.FuncMap{"now": time.Now})
 	err := tpl.Execute(out, newLockSetInfo(
 		tr,
 		newLockInfo(cmd, ls.Buyer, tr.OwnInfo().Crypto),
@@ -179,7 +179,7 @@ seller:
 }
 
 func newLockInfo(cmd *cobra.Command, l trade.Lock, c *cryptos.Crypto) *lockInfo {
-	chain := flagCryptoChain(cmd, c)
+	chain := flagCryptoChain(c)
 	addr, err := l.Address(chain)
 	if err != nil {
 		errorExit(ecCantCalculateAddress, err)

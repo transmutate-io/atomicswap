@@ -89,7 +89,7 @@ func cmdAutoComplete(cmd *cobra.Command, args []string, gen func(io.Writer) erro
 			gen = cmd.Root().GenPowerShellCompletion
 		}
 	}
-	out, closeOut := openOutput(cmd)
+	out, closeOut := openOutput(cmd.Flags())
 	defer closeOut()
 	if err := gen(out); err != nil {
 		errorExit(ecUnknownShell, err)

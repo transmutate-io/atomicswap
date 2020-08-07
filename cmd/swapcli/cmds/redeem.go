@@ -53,9 +53,9 @@ func init() {
 }
 
 func cmdListRedeeamable(cmd *cobra.Command, args []string) {
-	out, closeOut := openOutput(cmd)
+	out, closeOut := openOutput(cmd.Flags())
 	defer closeOut()
-	tpl := outputTemplate(cmd, tradeListTemplates, nil)
+	tpl := outputTemplate(cmd.Flags(), tradeListTemplates, nil)
 	err := eachTrade(tradesDir(cmd), func(name string, tr trade.Trade) error {
 		if tr.Stager().Stage() != stages.RedeemFunds {
 			return nil
@@ -71,9 +71,9 @@ func cmdRedeemToAddress(cmd *cobra.Command, args []string) {
 	tr := openTrade(cmd, args[0])
 	th := trade.NewHandler(trade.StageHandlerMap{
 		stages.RedeemFunds: func(tr trade.Trade) error {
-			out, closeOut := openOutput(cmd)
+			out, closeOut := openOutput(cmd.Flags())
 			defer closeOut()
-			addrScript, err := networks.AllByName[tr.TraderInfo().Crypto.Name][flagCryptoChain(cmd, tr.TraderInfo().Crypto)].
+			addrScript, err := networks.AllByName[tr.TraderInfo().Crypto.Name][flagCryptoChain(tr.TraderInfo().Crypto)].
 				AddressToScript(args[1])
 			if err != nil {
 				return err
@@ -96,7 +96,7 @@ func cmdRedeemToAddress(cmd *cobra.Command, args []string) {
 			if verboseLevel(fs, 1) > 0 {
 				fmt.Fprintf(out, "raw transaction: %s\n", hex.EncodeToString(b))
 			}
-			cl := newClient(cmd, tr.TraderInfo().Crypto)
+			cl := newClient(cmd.Flags(), tr.TraderInfo().Crypto)
 			txID, err := cl.SendRawTransaction(b)
 			if err != nil {
 				return err

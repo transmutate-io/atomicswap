@@ -10,7 +10,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/transmutate-io/atomicswap/cryptos"
 	"github.com/transmutate-io/atomicswap/internal/testutil"
@@ -60,10 +59,10 @@ func flagUInt64(fs *pflag.FlagSet, name string) uint64 {
 
 type templateData = map[string]interface{}
 
-func outputTemplate(cmd *cobra.Command, tpls []string, funcs template.FuncMap) *template.Template {
+func outputTemplate(fs *pflag.FlagSet, tpls []string, funcs template.FuncMap) *template.Template {
 	var tplStr string
-	if tplStr = flagFormat(cmd.Flags()); tplStr == "" {
-		tplStr = tpls[verboseLevel(cmd.Flags(), len(tpls)-1)]
+	if tplStr = flagFormat(fs); tplStr == "" {
+		tplStr = tpls[verboseLevel(fs, len(tpls)-1)]
 	}
 	var err error
 	r := template.New("main")
@@ -78,8 +77,8 @@ func outputTemplate(cmd *cobra.Command, tpls []string, funcs template.FuncMap) *
 
 func addFlagOutput(fs *pflag.FlagSet) { fs.StringP("output", "o", "-", "set output") }
 
-func openOutput(cmd *cobra.Command) (io.Writer, func() error) {
-	outfn := flagString(cmd.Flags(), "output")
+func openOutput(fs *pflag.FlagSet) (io.Writer, func() error) {
+	outfn := flagString(fs, "output")
 	if outfn == "-" {
 		return os.Stdout, func() error { return nil }
 	}
@@ -92,8 +91,8 @@ func openOutput(cmd *cobra.Command) (io.Writer, func() error) {
 
 func addFlagInput(fs *pflag.FlagSet) { fs.StringP("input", "i", "-", "set input") }
 
-func openInput(cmd *cobra.Command) (io.Reader, func() error) {
-	infn := flagString(cmd.Flags(), "input")
+func openInput(fs *pflag.FlagSet) (io.Reader, func() error) {
+	infn := flagString(fs, "input")
 	if infn == "-" {
 		return os.Stdin, func() error { return nil }
 	}
@@ -137,7 +136,7 @@ func addFlagCryptoChain(fs *pflag.FlagSet) {
 	fs.VarP(&_cryptoChain, "network", "n", "set the network to use ("+strings.Join(cryptoChains, ", ")+")")
 }
 
-func flagCryptoChain(cmd *cobra.Command, c *cryptos.Crypto) params.Chain {
+func flagCryptoChain(c *cryptos.Crypto) params.Chain {
 	switch _cryptoChain {
 	case "mainnet":
 		return params.MainNet

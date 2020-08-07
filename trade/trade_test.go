@@ -9,6 +9,7 @@ import (
 	"github.com/transmutate-io/atomicswap/cryptos"
 	"github.com/transmutate-io/atomicswap/internal/testutil"
 	"github.com/transmutate-io/atomicswap/key"
+	"github.com/transmutate-io/atomicswap/script"
 	"github.com/transmutate-io/cryptocore/types"
 	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v2"
@@ -190,7 +191,11 @@ func recoverFunds(t Trade, tc *testutil.Crypto, pf printfFunc) error {
 		return err
 	}
 	pf("new key generated\n")
-	tx, err := t.RecoveryTx(recKey.Public().KeyData(), tc.FeePerByte)
+	gen, err := script.NewGenerator(t.OwnInfo().Crypto)
+	if err != nil {
+		return err
+	}
+	tx, err := t.RecoveryTx(gen.P2PKHHash(recKey.Public().KeyData()), tc.FeePerByte)
 	if err != nil {
 		return err
 	}

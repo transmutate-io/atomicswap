@@ -31,6 +31,7 @@ func init() {
 		cmds.ProposalCmd,
 		cmds.LockSetCmd,
 		cmds.WatchCmd,
+		cmds.RedeemCmd,
 	} {
 		rootCmd.AddCommand(i)
 	}

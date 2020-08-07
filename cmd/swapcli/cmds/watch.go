@@ -2,6 +2,7 @@ package cmds
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -69,11 +70,11 @@ func init() {
 		addFlagOutput(fs)
 		addFlagCryptoChain(fs)
 	}
-	for _, i := range _cmds[1:3] {
-		fs := i.Flags()
-		addFlagConfirmations(fs)
-		addFlagIgnoreTarget(fs)
-	}
+	// for _, i := range _cmds[1:3] {
+	// 	fs := i.Flags()
+	// 	addFlagConfirmations(fs)
+	// 	addFlagIgnoreTarget(fs)
+	// }
 	for _, i := range _cmds {
 		WatchCmd.AddCommand(i)
 	}
@@ -166,15 +167,14 @@ func cmdWatchDeposit(
 	selectFunds func(trade.Trade) trade.FundsData,
 	selectInterruptStage func(trade.Trade) stages.Stage,
 ) {
-	sig := make(chan os.Signal, 0)
-	signal.Notify(sig, os.Interrupt, os.Kill)
 	tr := openTrade(cmd, tradeName)
-	th := trade.NewHandler(nil)
-	th.InstallStageHandlers(trade.StageHandlerMap{
+	th := trade.NewHandler(trade.StageHandlerMap{
 		watchStage: func(t trade.Trade) error {
+			sig := make(chan os.Signal, 0)
+			signal.Notify(sig, os.Interrupt, os.Kill)
 			cryptoInfo := selectCryptoInfo(tr)
 			crypto := cryptoInfo.Crypto
-			cl := newClient(crypto, cmd)
+			cl := newClient(cmd, crypto)
 			wd := openWatchData(cmd, tradeName)
 			fs := cmd.Flags()
 			bwd := selectWatchData(wd)
@@ -182,7 +182,7 @@ func cmdWatchDeposit(
 			funds := selectFunds(tr)
 			outputs, ok := funds.Funds().([]*trade.Output)
 			if !ok {
-				panic("not implemented")
+				return errors.New("not implemented")
 			}
 			out, closeOut := openOutput(cmd)
 			defer closeOut()
@@ -232,7 +232,7 @@ func cmdWatchDeposit(
 					for _, i := range bd.txs {
 						txUtxo, ok := i.UTXO()
 						if !ok {
-							panic("not implemented")
+							return errors.New("not implemented")
 						}
 						for _, j := range txUtxo.Outputs() {
 							if !containsString(j.LockScript().Addresses(), depositAddr) {
@@ -283,6 +283,7 @@ func cmdWatchDeposit(
 		},
 		selectInterruptStage(tr): trade.InterruptHandler,
 	})
+
 	for _, i := range th.Unhandled(tr.Stager().Stages()...) {
 		th.InstallStageHandler(i, trade.NoOpHandler)
 	}
@@ -327,12 +328,14 @@ func cmdWatchTraderDeposit(cmd *cobra.Command, args []string) {
 }
 
 func cmdWatchSecretToken(cmd *cobra.Command, args []string) {
-	// sig := make(chan os.Signal, 0)
-	// signal.Notify(sig, os.Interrupt, os.Kill)
-	// tr := openTrade(cmd, tradeName)
+	// tr := openTrade(cmd, args[0])
 	// th := trade.NewHandler(nil)
 	// th.InstallStageHandlers(trade.StageHandlerMap{
-	// 	interruptStage: trade.InterruptHandler,
+	// 	stages.WaitFundsRedeemed: func(tr trade.Trade) error {
+	// 		// sig := make(chan os.Signal, 0)
+	// 		// signal.Notify(sig, os.Interrupt, os.Kill)
+	// 		return nil
+	// 	},
 	// })
 	// for _, i := range th.Unhandled(tr.Stager().Stages()...) {
 	// 	th.InstallStageHandler(i, trade.NoOpHandler)
@@ -340,5 +343,5 @@ func cmdWatchSecretToken(cmd *cobra.Command, args []string) {
 	// if err := th.HandleTrade(tr); err != nil && err != trade.ErrInterruptTrade {
 	// 	errorExit(ecFailedToWatch, err)
 	// }
-	// saveTrade(cmd, tradeName, tr)
+	// saveTrade(cmd, args[0], tr)
 }

@@ -5,6 +5,36 @@ import (
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/transmutate-io/atomicswap/hash"
+	"github.com/transmutate-io/atomicswap/script"
+)
+
+var (
+	_ Params = (*dcrParams)(nil)
+
+	// DCR_MainNet represents the bitcoin main net
+	DCR_MainNet = &dcrParams{
+		pubKeyHashAddrID: [2]byte{0x07, 0x3f},
+		scriptHashAddrID: [2]byte{0x07, 0x1a},
+		privateKeyID:     [2]byte{0x22, 0xde},
+	}
+	// DCR_TestNet represents the bitcoin test net
+	DCR_TestNet = &dcrParams{
+		pubKeyHashAddrID: [2]byte{0x0f, 0x21},
+		scriptHashAddrID: [2]byte{0x0e, 0xfc},
+		privateKeyID:     [2]byte{0x23, 0x0e},
+	}
+	// DCR_RegressionNet represents the bitcoin regression test net
+	DCR_RegressionNet = &dcrParams{
+		pubKeyHashAddrID: [2]byte{0x0e, 0x00},
+		scriptHashAddrID: [2]byte{0x0d, 0xdb},
+		privateKeyID:     [2]byte{0x22, 0xfe},
+	}
+	// DCR_SimNet represents the bitcoin simulation net
+	DCR_SimNet = &dcrParams{
+		pubKeyHashAddrID: [2]byte{0x0e, 0x91},
+		scriptHashAddrID: [2]byte{0x0e, 0x6c},
+		privateKeyID:     [2]byte{0x23, 0x07},
+	}
 )
 
 // dcrParams represents a network parameter set
@@ -60,29 +90,19 @@ func (p *dcrParams) P2SHFromScript(script []byte) (string, error) {
 	return p.P2SH(hash.NewDCR().Hash160(script))
 }
 
-var (
-	// DCR_MainNet represents the bitcoin main net
-	DCR_MainNet = &dcrParams{
-		pubKeyHashAddrID: [2]byte{0x07, 0x3f},
-		scriptHashAddrID: [2]byte{0x07, 0x1a},
-		privateKeyID:     [2]byte{0x22, 0xde},
+// AddressToScript converts an address to a script
+func (p *dcrParams) AddressToScript(addr string) ([]byte, error) {
+	a, err := dcrutil.DecodeAddress(addr)
+	if err != nil {
+		return nil, err
 	}
-	// DCR_TestNet represents the bitcoin test net
-	DCR_TestNet = &dcrParams{
-		pubKeyHashAddrID: [2]byte{0x0f, 0x21},
-		scriptHashAddrID: [2]byte{0x0e, 0xfc},
-		privateKeyID:     [2]byte{0x23, 0x0e},
+	gen := script.NewGeneratorDCR()
+	switch aa := a.(type) {
+	case *dcrutil.AddressPubKeyHash:
+		return gen.P2PKHHash(aa.ScriptAddress()), nil
+	case *dcrutil.AddressScriptHash:
+		return gen.P2PKHHash(aa.ScriptAddress()), nil
+	default:
+		return nil, errNotSupported
 	}
-	// DCR_RegressionNet represents the bitcoin regression test net
-	DCR_RegressionNet = &dcrParams{
-		pubKeyHashAddrID: [2]byte{0x0e, 0x00},
-		scriptHashAddrID: [2]byte{0x0d, 0xdb},
-		privateKeyID:     [2]byte{0x22, 0xfe},
-	}
-	// DCR_SimNet represents the bitcoin simulation net
-	DCR_SimNet = &dcrParams{
-		pubKeyHashAddrID: [2]byte{0x0e, 0x91},
-		scriptHashAddrID: [2]byte{0x0e, 0x6c},
-		privateKeyID:     [2]byte{0x23, 0x07},
-	}
-)
+}

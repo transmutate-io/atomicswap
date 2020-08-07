@@ -22,7 +22,7 @@ var newClientFuncs = map[string]newClientFunc{
 	cryptos.BitcoinCash.Name: cryptocore.NewClientBCH,
 }
 
-func newClient(c *cryptos.Crypto, cmd *cobra.Command) cryptocore.Client {
+func newClient(cmd *cobra.Command, c *cryptos.Crypto) cryptocore.Client {
 	nc, ok := newClientFuncs[c.Name]
 	if !ok {
 		errorExit(ecUnknownCrypto, c.Name)

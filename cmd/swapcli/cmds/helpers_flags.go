@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -221,3 +222,40 @@ func flagIgnoreTarget(fs *pflag.FlagSet) bool { return flagBool(fs, "ignoretarge
 func addFlagIgnoreTarget(fs *pflag.FlagSet) {
 	fs.BoolP("ignoretarget", "t", false, "ignore target amount and continue watching")
 }
+
+type fee struct {
+	val   uint64
+	fixed bool
+}
+
+func (f *fee) Set(v string) error {
+	if strings.HasSuffix(v, "b") {
+		f.fixed = false
+		v = strings.TrimSuffix(v, "b")
+	} else {
+		f.fixed = false
+	}
+	i, err := strconv.Atoi(v)
+	if err != nil {
+		return err
+	}
+	f.val = uint64(i)
+	return nil
+}
+
+func (f *fee) String() string {
+	r := strconv.Itoa(int(f.val))
+	if !f.fixed {
+		r += "b"
+	}
+	return r
+}
+
+func (f *fee) Type() string { return "string" }
+
+var _fee = &fee{val: 1, fixed: true}
+
+func flagFee(fs *pflag.FlagSet) uint64    { return _fee.val }
+func flagFeeFixed(fs *pflag.FlagSet) bool { return _fee.fixed }
+
+func addFlagFee(fs *pflag.FlagSet) { fs.VarP(_fee, "fee", "f", "set fee per byte") }

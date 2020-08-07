@@ -11,6 +11,7 @@ import (
 	"github.com/transmutate-io/atomicswap/key"
 	"github.com/transmutate-io/atomicswap/networks"
 	"github.com/transmutate-io/atomicswap/roles"
+	"github.com/transmutate-io/atomicswap/script"
 	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/cryptocore/tx"
 	"gopkg.in/yaml.v2"
@@ -271,7 +272,11 @@ func (m *testExchanger) redeem(t Trade) error {
 		return err
 	}
 	m.pf("generated key: %s\n", destKey.Public().KeyData().Hex())
-	rtx, err := t.RedeemTx(destKey.Public().KeyData(), m.trader.FeePerByte)
+	gen, err := script.NewGenerator(t.OwnInfo().Crypto)
+	if err != nil {
+		return err
+	}
+	rtx, err := t.RedeemTx(gen.P2PKHHash(destKey.Public().KeyData()), m.trader.FeePerByte)
 	if err != nil {
 		return err
 	}

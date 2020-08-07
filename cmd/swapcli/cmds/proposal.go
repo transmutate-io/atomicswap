@@ -88,12 +88,12 @@ func cmdExportProposal(cmd *cobra.Command, args []string) {
 }
 
 func cmdAcceptProposal(cmd *cobra.Command, args []string) {
-	in, inClose := openInput(cmd)
-	defer inClose()
 	newTrade := trade.NewOnChainSell()
 	th := trade.NewHandler(trade.DefaultStageHandlers)
 	th.InstallStageHandlers(trade.StageHandlerMap{
 		stages.ReceiveProposal: func(tr trade.Trade) error {
+			in, inClose := openInput(cmd)
+			defer inClose()
 			b, err := ioutil.ReadAll(in)
 			if err != nil {
 				return err

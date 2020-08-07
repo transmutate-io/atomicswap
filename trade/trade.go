@@ -49,10 +49,10 @@ type (
 		Stager() *stages.Stager
 		GenerateKeys() error
 		SetToken(token types.Bytes)
-		RedeemTxFixedFee(dest key.KeyData, fee uint64) (tx.Tx, error)
-		RedeemTx(dest key.KeyData, feePerByte uint64) (tx.Tx, error)
-		RecoveryTxFixedFee(dest key.KeyData, fee uint64) (tx.Tx, error)
-		RecoveryTx(dest key.KeyData, feePerByte uint64) (tx.Tx, error)
+		RedeemTxFixedFee(lockScript []byte, fee uint64) (tx.Tx, error)
+		RedeemTx(lockScript []byte, feePerByte uint64) (tx.Tx, error)
+		RecoveryTxFixedFee(lockScript []byte, fee uint64) (tx.Tx, error)
+		RecoveryTx(lockScript []byte, feePerByte uint64) (tx.Tx, error)
 		Buyer() (BuyerTrade, error)
 		Seller() (SellerTrade, error)
 	}
@@ -344,7 +344,7 @@ func (bt *baseTrade) Locks() *BuyProposalResponse {
 
 var ErrNotUTXO = errors.New("not a utxo crypto")
 
-func (bt *baseTrade) newRedeemTxUTXO(dest key.KeyData, fee uint64) (tx.Tx, error) {
+func (bt *baseTrade) newRedeemTxUTXO(lockScript []byte, fee uint64) (tx.Tx, error) {
 	r, err := tx.New(bt.TraderInfo.Crypto)
 	if err != nil {
 		return nil, err
@@ -365,7 +365,7 @@ func (bt *baseTrade) newRedeemTxUTXO(dest key.KeyData, fee uint64) (tx.Tx, error
 	if err != nil {
 		return nil, err
 	}
-	tx.AddOutput(amount-fee, gen.P2PKHHash(dest))
+	tx.AddOutput(amount-fee, lockScript)
 	for i := range redeemableOutputs {
 		sig, err := tx.InputSignature(i, 1, bt.RedeemKey)
 		if err != nil {
@@ -383,10 +383,10 @@ func (bt *baseTrade) newRedeemTxUTXO(dest key.KeyData, fee uint64) (tx.Tx, error
 	return r, nil
 }
 
-func (bt *baseTrade) newRedeemTx(dest key.KeyData, fee uint64) (tx.Tx, error) {
+func (bt *baseTrade) newRedeemTx(lockScript []byte, fee uint64) (tx.Tx, error) {
 	switch bt.TraderInfo.Crypto.Type {
 	case cryptos.UTXO:
-		return bt.newRedeemTxUTXO(dest, fee)
+		return bt.newRedeemTxUTXO(lockScript, fee)
 	case cryptos.StateBased:
 		panic("not implemented")
 	default:
@@ -395,20 +395,20 @@ func (bt *baseTrade) newRedeemTx(dest key.KeyData, fee uint64) (tx.Tx, error) {
 }
 
 // RedeemTxFixedFee returns the redeem transaction for the locked funds with a fixed fee
-func (bt *baseTrade) RedeemTxFixedFee(dest key.KeyData, fee uint64) (tx.Tx, error) {
-	return bt.newRedeemTx(dest, fee)
+func (bt *baseTrade) RedeemTxFixedFee(lockScript []byte, fee uint64) (tx.Tx, error) {
+	return bt.newRedeemTx(lockScript, fee)
 }
 
 // RedeemTx returns the redeem transaction for the locked funds
-func (bt *baseTrade) RedeemTx(dest key.KeyData, feePerByte uint64) (tx.Tx, error) {
-	tx, err := bt.newRedeemTx(dest, 0)
+func (bt *baseTrade) RedeemTx(lockScript []byte, feePerByte uint64) (tx.Tx, error) {
+	tx, err := bt.newRedeemTx(lockScript, 0)
 	if err != nil {
 		return nil, err
 	}
-	return bt.newRedeemTx(dest, feePerByte*tx.SerializedSize())
+	return bt.newRedeemTx(lockScript, feePerByte*tx.SerializedSize())
 }
 
-func (bt *baseTrade) newRecoveryTxUTXO(dest key.KeyData, fee uint64) (tx.Tx, error) {
+func (bt *baseTrade) newRecoveryTxUTXO(lockScript []byte, fee uint64) (tx.Tx, error) {
 	r, err := tx.New(bt.OwnInfo.Crypto)
 	if err != nil {
 		return nil, err
@@ -430,7 +430,7 @@ func (bt *baseTrade) newRecoveryTxUTXO(dest key.KeyData, fee uint64) (tx.Tx, err
 	if err != nil {
 		return nil, err
 	}
-	tx.AddOutput(amount-fee, gen.P2PKHHash(dest))
+	tx.AddOutput(amount-fee, lockScript)
 	lst, err := bt.RecoverableFunds.Lock().LockData()
 	if err != nil {
 		return nil, err
@@ -452,10 +452,10 @@ func (bt *baseTrade) newRecoveryTxUTXO(dest key.KeyData, fee uint64) (tx.Tx, err
 	return r, nil
 }
 
-func (bt *baseTrade) newRecoveryTx(dest key.KeyData, fee uint64) (tx.Tx, error) {
+func (bt *baseTrade) newRecoveryTx(lockScript []byte, fee uint64) (tx.Tx, error) {
 	switch txType := bt.OwnInfo.Crypto.Type; txType {
 	case cryptos.UTXO:
-		return bt.newRecoveryTxUTXO(dest, fee)
+		return bt.newRecoveryTxUTXO(lockScript, fee)
 	case cryptos.StateBased:
 		panic("not implemented")
 	default:
@@ -464,15 +464,15 @@ func (bt *baseTrade) newRecoveryTx(dest key.KeyData, fee uint64) (tx.Tx, error) 
 }
 
 // RecoveryTxFixedFee returns the recovery transaction for the locked funds with a fixed fee
-func (bt *baseTrade) RecoveryTxFixedFee(dest key.KeyData, fee uint64) (tx.Tx, error) {
-	return bt.newRecoveryTx(dest, fee)
+func (bt *baseTrade) RecoveryTxFixedFee(lockScript []byte, fee uint64) (tx.Tx, error) {
+	return bt.newRecoveryTx(lockScript, fee)
 }
 
 // RecoveryTx returns the recovery transaction for the locked funds
-func (bt *baseTrade) RecoveryTx(dest key.KeyData, feePerByte uint64) (tx.Tx, error) {
-	tx, err := bt.newRecoveryTx(dest, 0)
+func (bt *baseTrade) RecoveryTx(lockScript []byte, feePerByte uint64) (tx.Tx, error) {
+	tx, err := bt.newRecoveryTx(lockScript, 0)
 	if err != nil {
 		return nil, err
 	}
-	return bt.newRecoveryTx(dest, tx.SerializedSize()*feePerByte)
+	return bt.newRecoveryTx(lockScript, tx.SerializedSize()*feePerByte)
 }

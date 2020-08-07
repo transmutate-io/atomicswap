@@ -99,15 +99,15 @@ func cmdExportLockSet(cmd *cobra.Command, args []string) {
 
 func cmdAcceptLockSet(cmd *cobra.Command, args []string) {
 	tr := openTrade(cmd, args[0])
-	in, inClose := openInput(cmd)
-	defer inClose()
-	btr, err := tr.Buyer()
-	if err != nil {
-		errorExit(ecCantAcceptLockSet, err)
-	}
 	th := trade.NewHandler(trade.DefaultStageHandlers)
 	th.InstallStageHandlers(trade.StageHandlerMap{
 		stages.ReceiveProposalResponse: func(t trade.Trade) error {
+			in, inClose := openInput(cmd)
+			defer inClose()
+			btr, err := tr.Buyer()
+			if err != nil {
+				return err
+			}
 			return btr.SetLocks(openLockSet(in, tr.OwnInfo().Crypto, tr.TraderInfo().Crypto))
 		},
 		stages.LockFunds: trade.InterruptHandler,
@@ -115,7 +115,7 @@ func cmdAcceptLockSet(cmd *cobra.Command, args []string) {
 	for _, i := range th.Unhandled(tr.Stager().Stages()...) {
 		th.InstallStageHandler(i, trade.NoOpHandler)
 	}
-	if err = th.HandleTrade(tr); err != nil && err != trade.ErrInterruptTrade {
+	if err := th.HandleTrade(tr); err != nil && err != trade.ErrInterruptTrade {
 		errorExit(ecCantAcceptLockSet, err)
 	}
 	saveTrade(cmd, args[0], tr)

@@ -4,6 +4,40 @@ import (
 	"github.com/gcash/bchd/chaincfg"
 	"github.com/gcash/bchutil"
 	"github.com/transmutate-io/atomicswap/hash"
+	"github.com/transmutate-io/atomicswap/script"
+)
+
+var (
+	_ Params = (*bchParams)(nil)
+
+	// BCH_MainNet represents the bitcoin main net
+	BCH_MainNet = &bchParams{
+		prefix:           "bitcoincash",
+		pubKeyHashAddrID: 0x00, // starts with 1
+		scriptHashAddrID: 0x05, // starts with 3
+		privateKeyID:     0x80, // starts with 5 (uncompressed) or K (compressed)
+	}
+	// BCH_TestNet represents the bitcoin test net
+	BCH_TestNet = &bchParams{
+		prefix:           "bchtest",
+		pubKeyHashAddrID: 0x6f,
+		scriptHashAddrID: 0xc4,
+		privateKeyID:     0xef,
+	}
+	// BCH_RegressionNet represents the bitcoin regression test net
+	BCH_RegressionNet = &bchParams{
+		prefix:           "bchreg",
+		pubKeyHashAddrID: 0x6f,
+		scriptHashAddrID: 0xc4,
+		privateKeyID:     0xef,
+	}
+	// BCH_SimNet represents the bitcoin simulation net
+	BCH_SimNet = &bchParams{
+		prefix:           "bchsim",
+		pubKeyHashAddrID: 0x3f,
+		scriptHashAddrID: 0x7b,
+		privateKeyID:     0x64,
+	}
 )
 
 // bchParams represents a network parameter set
@@ -61,33 +95,19 @@ func (p *bchParams) P2SHFromScript(script []byte) (string, error) {
 	return p.P2SH(hash.NewBCH().Hash160(script))
 }
 
-var (
-	// BCH_MainNet represents the bitcoin main net
-	BCH_MainNet = &bchParams{
-		prefix:           "bitcoincash",
-		pubKeyHashAddrID: 0x00, // starts with 1
-		scriptHashAddrID: 0x05, // starts with 3
-		privateKeyID:     0x80, // starts with 5 (uncompressed) or K (compressed)
+// AddressToScript converts an address to a script
+func (p *bchParams) AddressToScript(addr string) ([]byte, error) {
+	a, err := bchutil.DecodeAddress(addr, p.params())
+	if err != nil {
+		return nil, err
 	}
-	// BCH_TestNet represents the bitcoin test net
-	BCH_TestNet = &bchParams{
-		prefix:           "bchtest",
-		pubKeyHashAddrID: 0x6f,
-		scriptHashAddrID: 0xc4,
-		privateKeyID:     0xef,
+	gen := script.NewGeneratorBTC()
+	switch aa := a.(type) {
+	case *bchutil.AddressPubKeyHash:
+		return gen.P2PKHHash(aa.ScriptAddress()), nil
+	case *bchutil.AddressScriptHash:
+		return gen.P2SHHash(aa.ScriptAddress()), nil
+	default:
+		return nil, errNotSupported
 	}
-	// BCH_RegressionNet represents the bitcoin regression test net
-	BCH_RegressionNet = &bchParams{
-		prefix:           "bchreg",
-		pubKeyHashAddrID: 0x6f,
-		scriptHashAddrID: 0xc4,
-		privateKeyID:     0xef,
-	}
-	// BCH_SimNet represents the bitcoin simulation net
-	BCH_SimNet = &bchParams{
-		prefix:           "bchsim",
-		pubKeyHashAddrID: 0x3f,
-		scriptHashAddrID: 0x7b,
-		privateKeyID:     0x64,
-	}
-)
+}

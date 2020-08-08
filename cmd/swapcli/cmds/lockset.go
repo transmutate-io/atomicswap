@@ -49,26 +49,32 @@ var (
 )
 
 func init() {
-	fs := listLockSetsCmd.Flags()
-	addFlagVerbose(fs)
-	addFlagFormat(fs)
-	addFlagOutput(fs)
-	fs = showLockSetInfoCmd.Flags()
-	addFlagVerbose(fs)
-	addFlagFormat(fs)
-	addFlagOutput(fs)
-	addFlagInput(showLockSetInfoCmd.Flags())
-	addFlagInput(acceptLockSetCmd.Flags())
-	addFlagOutput(exportLockSetCmd.Flags())
-	addFlagCryptoChain(fs)
-	for _, i := range []*cobra.Command{
+	addFlags(flagMap{
+		listLockSetsCmd.Flags(): []flagFunc{
+			addFlagVerbose,
+			addFlagFormat,
+			addFlagOutput,
+		},
+		showLockSetInfoCmd.Flags(): []flagFunc{
+			addFlagVerbose,
+			addFlagFormat,
+			addFlagOutput,
+			addFlagCryptoChain,
+			addFlagInput,
+		},
+		acceptLockSetCmd.Flags(): []flagFunc{
+			addFlagInput,
+		},
+		exportLockSetCmd.Flags(): []flagFunc{
+			addFlagOutput,
+		},
+	})
+	addCommands(LockSetCmd, []*cobra.Command{
 		listLockSetsCmd,
 		exportLockSetCmd,
 		acceptLockSetCmd,
 		showLockSetInfoCmd,
-	} {
-		LockSetCmd.AddCommand(i)
-	}
+	})
 }
 
 func cmdListLockSets(cmd *cobra.Command, args []string) {

@@ -19,10 +19,13 @@ var (
 )
 
 func init() {
-	fs := ListCryptosCmd.Flags()
-	addFlagVerbose(fs)
-	addFlagFormat(fs)
-	addFlagOutput(fs)
+	addFlags(flagMap{
+		ListCryptosCmd.Flags(): []flagFunc{
+			addFlagVerbose,
+			addFlagFormat,
+			addFlagOutput,
+		},
+	})
 }
 
 func cmdListCryptos(cmd *cobra.Command, args []string) {
@@ -39,11 +42,4 @@ func cmdListCryptos(cmd *cobra.Command, args []string) {
 			errorExit(ecBadTemplate, err)
 		}
 	}
-}
-
-var cryptosListTemplates = []string{
-	"{{ .Name }}\n",
-	"{{ .Name }}, {{ .Short }}\n",
-	"{{ .Name }}, {{ .Short }}, {{ .Decimals }} decimal places\n",
-	"{{ .Name }}, {{ .Short }}, {{ .Decimals }} decimal places, {{ .Type }}\n",
 }

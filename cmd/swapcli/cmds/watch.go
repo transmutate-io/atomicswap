@@ -51,33 +51,45 @@ var (
 )
 
 func init() {
-	fs := listWatchableCmd.Flags()
-	addFlagFormat(fs)
-	addFlagVerbose(fs)
-	addFlagOutput(fs)
-	_cmds := []*cobra.Command{
+	addFlags(flagMap{
+		listWatchableCmd.Flags(): []flagFunc{
+			addFlagFormat,
+			addFlagVerbose,
+			addFlagOutput,
+		},
+		watchOwnDepositCmd.Flags(): []flagFunc{
+			addFlagsRPC,
+			addFlagFirstBlock,
+			addFlagFormat,
+			addFlagVerbose,
+			addFlagOutput,
+			addFlagCryptoChain,
+		},
+		watchTraderDepositCmd.Flags(): []flagFunc{
+			addFlagsRPC,
+			addFlagFirstBlock,
+			addFlagFormat,
+			addFlagVerbose,
+			addFlagOutput,
+			addFlagCryptoChain,
+		},
+		watchSecretTokenCmd.Flags(): []flagFunc{
+			addFlagsRPC,
+			addFlagFirstBlock,
+			addFlagFormat,
+			addFlagVerbose,
+			addFlagOutput,
+			addFlagCryptoChain,
+		},
+	})
+	// 	addFlagConfirmations
+	// 	addFlagIgnoreTarget
+	addCommands(WatchCmd, []*cobra.Command{
 		listWatchableCmd,
 		watchOwnDepositCmd,
 		watchTraderDepositCmd,
 		watchSecretTokenCmd,
-	}
-	for _, i := range _cmds[1:] {
-		fs := i.Flags()
-		addFlagsRPC(fs)
-		addFlagFirstBlock(fs)
-		addFlagFormat(fs)
-		addFlagVerbose(fs)
-		addFlagOutput(fs)
-		addFlagCryptoChain(fs)
-	}
-	// for _, i := range _cmds[1:3] {
-	// 	fs := i.Flags()
-	// 	addFlagConfirmations(fs)
-	// 	addFlagIgnoreTarget(fs)
-	// }
-	for _, i := range _cmds {
-		WatchCmd.AddCommand(i)
-	}
+	})
 }
 
 func cmdListWatchable(cmd *cobra.Command, args []string) {
@@ -192,7 +204,7 @@ func cmdWatchDeposit(
 			totalAmount := uint64(0)
 			targetAmount := cryptoInfo.Amount.UInt64(crypto.Decimals)
 			depositAddr, err := funds.Lock().Address(flagCryptoChain(crypto))
-			ignoreTarget := flagIgnoreTarget(fs)
+			ignoreTarget := false //flagIgnoreTarget(fs)
 			if err != nil {
 				return err
 			}
@@ -216,13 +228,13 @@ func cmdWatchDeposit(
 				return nil
 			}
 			bdc, errc, closeIter := iterateBlocks(cl, bwd, flagFirstBlock(fs))
+			defer closeIter()
 			var tradeChanged bool
 			for {
 				select {
 				case err := <-errc:
 					return err
 				case <-sig:
-					closeIter()
 					return trade.ErrInterruptTrade
 				case bd := <-bdc:
 					err = blockTpl.Execute(out, newBlockInfo(bd.hash.Hex(), bd.height, len(bd.txs)))
@@ -328,27 +340,33 @@ func cmdWatchTraderDeposit(cmd *cobra.Command, args []string) {
 }
 
 func cmdWatchSecretToken(cmd *cobra.Command, args []string) {
-	// tr := openTrade(cmd, args[0])
-	// th := trade.NewHandler(nil)
-	// th.InstallStageHandlers(trade.StageHandlerMap{
-	// 	stages.WaitFundsRedeemed: func(tr trade.Trade) error {
-	// 		sig := make(chan os.Signal, 0)
-	// 		signal.Notify(sig, os.Interrupt, os.Kill)
-
-	// 		select {
-	// 		case <-sig:
-	// 			return nil
-	// 		default:
-	// 		}
-
-	// 		return nil
-	// 	},
-	// })
-	// for _, i := range th.Unhandled(tr.Stager().Stages()...) {
-	// 	th.InstallStageHandler(i, trade.NoOpHandler)
-	// }
-	// if err := th.HandleTrade(tr); err != nil && err != trade.ErrInterruptTrade {
-	// 	errorExit(ecFailedToWatch, err)
-	// }
-	// saveTrade(cmd, args[0], tr)
+	tr := openTrade(cmd, args[0])
+	th := trade.NewHandler(nil)
+	th.InstallStageHandlers(trade.StageHandlerMap{
+		stages.WaitFundsRedeemed: func(tr trade.Trade) error {
+			sig := make(chan os.Signal, 0)
+			signal.Notify(sig, os.Interrupt, os.Kill)
+			fs := cmd.Flags()
+			cl := newClient(fs, tr.OwnInfo().Crypto)
+			bdc, errc, closeIter := iterateBlocks(cl, nil, flagFirstBlock(fs))
+			defer closeIter()
+			select {
+			case <-sig:
+				return nil
+			case err := <-errc:
+				return err
+			case db := <-bdc:
+				fmt.Printf("::: %#v\n", db)
+			default:
+			}
+			return nil
+		},
+	})
+	for _, i := range th.Unhandled(tr.Stager().Stages()...) {
+		th.InstallStageHandler(i, trade.NoOpHandler)
+	}
+	if err := th.HandleTrade(tr); err != nil && err != trade.ErrInterruptTrade {
+		errorExit(ecFailedToWatch, err)
+	}
+	saveTrade(cmd, args[0], tr)
 }

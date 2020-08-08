@@ -34,22 +34,24 @@ var (
 )
 
 func init() {
-	fs := listRedeeamableCmd.Flags()
-	addFlagVerbose(fs)
-	addFlagFormat(fs)
-	addFlagOutput(fs)
-	fs = redeemToAddressCmd.Flags()
-	addFlagCryptoChain(fs)
-	addFlagFee(fs)
-	addFlagsRPC(fs)
-	addFlagOutput(fs)
-	addFlagVerbose(fs)
-	for _, i := range []*cobra.Command{
+	addFlags(flagMap{
+		listRedeeamableCmd.Flags(): []flagFunc{
+			addFlagVerbose,
+			addFlagFormat,
+			addFlagOutput,
+		},
+		redeemToAddressCmd.Flags(): []flagFunc{
+			addFlagCryptoChain,
+			addFlagFee,
+			addFlagsRPC,
+			addFlagOutput,
+			addFlagVerbose,
+		},
+	})
+	addCommands(RedeemCmd, []*cobra.Command{
 		listRedeeamableCmd,
 		redeemToAddressCmd,
-	} {
-		RedeemCmd.AddCommand(i)
-	}
+	})
 }
 
 func cmdListRedeeamable(cmd *cobra.Command, args []string) {

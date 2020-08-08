@@ -35,8 +35,9 @@ func init() {
 	} {
 		rootCmd.AddCommand(i)
 	}
-	pf := rootCmd.PersistentFlags()
-	pf.StringP("data", "D", filepath.Join(hd, ".swapcli"), "set datadir")
+	rootCmd.
+		PersistentFlags().
+		StringP("data", "D", filepath.Join(hd, ".swapcli"), "set datadir")
 }
 
 func main() {

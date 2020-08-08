@@ -40,19 +40,24 @@ var (
 )
 
 func init() {
-	fs := listProposalsCmd.Flags()
-	addFlagFormat(fs)
-	addFlagVerbose(fs)
-	addFlagOutput(fs)
-	addFlagInput(acceptProposalCmd.Flags())
-	addFlagOutput(exportProposalCmd.Flags())
-	for _, i := range []*cobra.Command{
+	addFlags(flagMap{
+		listProposalsCmd.Flags(): []flagFunc{
+			addFlagFormat,
+			addFlagVerbose,
+			addFlagOutput,
+		},
+		acceptProposalCmd.Flags(): []flagFunc{
+			addFlagInput,
+		},
+		exportProposalCmd.Flags(): []flagFunc{
+			addFlagOutput,
+		},
+	})
+	addCommands(ProposalCmd, []*cobra.Command{
 		listProposalsCmd,
 		exportProposalCmd,
 		acceptProposalCmd,
-	} {
-		ProposalCmd.AddCommand(i)
-	}
+	})
 }
 
 func cmdListProposals(cmd *cobra.Command, args []string) {

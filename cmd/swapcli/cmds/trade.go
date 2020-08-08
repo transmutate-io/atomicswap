@@ -62,22 +62,29 @@ var (
 )
 
 func init() {
-	fs := listTradesCmd.Flags()
-	addFlagVerbose(fs)
-	addFlagFormat(fs)
-	addFlagAll(exportTradesCmd.Flags())
-	addFlagOutput(fs)
-	addFlagInput(importTradesCmd.Flags())
-	addFlagOutput(exportTradesCmd.Flags())
-	for _, i := range []*cobra.Command{
+	addFlags(flagMap{
+		listTradesCmd.Flags(): []flagFunc{
+			addFlagVerbose,
+			addFlagFormat,
+			addFlagOutput,
+		},
+		exportTradesCmd.Flags(): []flagFunc{
+			addFlagAll,
+		},
+		importTradesCmd.Flags(): []flagFunc{
+			addFlagInput,
+		},
+		exportTradesCmd.Flags(): []flagFunc{
+			addFlagOutput,
+		},
+	})
+	addCommands(TradeCmd, []*cobra.Command{
 		newTradeCmd,
 		listTradesCmd,
 		deleteTradeCmd,
 		exportTradesCmd,
 		importTradesCmd,
-	} {
-		TradeCmd.AddCommand(i)
-	}
+	})
 }
 
 func cmdNewTrade(cmd *cobra.Command, args []string) {

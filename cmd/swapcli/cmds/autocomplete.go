@@ -29,7 +29,7 @@ func init() {
 		},
 	}
 	fishCommand.Flags().BoolP("desc", "d", false, "include descriptions")
-	for _, i := range []*cobra.Command{
+	addCommands(AutoCompleteCmd, []*cobra.Command{
 		{
 			Use:     "auto",
 			Short:   "autocomplete script (try to guess the shell)",
@@ -67,9 +67,7 @@ func init() {
 				cmdAutoComplete(cmd, args, cmd.Root().GenPowerShellCompletion)
 			},
 		},
-	} {
-		AutoCompleteCmd.AddCommand(i)
-	}
+	})
 }
 
 func cmdAutoComplete(cmd *cobra.Command, args []string, gen func(io.Writer) error) {

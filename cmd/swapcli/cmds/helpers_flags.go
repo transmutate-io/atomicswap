@@ -10,6 +10,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/transmutate-io/atomicswap/cryptos"
 	"github.com/transmutate-io/atomicswap/internal/testutil"
@@ -258,3 +259,21 @@ func flagFee(fs *pflag.FlagSet) uint64    { return _fee.val }
 func flagFeeFixed(fs *pflag.FlagSet) bool { return _fee.fixed }
 
 func addFlagFee(fs *pflag.FlagSet) { fs.VarP(_fee, "fee", "f", "set fee per byte") }
+
+type flagFunc = func(*pflag.FlagSet)
+
+type flagMap map[*pflag.FlagSet][]flagFunc
+
+func addFlags(fm flagMap) {
+	for fs, flags := range fm {
+		for _, i := range flags {
+			i(fs)
+		}
+	}
+}
+
+func addCommands(cmd *cobra.Command, sub []*cobra.Command) {
+	for _, i := range sub {
+		cmd.AddCommand(i)
+	}
+}

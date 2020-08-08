@@ -119,17 +119,6 @@ func cmdListTrades(cmd *cobra.Command, args []string) {
 	}
 }
 
-func newTradeInfo(name string, trade trade.Trade) templateData {
-	return templateData{"name": name, "trade": trade}
-}
-
-var tradeListTemplates = []string{
-	"{{ .name }}\n",
-	"{{ .name }} - {{ .trade.OwnInfo.Amount }} {{ .trade.OwnInfo.Crypto.Short }} for {{ .trade.TraderInfo.Amount }} {{ .trade.TraderInfo.Crypto.Short }}\n",
-	"{{ .name }} - {{ .trade.OwnInfo.Amount }} {{ .trade.OwnInfo.Crypto.Short }} (locked for {{ .trade.Duration.String }}) for {{ .trade.TraderInfo.Amount }} {{ .trade.TraderInfo.Crypto.Short }}\n",
-	"{{ .name }} - {{ .trade.OwnInfo.Amount }} {{ .trade.OwnInfo.Crypto.Short }} (locked for {{ .trade.Duration.String }}) for {{ .trade.TraderInfo.Amount }} {{ .trade.TraderInfo.Crypto.Short }} - {{ .trade.Stager.Stage }}\n",
-}
-
 func cmdDeleteTrade(cmd *cobra.Command, args []string) {
 	err := os.Remove(tradePath(cmd, args[0]))
 	if err != nil {

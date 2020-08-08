@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/transmutate-io/atomicswap/cryptos"
-	"github.com/transmutate-io/atomicswap/params"
 	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
 	"gopkg.in/yaml.v2"
@@ -145,72 +143,5 @@ func cmdShowLockSetInfo(cmd *cobra.Command, args []string) {
 	))
 	if err != nil {
 		errorExit(ecBadTemplate, err)
-	}
-}
-
-var lockSetInfoTemplates = []string{
-	`hash: {{ if ne .buyer.LockData.TokenHash.Hex .seller.LockData.TokenHash.Hex }}mis{{ end }}match
-buyer:
-  recovery key data: {{ if ne .buyer.LockData.RecoveryKeyData.Hex .trade.RecoveryKey.Public.KeyData.Hex }}mis{{ end }}match
-  time lock expiry: {{ .buyer.LockData.Locktime.UTC }} (in {{ .buyer.LockData.Locktime.UTC.Sub now.UTC  }})
-  time lock expiry: {{ .buyer.LockData.Locktime.UTC }} (in {{ .buyer.LockData.Locktime.UTC.Sub now.UTC  }})
-seller:
-  redeem key data: {{ if ne .seller.LockData.RedeemKeyData.Hex .trade.RedeemKey.Public.KeyData.Hex }}mis{{ end }}match
-  time lock expiry: {{ .seller.LockData.Locktime.UTC }} (in {{ .seller.LockData.Locktime.UTC.Sub now.UTC  }}, {{ .buyer.LockData.Locktime.UTC.Sub .seller.LockData.Locktime.UTC }} before buyer)
-`,
-	`hash: {{ if ne .buyer.LockData.TokenHash.Hex .seller.LockData.TokenHash.Hex }}mis{{ end }}match
-buyer:
-  deposit address: {{ .buyer.DepositAddress}}
-  redeem key data: {{ .buyer.LockData.RedeemKeyData.Hex }}
-  recovery key data: {{ if ne .buyer.LockData.RecoveryKeyData.Hex .trade.RecoveryKey.Public.KeyData.Hex }}mis{{ end }}match
-  time lock expiry: {{ .buyer.LockData.Locktime.UTC }} (in {{ .buyer.LockData.Locktime.UTC.Sub now.UTC  }})
-seller:
-  deposit address: {{ .seller.DepositAddress }}
-  redeem key data: {{ if ne .seller.LockData.RedeemKeyData.Hex .trade.RedeemKey.Public.KeyData.Hex }}mis{{ end }}match
-  recovery key data: {{ .seller.LockData.RecoveryKeyData.Hex }}
-  time lock expiry: {{ .seller.LockData.Locktime.UTC }} (in {{ .seller.LockData.Locktime.UTC.Sub now.UTC  }}, {{ .buyer.LockData.Locktime.UTC.Sub .seller.LockData.Locktime.UTC }} before buyer)
-`,
-	`hash: {{ if ne .buyer.LockData.TokenHash.Hex .seller.LockData.TokenHash.Hex }}mis{{ end }}match
-buyer:
-  deposit address: {{ .buyer.DepositAddress}} ({{ .buyer.Chain }})
-  redeem key data: {{ .buyer.LockData.RedeemKeyData.Hex }}
-  recovery key data: {{ if ne .buyer.LockData.RecoveryKeyData.Hex .trade.RecoveryKey.Public.KeyData.Hex }}mis{{ end }}match ({{ .buyer.LockData.RecoveryKeyData.Hex }}, {{ .trade.RecoveryKey.Public.KeyData.Hex }})
-  time lock expiry: {{ .buyer.LockData.Locktime.UTC }} (in {{ .buyer.LockData.Locktime.UTC.Sub now.UTC  }})
-seller:
-  deposit address: {{ .seller.DepositAddress }} ({{ .seller.Chain }})
-  redeem key data: {{ if ne .seller.LockData.RedeemKeyData.Hex .trade.RedeemKey.Public.KeyData.Hex }}mis{{ end }}match ({{ .seller.LockData.RedeemKeyData.Hex }}, {{ .trade.RedeemKey.Public.KeyData.Hex }})
-  recovery key data: {{ .seller.LockData.RecoveryKeyData.Hex }}
-  time lock expiry: {{ .seller.LockData.Locktime.UTC }} (in {{ .seller.LockData.Locktime.UTC.Sub now.UTC  }}, {{ .buyer.LockData.Locktime.UTC.Sub .seller.LockData.Locktime.UTC }} before buyer)
-`,
-}
-
-func newLockInfo(cmd *cobra.Command, l trade.Lock, c *cryptos.Crypto) *lockInfo {
-	chain := flagCryptoChain(c)
-	addr, err := l.Address(chain)
-	if err != nil {
-		errorExit(ecCantCalculateAddress, err)
-	}
-	ld, err := l.LockData()
-	if err != nil {
-		errorExit(ecInvalidLockData, err)
-	}
-	return &lockInfo{
-		DepositAddress: addr,
-		Chain:          chain,
-		LockData:       ld,
-	}
-}
-
-type lockInfo struct {
-	DepositAddress string
-	Chain          params.Chain
-	LockData       *trade.LockData
-}
-
-func newLockSetInfo(trade trade.Trade, buyer *lockInfo, seller *lockInfo) templateData {
-	return templateData{
-		"trade":  trade,
-		"buyer":  buyer,
-		"seller": seller,
 	}
 }

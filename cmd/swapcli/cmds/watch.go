@@ -8,7 +8,6 @@ import (
 	"os/signal"
 
 	"github.com/spf13/cobra"
-	"github.com/transmutate-io/atomicswap/cryptos"
 	"github.com/transmutate-io/atomicswap/roles"
 	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
@@ -110,55 +109,6 @@ func cmdListWatchable(cmd *cobra.Command, args []string) {
 	})
 }
 
-var watchableTradesTemplates = []string{
-	`{{ .name }}: {{ $s := .trade.Stager.Stage.String }}{{ if eq $s "lock-funds" -}}
-	wait for own funds deposit
-	{{- else if or (eq $s "send-proposal-response") (eq $s "wait-locked-funds") -}}
-	wait for trader funds deposit
-	{{- else -}}
-	wait for secret token (trader redeem)
-	{{- end }}
-`,
-}
-
-func newOutputInfo(prefix string, id string, crypto *cryptos.Crypto, amount, total, target types.Amount) templateData {
-	return templateData{
-		"prefix": prefix,
-		"id":     id,
-		"crypto": crypto,
-		"amount": amount,
-		"total":  total,
-		"target": target,
-	}
-}
-
-func newBlockInfo(id string, height uint64, txCount int) templateData {
-	return templateData{
-		"id":      id,
-		"height":  height,
-		"txCount": txCount,
-	}
-}
-
-var (
-	blockInspectionTemplates = []string{
-		"",
-		"inspecting block {{ .id }} at height {{ .height }}\n",
-		"inspecting block {{ .id }} at height {{ .height }} ({{ .txCount }} transactions)\n",
-	}
-	depositChunkLogTemplates = []string{
-		`{{ if ne .prefix "" }}{{ .prefix }}: {{ end -}}
-{{ .id }} {{ .amount }} {{ .crypto.Short }}
-`,
-		`{{ if ne .prefix "" }}{{ .prefix }}: {{ end -}}
-{{ .id }} {{ .amount }} {{ .crypto.Short }} ({{ .total }} {{.crypto.Short }} total)
-`,
-		`{{ if ne .prefix "" }}{{ .prefix }}: {{ end -}}
-{{ .id }} {{ .amount }} {{ .crypto.Short }} ({{ .total }} of {{ .target }} {{.crypto.Short }})
-`,
-	}
-)
-
 func containsString(s []string, v string) bool {
 	for _, i := range s {
 		if i == v {
@@ -237,7 +187,7 @@ func cmdWatchDeposit(
 				case <-sig:
 					return trade.ErrInterruptTrade
 				case bd := <-bdc:
-					err = blockTpl.Execute(out, newBlockInfo(bd.hash.Hex(), bd.height, len(bd.txs)))
+					err = blockTpl.Execute(out, newBlockInfo(bd.height, len(bd.txs)))
 					if err != nil {
 						return err
 					}
@@ -356,7 +306,9 @@ func cmdWatchSecretToken(cmd *cobra.Command, args []string) {
 			case err := <-errc:
 				return err
 			case db := <-bdc:
-				fmt.Printf("::: %#v\n", db)
+				for _, i := range db.txs {
+					_ = i
+				}
 			default:
 			}
 			return nil

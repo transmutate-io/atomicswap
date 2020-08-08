@@ -72,7 +72,6 @@ func blockTransactions(cl cryptocore.Client, txs []types.Bytes) ([]tx.Tx, error)
 
 type blockData struct {
 	height uint64
-	hash   types.Bytes
 	txs    []tx.Tx
 }
 
@@ -143,7 +142,6 @@ func iterateBlocks(cl cryptocore.Client, wd *blockWatchData, stopBottom uint64) 
 			case <-closec:
 				return
 			case bdc <- &blockData{
-				hash:   block.Hash(),
 				height: uint64(block.Height()),
 				txs:    blockTxs,
 			}:
@@ -189,7 +187,6 @@ func iterateBlocks(cl cryptocore.Client, wd *blockWatchData, stopBottom uint64) 
 			case <-closec:
 				return
 			case bdc <- &blockData{
-				hash:   block.Hash(),
 				height: uint64(block.Height()),
 				txs:    blockTxs,
 			}:

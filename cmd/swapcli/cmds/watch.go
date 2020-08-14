@@ -63,6 +63,7 @@ func init() {
 			addFlagVerbose,
 			addFlagOutput,
 			addFlagCryptoChain,
+			addFlagIgnoreTarget,
 		},
 		watchTraderDepositCmd.Flags(): []flagFunc{
 			addFlagsRPC,
@@ -71,6 +72,7 @@ func init() {
 			addFlagVerbose,
 			addFlagOutput,
 			addFlagCryptoChain,
+			addFlagIgnoreTarget,
 		},
 		watchSecretTokenCmd.Flags(): []flagFunc{
 			addFlagsRPC,
@@ -79,10 +81,10 @@ func init() {
 			addFlagVerbose,
 			addFlagOutput,
 			addFlagCryptoChain,
+			addFlagIgnoreTarget,
 		},
 	})
 	// 	addFlagConfirmations
-	// 	addFlagIgnoreTarget
 	addCommands(WatchCmd, []*cobra.Command{
 		listWatchableCmd,
 		watchOwnDepositCmd,
@@ -134,30 +136,28 @@ func cmdWatchDeposit(
 		watchStage: func(t trade.Trade) error {
 			sig := make(chan os.Signal, 0)
 			signal.Notify(sig, os.Interrupt, os.Kill)
-			cryptoInfo := selectCryptoInfo(tr)
-			crypto := cryptoInfo.Crypto
-			cl := newClient(cmd.Flags(), crypto)
-			wd := openWatchData(cmd, tradeName)
-			fs := cmd.Flags()
-			bwd := selectWatchData(wd)
-			// minConfirmations := flagConfirmations(fs)
-			funds := selectFunds(tr)
-			outputs, ok := funds.Funds().([]*trade.Output)
-			if !ok {
-				return errors.New("not implemented")
-			}
 			out, closeOut := openOutput(cmd.Flags())
 			defer closeOut()
 			outputTpl := outputTemplate(cmd.Flags(), depositChunkLogTemplates, nil)
 			blockTpl := outputTemplate(cmd.Flags(), blockInspectionTemplates, nil)
-			outMap := make(map[string]uint64, len(outputs))
-			totalAmount := uint64(0)
+			cryptoInfo := selectCryptoInfo(tr)
+			wd := openWatchData(cmd, tradeName)
+			bwd := selectWatchData(wd)
+			funds := selectFunds(tr)
+			crypto := cryptoInfo.Crypto
 			targetAmount := cryptoInfo.Amount.UInt64(crypto.Decimals)
 			depositAddr, err := funds.Lock().Address(flagCryptoChain(crypto))
-			ignoreTarget := false //flagIgnoreTarget(fs)
 			if err != nil {
 				return err
 			}
+			fs := cmd.Flags()
+			// minConfirmations := flagConfirmations(fs)
+			outputs, ok := funds.Funds().([]*trade.Output)
+			if !ok {
+				return errors.New("not implemented")
+			}
+			outMap := make(map[string]uint64, len(outputs))
+			totalAmount := uint64(0)
 			for _, i := range outputs {
 				txID := outputID(i.TxID, uint64(i.N))
 				outMap[txID] = i.Amount
@@ -174,9 +174,11 @@ func cmdWatchDeposit(
 					return err
 				}
 			}
+			ignoreTarget := flagIgnoreTarget(fs)
 			if !ignoreTarget && totalAmount >= targetAmount {
 				return nil
 			}
+			cl := newClient(cmd.Flags(), crypto)
 			bdc, errc, closeIter := iterateBlocks(cl, bwd, flagFirstBlock(fs))
 			defer closeIter()
 			var tradeChanged bool
@@ -187,8 +189,7 @@ func cmdWatchDeposit(
 				case <-sig:
 					return trade.ErrInterruptTrade
 				case bd := <-bdc:
-					err = blockTpl.Execute(out, newBlockInfo(bd.height, len(bd.txs)))
-					if err != nil {
+					if err := blockTpl.Execute(out, newBlockInfo(bd.height, len(bd.txs))); err != nil {
 						return err
 					}
 					for _, i := range bd.txs {
@@ -212,7 +213,7 @@ func cmdWatchDeposit(
 							})
 							outMap[outID] = amount
 							totalAmount += amount
-							err := outputTpl.Execute(out, newOutputInfo(
+							err = outputTpl.Execute(out, newOutputInfo(
 								"new output found",
 								outID,
 								crypto,
@@ -224,6 +225,9 @@ func cmdWatchDeposit(
 								return err
 							}
 							tradeChanged = true
+							if !ignoreTarget && totalAmount >= targetAmount {
+								break
+							}
 						}
 					}
 					if bd.height > bwd.Top {
@@ -245,7 +249,6 @@ func cmdWatchDeposit(
 		},
 		selectInterruptStage(tr): trade.InterruptHandler,
 	})
-
 	for _, i := range th.Unhandled(tr.Stager().Stages()...) {
 		th.InstallStageHandler(i, trade.NoOpHandler)
 	}
@@ -298,21 +301,35 @@ func cmdWatchSecretToken(cmd *cobra.Command, args []string) {
 			signal.Notify(sig, os.Interrupt, os.Kill)
 			fs := cmd.Flags()
 			cl := newClient(fs, tr.OwnInfo().Crypto)
-			bdc, errc, closeIter := iterateBlocks(cl, nil, flagFirstBlock(fs))
+			wd := openWatchData(cmd, args[0])
+			bdc, errc, closeIter := iterateBlocks(cl, wd.Own, flagFirstBlock(fs))
 			defer closeIter()
-			select {
-			case <-sig:
-				return nil
-			case err := <-errc:
-				return err
-			case db := <-bdc:
-				for _, i := range db.txs {
-					_ = i
+			for {
+				select {
+				case <-sig:
+					return nil
+				case err := <-errc:
+					return err
+				case db := <-bdc:
+					for _, i := range db.txs {
+						token, err := extractToken(
+							tr.OwnInfo().Crypto,
+							i,
+							tr.RecoverableFunds().Lock(),
+						)
+						if err != nil {
+							return err
+						}
+						if token == nil {
+							continue
+						}
+						tr.SetToken(token)
+						return nil
+					}
 				}
-			default:
 			}
-			return nil
 		},
+		stages.RedeemFunds: trade.InterruptHandler,
 	})
 	for _, i := range th.Unhandled(tr.Stager().Stages()...) {
 		th.InstallStageHandler(i, trade.NoOpHandler)

@@ -3,12 +3,14 @@ package cmds
 import (
 	"encoding/hex"
 	"fmt"
+	"io"
 
 	"github.com/spf13/cobra"
 	"github.com/transmutate-io/atomicswap/networks"
 	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
 	"github.com/transmutate-io/atomicswap/tx"
+	"github.com/transmutate-io/cryptocore"
 )
 
 var (
@@ -75,36 +77,53 @@ func cmdListRecoverable(cmd *cobra.Command, args []string) {
 	}
 }
 
-func cmdRecoverToAddress(cmd *cobra.Command, args []string) {
-	tr := openTrade(cmd, args[0])
-	fs := cmd.Flags()
-	addrScript, err := networks.AllByName[tr.OwnInfo().Crypto.Name][flagCryptoChain(tr.OwnInfo().Crypto)].
-		AddressToScript(args[1])
+func recoverFunds(tr trade.Trade, cl cryptocore.Client, cryptoInfo *trade.TraderInfo, addr string, feeFixed bool, fee uint64, out io.Writer, verbose int) error {
+	addrScript, err := networks.AllByName[cryptoInfo.Crypto.Name][flagCryptoChain(cryptoInfo.Crypto)].
+		AddressToScript(addr)
 	if err != nil {
-		errorExit(ecCantRecover, err)
+		return err
 	}
 	var recoveryFunc func([]byte, uint64) (tx.Tx, error)
-	if flagFeeFixed(fs) {
+	if feeFixed {
 		recoveryFunc = tr.RecoveryTxFixedFee
 	} else {
 		recoveryFunc = tr.RecoveryTx
 	}
-	tx, err := recoveryFunc(addrScript, flagFee(fs))
+	tx, err := recoveryFunc(addrScript, fee)
 	if err != nil {
-		errorExit(ecCantRecover, err)
+		return err
 	}
 	b, err := tx.Serialize()
 	if err != nil {
-		errorExit(ecCantRecover, err)
+		return err
 	}
-	out, closeOut := openOutput(fs)
-	defer closeOut()
-	if verboseLevel(fs, 1) > 0 {
+	if verbose > 0 {
 		fmt.Fprintf(out, "raw transaction: %s\n", hex.EncodeToString(b))
 	}
-	txID, err := newClient(fs, tr.OwnInfo().Crypto).SendRawTransaction(b)
+	txID, err := cl.SendRawTransaction(b)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "funds recovered (tx id): %s\n", txID.Hex())
+	return nil
+}
+
+func cmdRecoverToAddress(cmd *cobra.Command, args []string) {
+	tr := openTrade(cmd, args[0])
+	out, closeOut := openOutput(cmd.Flags())
+	defer closeOut()
+	fs := cmd.Flags()
+	err := recoverFunds(
+		tr,
+		newClient(fs, tr.OwnInfo().Crypto),
+		tr.OwnInfo(),
+		args[1],
+		flagFeeFixed(fs),
+		flagFee(fs),
+		out,
+		verboseLevel(fs, 1),
+	)
 	if err != nil {
 		errorExit(ecCantRecover, err)
 	}
-	fmt.Fprintf(out, "funds recovered (tx id): %s\n", txID.Hex())
 }

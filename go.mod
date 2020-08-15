@@ -33,7 +33,3 @@ require (
 	gopkg.in/yaml.v2 v2.2.4
 )
 
-replace (
-	github.com/transmutate-io/cryptocore => ../cryptocore
-	github.com/transmutate-io/reflection => ../reflection
-)

@@ -36,6 +36,7 @@ const (
 	ecCantOpenOutput
 	ecCantOpenTrade
 	ecCantOpenWatchData
+	ecCantRecover
 	ecCantRedeem
 	ecCantRenameTrade
 	ecCantSaveTrade
@@ -68,6 +69,7 @@ var ecMessages = map[int]string{
 	ecCantOpenOutput:       "can't create output file: %s\n",
 	ecCantOpenTrade:        "can't open trade \"%s\": %s\n",
 	ecCantOpenWatchData:    "can't open watch data: %s\n",
+	ecCantRecover:          "can't recover funds: %s\n",
 	ecCantRedeem:           "can't redeem: %s\n",
 	ecCantRenameTrade:      "can't rename trade: %s\n",
 	ecCantSaveTrade:        "can't save trade: %s\n",

@@ -98,8 +98,7 @@ func cmdRedeemToAddress(cmd *cobra.Command, args []string) {
 			if verboseLevel(fs, 1) > 0 {
 				fmt.Fprintf(out, "raw transaction: %s\n", hex.EncodeToString(b))
 			}
-			cl := newClient(cmd.Flags(), tr.TraderInfo().Crypto)
-			txID, err := cl.SendRawTransaction(b)
+			txID, err := newClient(cmd.Flags(), tr.TraderInfo().Crypto).SendRawTransaction(b)
 			if err != nil {
 				return err
 			}

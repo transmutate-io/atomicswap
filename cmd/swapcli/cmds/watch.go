@@ -178,8 +178,7 @@ func cmdWatchDeposit(
 			if !ignoreTarget && totalAmount >= targetAmount {
 				return nil
 			}
-			cl := newClient(cmd.Flags(), crypto)
-			bdc, errc, closeIter := iterateBlocks(cl, bwd, flagFirstBlock(fs))
+			bdc, errc, closeIter := iterateBlocks(newClient(cmd.Flags(), crypto), bwd, flagFirstBlock(fs))
 			defer closeIter()
 			var tradeChanged bool
 			for {
@@ -300,9 +299,8 @@ func cmdWatchSecretToken(cmd *cobra.Command, args []string) {
 			sig := make(chan os.Signal, 0)
 			signal.Notify(sig, os.Interrupt, os.Kill)
 			fs := cmd.Flags()
-			cl := newClient(fs, tr.OwnInfo().Crypto)
 			wd := openWatchData(cmd, args[0])
-			bdc, errc, closeIter := iterateBlocks(cl, wd.Own, flagFirstBlock(fs))
+			bdc, errc, closeIter := iterateBlocks(newClient(fs, tr.OwnInfo().Crypto), wd.Own, flagFirstBlock(fs))
 			defer closeIter()
 			for {
 				select {

@@ -61,8 +61,8 @@ func init() {
 }
 
 func cmdListProposals(cmd *cobra.Command, args []string) {
-	tpl := outputTemplate(cmd.Flags(), tradeListTemplates, nil)
-	out, closeOut := openOutput(cmd.Flags())
+	tpl := mustOutputTemplate(cmd.Flags(), tradeListTemplates, nil)
+	out, closeOut := mustOpenOutput(cmd.Flags())
 	defer closeOut()
 	err := eachProposal(tradesDir(cmd), func(name string, tr trade.Trade) error {
 		return tpl.Execute(out, newTradeInfo(name, tr))
@@ -85,7 +85,7 @@ func cmdExportProposal(cmd *cobra.Command, args []string) {
 	if err != nil {
 		errorExit(ecCantExportProposal, err)
 	}
-	out, closeOut := openOutput(cmd.Flags())
+	out, closeOut := mustOpenOutput(cmd.Flags())
 	defer closeOut()
 	if err = yaml.NewEncoder(out).Encode(prop); err != nil {
 		errorExit(ecCantExportProposal, err)
@@ -97,7 +97,7 @@ func cmdAcceptProposal(cmd *cobra.Command, args []string) {
 	th := trade.NewHandler(trade.DefaultStageHandlers)
 	th.InstallStageHandlers(trade.StageHandlerMap{
 		stages.ReceiveProposal: func(tr trade.Trade) error {
-			in, inClose := openInput(cmd.Flags())
+			in, inClose := mustOpenInput(cmd.Flags())
 			defer inClose()
 			b, err := ioutil.ReadAll(in)
 			if err != nil {

@@ -98,9 +98,9 @@ func init() {
 }
 
 func cmdListWatchable(cmd *cobra.Command, args []string) {
-	out, closeOut := openOutput(cmd.Flags())
+	out, closeOut := mustOpenOutput(cmd.Flags())
 	defer closeOut()
-	tpl := outputTemplate(cmd.Flags(), watchableTradesTemplates, nil)
+	tpl := mustOutputTemplate(cmd.Flags(), watchableTradesTemplates, nil)
 	eachTrade(tradesDir(cmd), func(name string, tr trade.Trade) error {
 		switch tr.Stager().Stage() {
 		case stages.SendProposalResponse,
@@ -255,21 +255,21 @@ func cmdWatchDeposit(
 ) {
 	tr := openTrade(cmd, tradeName)
 	fs := cmd.Flags()
-	out, closeOut := openOutput(fs)
+	out, closeOut := mustOpenOutput(fs)
 	defer closeOut()
 	wd := openWatchData(cmd, tradeName)
 	cryptoInfo := selectCryptoInfo(tr)
 	th := trade.NewHandler(trade.StageHandlerMap{
 		watchStage: newDepositWatcher(
 			out,
-			outputTemplate(fs, depositChunkLogTemplates, nil),
-			outputTemplate(fs, blockInspectionTemplates, nil),
+			mustOutputTemplate(fs, depositChunkLogTemplates, nil),
+			mustOutputTemplate(fs, blockInspectionTemplates, nil),
 			newClient(fs, cryptoInfo.Crypto),
 			flagFirstBlock(fs),
 			cryptoInfo,
 			selectFunds(tr),
-			flagIgnoreTarget(fs),
-			flagConfirmations(fs),
+			mustFlagIgnoreTarget(fs),
+			mustFlagConfirmations(fs),
 			wd,
 			selectWatchData(wd),
 			func(t trade.Trade) { saveTrade(cmd, tradeName, t) },

@@ -58,9 +58,9 @@ func init() {
 
 func cmdListRecoverable(cmd *cobra.Command, args []string) {
 	fs := cmd.Flags()
-	out, closeOut := openOutput(fs)
+	out, closeOut := mustOpenOutput(fs)
 	defer closeOut()
-	tpl := outputTemplate(fs, tradeListTemplates, nil)
+	tpl := mustOutputTemplate(fs, tradeListTemplates, nil)
 	err := eachTrade(tradesDir(cmd), func(name string, tr trade.Trade) error {
 		for _, i := range tr.Stager().Stages() {
 			if i == stages.LockFunds {
@@ -110,7 +110,7 @@ func recoverFunds(tr trade.Trade, cl cryptocore.Client, cryptoInfo *trade.Trader
 
 func cmdRecoverToAddress(cmd *cobra.Command, args []string) {
 	tr := openTrade(cmd, args[0])
-	out, closeOut := openOutput(cmd.Flags())
+	out, closeOut := mustOpenOutput(cmd.Flags())
 	defer closeOut()
 	fs := cmd.Flags()
 	err := recoverFunds(
@@ -121,7 +121,7 @@ func cmdRecoverToAddress(cmd *cobra.Command, args []string) {
 		flagFeeFixed(fs),
 		flagFee(fs),
 		out,
-		verboseLevel(fs, 1),
+		mustVerboseLevel(fs, 1),
 	)
 	if err != nil {
 		errorExit(ecCantRecover, err)

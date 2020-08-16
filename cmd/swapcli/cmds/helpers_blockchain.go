@@ -33,10 +33,10 @@ func newClient(fs *pflag.FlagSet, c *cryptos.Crypto) cryptocore.Client {
 		errorExit(ecUnknownCrypto, c.Name)
 	}
 	return nc(
-		flagRPCAddress(fs),
-		flagRPCUsername(fs),
-		flagRPCPassword(fs),
-		flagRPCTLSConfig(fs),
+		mustFlagRPCAddress(fs),
+		mustFlagRPCUsername(fs),
+		mustFlagRPCPassword(fs),
+		mustFlagRPCTLSConfig(fs),
 	)
 }
 

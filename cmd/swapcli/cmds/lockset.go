@@ -76,8 +76,8 @@ func init() {
 }
 
 func cmdListLockSets(cmd *cobra.Command, args []string) {
-	tpl := outputTemplate(cmd.Flags(), tradeListTemplates, nil)
-	out, closeOut := openOutput(cmd.Flags())
+	tpl := mustOutputTemplate(cmd.Flags(), tradeListTemplates, nil)
+	out, closeOut := mustOpenOutput(cmd.Flags())
 	defer closeOut()
 	err := eachLockSet(tradesDir(cmd), func(name string, tr trade.Trade) error {
 		return tpl.Execute(out, newTradeInfo(name, tr))
@@ -94,7 +94,7 @@ func cmdExportLockSet(cmd *cobra.Command, args []string) {
 		errorExit(ecCantExportLockSet, err)
 	}
 	ls := str.Locks()
-	out, outClose := openOutput(cmd.Flags())
+	out, outClose := mustOpenOutput(cmd.Flags())
 	defer outClose()
 	if err := yaml.NewEncoder(out).Encode(ls); err != nil {
 		errorExit(ecCantExportLockSet, err)
@@ -106,7 +106,7 @@ func cmdAcceptLockSet(cmd *cobra.Command, args []string) {
 	th := trade.NewHandler(trade.DefaultStageHandlers)
 	th.InstallStageHandlers(trade.StageHandlerMap{
 		stages.ReceiveProposalResponse: func(t trade.Trade) error {
-			in, inClose := openInput(cmd.Flags())
+			in, inClose := mustOpenInput(cmd.Flags())
 			defer inClose()
 			btr, err := tr.Buyer()
 			if err != nil {
@@ -130,12 +130,12 @@ func cmdShowLockSetInfo(cmd *cobra.Command, args []string) {
 	if _, err := tr.Buyer(); err != nil {
 		errorExit(ecCantOpenTrade, err)
 	}
-	in, inClose := openInput(cmd.Flags())
+	in, inClose := mustOpenInput(cmd.Flags())
 	defer inClose()
 	ls := openLockSet(in, tr.OwnInfo().Crypto, tr.TraderInfo().Crypto)
-	out, outClose := openOutput(cmd.Flags())
+	out, outClose := mustOpenOutput(cmd.Flags())
 	defer outClose()
-	tpl := outputTemplate(cmd.Flags(), lockSetInfoTemplates, template.FuncMap{"now": time.Now})
+	tpl := mustOutputTemplate(cmd.Flags(), lockSetInfoTemplates, template.FuncMap{"now": time.Now})
 	err := tpl.Execute(out, newLockSetInfo(
 		tr,
 		newLockInfo(cmd, ls.Buyer, tr.OwnInfo().Crypto),

@@ -109,8 +109,8 @@ func cmdNewTrade(cmd *cobra.Command, args []string) {
 }
 
 func cmdListTrades(cmd *cobra.Command, args []string) {
-	tpl := outputTemplate(cmd.Flags(), tradeListTemplates, nil)
-	out, closeOut := openOutput(cmd.Flags())
+	tpl := mustOutputTemplate(cmd.Flags(), tradeListTemplates, nil)
+	out, closeOut := mustOpenOutput(cmd.Flags())
 	defer closeOut()
 	err := eachTrade(tradesDir(cmd), func(name string, tr trade.Trade) error {
 		return tpl.Execute(out, newTradeInfo(name, tr))
@@ -134,7 +134,7 @@ func cmdExportTrades(cmd *cobra.Command, args []string) {
 	}
 	trades := make(map[string]trade.Trade, 16)
 	err := eachTrade(tradesDir(cmd), func(name string, tr trade.Trade) error {
-		if _, exp := names[name]; exp || flagAll(cmd.Flags()) {
+		if _, exp := names[name]; exp || mustFlagAll(cmd.Flags()) {
 			delete(names, name)
 			trades[strings.Join(filepath.SplitList(name), "/")] = tr
 		}
@@ -150,7 +150,7 @@ func cmdExportTrades(cmd *cobra.Command, args []string) {
 	if len(names) > 0 {
 		errorExit(ecCantExportTrades, strings.Join(n, ", "))
 	}
-	out, closeOut := openOutput(cmd.Flags())
+	out, closeOut := mustOpenOutput(cmd.Flags())
 	defer closeOut()
 	if err = yaml.NewEncoder(out).Encode(trades); err != nil {
 		errorExit(ecCantExportTrades, err)
@@ -158,7 +158,7 @@ func cmdExportTrades(cmd *cobra.Command, args []string) {
 }
 
 func cmdImportTrades(cmd *cobra.Command, args []string) {
-	in, closeIn := openInput(cmd.Flags())
+	in, closeIn := mustOpenInput(cmd.Flags())
 	defer closeIn()
 	trades := make(map[string]*trade.OnChainTrade, 16)
 	if err := yaml.NewDecoder(in).Decode(trades); err != nil {

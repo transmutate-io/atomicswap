@@ -45,9 +45,9 @@ func listCryptos(out io.Writer, tpl *template.Template) error {
 }
 
 func cmdListCryptos(cmd *cobra.Command, args []string) {
-	out, closeOut := openOutput(cmd.Flags())
+	out, closeOut := mustOpenOutput(cmd.Flags())
 	defer closeOut()
-	tpl := outputTemplate(cmd.Flags(), cryptosListTemplates, nil)
+	tpl := mustOutputTemplate(cmd.Flags(), cryptosListTemplates, nil)
 	if err := listCryptos(out, tpl); err != nil {
 		errorExit(ecBadTemplate, err)
 	}

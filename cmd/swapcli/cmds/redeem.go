@@ -57,9 +57,9 @@ func init() {
 }
 
 func cmdListRedeeamable(cmd *cobra.Command, args []string) {
-	out, closeOut := openOutput(cmd.Flags())
+	out, closeOut := mustOpenOutput(cmd.Flags())
 	defer closeOut()
-	tpl := outputTemplate(cmd.Flags(), tradeListTemplates, nil)
+	tpl := mustOutputTemplate(cmd.Flags(), tradeListTemplates, nil)
 	err := eachTrade(tradesDir(cmd), func(name string, tr trade.Trade) error {
 		if tr.Stager().Stage() != stages.RedeemFunds {
 			return nil
@@ -114,7 +114,7 @@ func newRedeemHandler(
 
 func cmdRedeemToAddress(cmd *cobra.Command, args []string) {
 	tr := openTrade(cmd, args[0])
-	out, closeOut := openOutput(cmd.Flags())
+	out, closeOut := mustOpenOutput(cmd.Flags())
 	defer closeOut()
 	fs := cmd.Flags()
 	th := trade.NewHandler(trade.StageHandlerMap{
@@ -123,7 +123,7 @@ func cmdRedeemToAddress(cmd *cobra.Command, args []string) {
 			flagFeeFixed(fs),
 			flagFee(fs),
 			out,
-			verboseLevel(fs, 1),
+			mustVerboseLevel(fs, 1),
 			newClient(fs, tr.TraderInfo().Crypto),
 		),
 	})

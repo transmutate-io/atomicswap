@@ -8,11 +8,15 @@ import (
 	"golang.org/x/crypto/ripemd160"
 )
 
+// Hasher contains methods to calculate necessary hashes
 type Hasher interface {
+	// Hash256 calculate the crypto OP_HASH256
 	Hash256([]byte) []byte
+	// Hash160 calculate the crypto OP_HASH160
 	Hash160([]byte) []byte
 }
 
+// New returns an hasher for the provided crypto
 func New(c *cryptos.Crypto) (Hasher, error) {
 	nf, ok := newHasherFuncs[c.Name]
 	if !ok {

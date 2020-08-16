@@ -40,7 +40,6 @@ var (
 	}
 )
 
-// bchParams represents a network parameter set
 type bchParams struct {
 	prefix           string
 	pubKeyHashAddrID byte // First byte of a P2PKH address
@@ -48,7 +47,6 @@ type bchParams struct {
 	privateKeyID     byte // First byte of a WIF private key
 }
 
-// bchParams returns the chain params as a *chaincfg.bchParams
 func (p *bchParams) params() *chaincfg.Params {
 	return &chaincfg.Params{
 		CashAddressPrefix:      p.prefix,

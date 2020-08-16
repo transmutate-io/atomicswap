@@ -37,14 +37,12 @@ var (
 	}
 )
 
-// dcrParams represents a network parameter set
 type dcrParams struct {
 	pubKeyHashAddrID [2]byte
 	scriptHashAddrID [2]byte
 	privateKeyID     [2]byte
 }
 
-// Params returns the chain params as a *chaincfg.Params
 func (p *dcrParams) params() *chaincfg.Params {
 	return &chaincfg.Params{
 		PubKeyHashAddrID: p.pubKeyHashAddrID,

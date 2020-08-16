@@ -38,14 +38,12 @@ var (
 	}
 )
 
-// btcParams represents a network parameter set
 type btcParams struct {
 	pubKeyHashAddrID byte // First byte of a P2PKH address
 	scriptHashAddrID byte // First byte of a P2SH address
 	privateKeyID     byte // First byte of a WIF private key
 }
 
-// Params returns the chain params as a *chaincfg.Params
 func (p *btcParams) params() *chaincfg.Params {
 	return &chaincfg.Params{
 		PubKeyHashAddrID: p.pubKeyHashAddrID,

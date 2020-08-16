@@ -18,23 +18,29 @@ import (
 	"github.com/transmutate-io/cryptocore"
 )
 
-func flagCount(fs *pflag.FlagSet, name string) int {
-	r, err := fs.GetCount(name)
+func flagCount(fs *pflag.FlagSet, name string) (int, error)              { return fs.GetCount(name) }
+func flagString(fs *pflag.FlagSet, name string) (string, error)          { return fs.GetString(name) }
+func flagDuration(fs *pflag.FlagSet, name string) (time.Duration, error) { return fs.GetDuration(name) }
+func flagBool(fs *pflag.FlagSet, name string) (bool, error)              { return fs.GetBool(name) }
+func flagUInt64(fs *pflag.FlagSet, name string) (uint64, error)          { return fs.GetUint64(name) }
+
+func mustFlagCount(fs *pflag.FlagSet, name string) int {
+	r, err := flagCount(fs, name)
 	if err != nil {
 		errorExit(ecCantGetFlag, err)
 	}
 	return r
 }
 
-func flagString(fs *pflag.FlagSet, name string) string {
-	r, err := fs.GetString(name)
+func mustFlagString(fs *pflag.FlagSet, name string) string {
+	r, err := flagString(fs, name)
 	if err != nil {
 		errorExit(ecCantGetFlag, err)
 	}
 	return r
 }
 
-func flagDuration(fs *pflag.FlagSet, name string) time.Duration {
+func mustFlagDuration(fs *pflag.FlagSet, name string) time.Duration {
 	r, err := fs.GetDuration(name)
 	if err != nil {
 		errorExit(ecCantGetFlag, err)
@@ -42,7 +48,7 @@ func flagDuration(fs *pflag.FlagSet, name string) time.Duration {
 	return r
 }
 
-func flagBool(fs *pflag.FlagSet, name string) bool {
+func mustFlagBool(fs *pflag.FlagSet, name string) bool {
 	r, err := fs.GetBool(name)
 	if err != nil {
 		errorExit(ecCantGetFlag, err)
@@ -50,7 +56,7 @@ func flagBool(fs *pflag.FlagSet, name string) bool {
 	return r
 }
 
-func flagUInt64(fs *pflag.FlagSet, name string) uint64 {
+func mustFlagUInt64(fs *pflag.FlagSet, name string) uint64 {
 	r, err := fs.GetUint64(name)
 	if err != nil {
 		errorExit(ecCantGetFlag, err)
@@ -79,7 +85,7 @@ func outputTemplate(fs *pflag.FlagSet, tpls []string, funcs template.FuncMap) *t
 func addFlagOutput(fs *pflag.FlagSet) { fs.StringP("output", "o", "-", "set output") }
 
 func openOutput(fs *pflag.FlagSet) (io.Writer, func() error) {
-	outfn := flagString(fs, "output")
+	outfn := mustFlagString(fs, "output")
 	if outfn == "-" {
 		return os.Stdout, func() error { return nil }
 	}
@@ -93,7 +99,7 @@ func openOutput(fs *pflag.FlagSet) (io.Writer, func() error) {
 func addFlagInput(fs *pflag.FlagSet) { fs.StringP("input", "i", "-", "set input") }
 
 func openInput(fs *pflag.FlagSet) (io.Reader, func() error) {
-	infn := flagString(fs, "input")
+	infn := mustFlagString(fs, "input")
 	if infn == "-" {
 		return os.Stdin, func() error { return nil }
 	}
@@ -107,7 +113,7 @@ func openInput(fs *pflag.FlagSet) (io.Reader, func() error) {
 func addFlagVerbose(fs *pflag.FlagSet) { fs.CountP("verbose", "v", "increse verbose level") }
 
 func verboseLevel(fs *pflag.FlagSet, max int) int {
-	r := flagCount(fs, "verbose")
+	r := mustFlagCount(fs, "verbose")
 	if r > max {
 		return max
 	}
@@ -152,40 +158,40 @@ func flagCryptoChain(c *cryptos.Crypto) params.Chain {
 	return params.MainNet
 }
 
-func flagFormat(fs *pflag.FlagSet) string { return flagString(fs, "format") }
+func flagFormat(fs *pflag.FlagSet) string { return mustFlagString(fs, "format") }
 
 func addFlagFormat(fs *pflag.FlagSet) {
 	fs.StringP("format", "f", "", "go template format string for output")
 }
 
-func flagForce(fs *pflag.FlagSet) bool { return flagBool(fs, "force") }
+func flagForce(fs *pflag.FlagSet) bool { return mustFlagBool(fs, "force") }
 
 func addFlagForce(fs *pflag.FlagSet) { fs.BoolP("force", "f", false, "force") }
 
-func flagAll(fs *pflag.FlagSet) bool { return flagBool(fs, "all") }
+func flagAll(fs *pflag.FlagSet) bool { return mustFlagBool(fs, "all") }
 
 func addFlagAll(fs *pflag.FlagSet) { fs.BoolP("all", "a", false, "all") }
 
-func flagRPCUsername(fs *pflag.FlagSet) string { return flagString(fs, "rpcusername") }
-func flagRPCPassword(fs *pflag.FlagSet) string { return flagString(fs, "rpcpassword") }
-func flagRPCAddress(fs *pflag.FlagSet) string  { return flagString(fs, "rpcaddr") }
+func flagRPCUsername(fs *pflag.FlagSet) string { return mustFlagString(fs, "rpcusername") }
+func flagRPCPassword(fs *pflag.FlagSet) string { return mustFlagString(fs, "rpcpassword") }
+func flagRPCAddress(fs *pflag.FlagSet) string  { return mustFlagString(fs, "rpcaddr") }
 
 func flagRPCTLSConfig(fs *pflag.FlagSet) *cryptocore.TLSConfig {
 	var changed bool
 	r := &cryptocore.TLSConfig{}
-	if s := flagString(fs, "rpctlscacert"); s != "" {
+	if s := mustFlagString(fs, "rpctlscacert"); s != "" {
 		changed = true
 		r.CA = s
 	}
-	if s := flagString(fs, "rpctlsclientcert"); s != "" {
+	if s := mustFlagString(fs, "rpctlsclientcert"); s != "" {
 		changed = true
 		r.ClientCertificate = s
 	}
-	if s := flagString(fs, "rpctlsclientkey"); s != "" {
+	if s := mustFlagString(fs, "rpctlsclientkey"); s != "" {
 		changed = true
 		r.ClientKey = s
 	}
-	if s := flagBool(fs, "rpctlsskipverify"); s {
+	if s := mustFlagBool(fs, "rpctlsskipverify"); s {
 		changed = true
 		r.SkipVerify = s
 	}
@@ -205,19 +211,19 @@ func addFlagsRPC(fs *pflag.FlagSet) {
 	fs.String("rpctlsclientkey", "", "RPC client key")
 }
 
-func flagFirstBlock(fs *pflag.FlagSet) uint64 { return flagUInt64(fs, "firstblock") }
+func flagFirstBlock(fs *pflag.FlagSet) uint64 { return mustFlagUInt64(fs, "firstblock") }
 
 func addFlagFirstBlock(fs *pflag.FlagSet) {
 	fs.Uint64P("firstblock", "b", 1, "set the first block where is possible to find an input")
 }
 
-func flagConfirmations(fs *pflag.FlagSet) uint64 { return flagUInt64(fs, "confirmations") }
+func flagConfirmations(fs *pflag.FlagSet) uint64 { return mustFlagUInt64(fs, "confirmations") }
 
 func addFlagConfirmations(fs *pflag.FlagSet) {
 	fs.Uint64P("confirmations", "c", 0, "number of confirmations")
 }
 
-func flagIgnoreTarget(fs *pflag.FlagSet) bool { return flagBool(fs, "ignoretarget") }
+func flagIgnoreTarget(fs *pflag.FlagSet) bool { return mustFlagBool(fs, "ignoretarget") }
 
 func addFlagIgnoreTarget(fs *pflag.FlagSet) {
 	fs.BoolP("ignoretarget", "t", false, "ignore target amount and continue watching")

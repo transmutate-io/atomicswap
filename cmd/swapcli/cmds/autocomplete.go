@@ -24,7 +24,7 @@ func init() {
 		Args:    cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdAutoComplete(cmd, args, func(w io.Writer) error {
-				return cmd.Root().GenFishCompletion(w, flagBool(cmd.Flags(), "desc"))
+				return cmd.Root().GenFishCompletion(w, mustFlagBool(cmd.Flags(), "desc"))
 			})
 		},
 	}

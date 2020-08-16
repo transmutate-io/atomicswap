@@ -98,7 +98,7 @@ func errorExit(code int, a ...interface{}) {
 }
 
 func dataDir(cmd *cobra.Command) string {
-	return filepath.Clean(flagString(cmd.Root().PersistentFlags(), "data"))
+	return filepath.Clean(mustFlagString(cmd.Root().PersistentFlags(), "data"))
 }
 
 func tradesDir(cmd *cobra.Command) string {

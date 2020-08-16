@@ -7,7 +7,6 @@ import (
 
 type chains = map[params.Chain]params.Params
 
-// All contains all available cryptos/networks
 var (
 	All = map[*cryptos.Crypto]chains{
 		cryptos.Bitcoin: chains{

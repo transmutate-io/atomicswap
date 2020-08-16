@@ -5,6 +5,7 @@ import (
 	"strings"
 )
 
+// CryptosShort contains all available cryptocurrencies
 var CryptosShort map[string]*Crypto
 
 func init() {
@@ -16,12 +17,15 @@ func init() {
 
 type newCryptoFunc = func() *Crypto
 
+// InvalidCryptoError represents an error parsing a crypto name
 type InvalidCryptoError string
 
+// Error implement error
 func (e InvalidCryptoError) Error() string {
 	return fmt.Sprintf("invalid crypto: \"%s\"", string(e))
 }
 
+// Parse parses a cryptocurrency name
 func Parse(s string) (*Crypto, error) {
 	r, ok := Cryptos[strings.ToLower(s)]
 	if !ok {
@@ -30,6 +34,7 @@ func Parse(s string) (*Crypto, error) {
 	return r, nil
 }
 
+// ParseShort parses a cryptocurrency ticker
 func ParseShort(s string) (*Crypto, error) {
 	r, ok := CryptosShort[strings.ToUpper(s)]
 	if !ok {
@@ -38,17 +43,25 @@ func ParseShort(s string) (*Crypto, error) {
 	return r, nil
 }
 
+// Crypto represents a cryptocurrency
 type Crypto struct {
-	Name     string
-	Short    string
+	// Name of the crypto
+	Name string
+	// Short is the ticker
+	Short string
+	// Decimals used
 	Decimals int
-	Type     Type
+	// Type of crypto
+	Type Type
 }
 
+// String implement fmt.Stringer
 func (c Crypto) String() string { return c.Name }
 
+// MarshalYAML implement yaml.Marshaler
 func (c Crypto) MarshalYAML() (interface{}, error) { return c.Name, nil }
 
+// UnmarshalYAML implement yaml.Unmarshaler
 func (c *Crypto) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var r string
 	if err := unmarshal(&r); err != nil {

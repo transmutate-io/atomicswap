@@ -3,27 +3,27 @@ package key
 var cryptoFuncs = map[string]newFuncs{
 	"bitcoin-cash": newFuncs{
 		parsePriv: ParsePrivateBCH,
-		priv:      NewPrivateBCH,
-		pub:       NewPublicBCH,
+		parsePub:  ParsePublicBCH,
+		newPriv:   NewPrivateBCH,
 	},
 	"bitcoin": newFuncs{
 		parsePriv: ParsePrivateBTC,
-		priv:      NewPrivateBTC,
-		pub:       NewPublicBTC,
+		parsePub:  ParsePublicBTC,
+		newPriv:   NewPrivateBTC,
 	},
 	"decred": newFuncs{
 		parsePriv: ParsePrivateDCR,
-		priv:      NewPrivateDCR,
-		pub:       NewPublicDCR,
+		parsePub:  ParsePublicDCR,
+		newPriv:   NewPrivateDCR,
 	},
 	"dogecoin": newFuncs{
 		parsePriv: ParsePrivateDOGE,
-		priv:      NewPrivateDOGE,
-		pub:       NewPublicDOGE,
+		parsePub:  ParsePublicDOGE,
+		newPriv:   NewPrivateDOGE,
 	},
 	"litecoin": newFuncs{
 		parsePriv: ParsePrivateLTC,
-		priv:      NewPrivateLTC,
-		pub:       NewPublicLTC,
+		parsePub:  ParsePublicLTC,
+		newPriv:   NewPrivateLTC,
 	},
 }

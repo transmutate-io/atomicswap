@@ -9,6 +9,7 @@ import (
 	"github.com/transmutate-io/atomicswap/hash"
 )
 
+// PrivateDCR represents a private key for decred
 type PrivateDCR struct{ chainec.PrivateKey }
 
 func parsePrivateDCR(b []byte) *PrivateDCR {
@@ -16,6 +17,7 @@ func parsePrivateDCR(b []byte) *PrivateDCR {
 	return &PrivateDCR{PrivateKey: priv}
 }
 
+// ParsePrivateDCR parses a decred private key
 func ParsePrivateDCR(b []byte) (Private, error) { return parsePrivateDCR(b), nil }
 
 func newPrivateDCR() (*PrivateDCR, error) {
@@ -27,8 +29,10 @@ func newPrivateDCR() (*PrivateDCR, error) {
 	return &PrivateDCR{PrivateKey: priv}, nil
 }
 
+// NewPrivateDCR returns a new decred private key
 func NewPrivateDCR() (Private, error) { return newPrivateDCR() }
 
+// Sign implement Private
 func (k *PrivateDCR) Sign(b []byte) ([]byte, error) {
 	r, s, err := chainec.Secp256k1.Sign(k.PrivateKey, b)
 	if err != nil {
@@ -37,6 +41,7 @@ func (k *PrivateDCR) Sign(b []byte) ([]byte, error) {
 	return chainec.Secp256k1.NewSignature(r, s).Serialize(), nil
 }
 
+// MarshalYAML implement yaml.Marshaler
 func (k *PrivateDCR) MarshalYAML() (interface{}, error) {
 	if k == nil {
 		return nil, nil
@@ -44,6 +49,7 @@ func (k *PrivateDCR) MarshalYAML() (interface{}, error) {
 	return base64.RawStdEncoding.EncodeToString(k.Serialize()), nil
 }
 
+// UnmarshalYAML implement yaml.Unmarshaler
 func (k *PrivateDCR) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var r string
 	if err := unmarshal(&r); err != nil {
@@ -57,16 +63,19 @@ func (k *PrivateDCR) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// Public implement Private
 func (k *PrivateDCR) Public() Public {
 	x, y := k.PrivateKey.Public()
 	return &PublicDCR{chainec.Secp256k1.NewPublicKey(x, y)}
 }
 
+// Key implement Private
 func (k *PrivateDCR) Key() interface{} { return k.PrivateKey }
 
+// PublicDCR represents a decred public key
 type PublicDCR struct{ chainec.PublicKey }
 
-func newPublicDCR(b []byte) (*PublicDCR, error) {
+func parsePublicDCR(b []byte) (*PublicDCR, error) {
 	pub, err := chainec.Secp256k1.ParsePubKey(b)
 	if err != nil {
 		return nil, err
@@ -74,8 +83,10 @@ func newPublicDCR(b []byte) (*PublicDCR, error) {
 	return &PublicDCR{PublicKey: pub}, nil
 }
 
-func NewPublicDCR(b []byte) (Public, error) { return newPublicDCR(b) }
+// ParsePublicDCR parses a decred public key
+func ParsePublicDCR(b []byte) (Public, error) { return parsePublicDCR(b) }
 
+// Verify implement Public
 func (k *PublicDCR) Verify(sig, msg []byte) error {
 	s, err := chainec.Secp256k1.ParseSignature(sig)
 	if err != nil {
@@ -87,12 +98,15 @@ func (k *PublicDCR) Verify(sig, msg []byte) error {
 	return nil
 }
 
+// Key implement Public
 func (k *PublicDCR) Key() interface{} { return k.PublicKey }
 
+// MarshalYAML implement yaml.Marshaler
 func (k *PublicDCR) MarshalYAML() (interface{}, error) {
 	return base64.RawStdEncoding.EncodeToString(k.SerializeCompressed()), nil
 }
 
+// UnmarshalYAML implement yaml.Unmarshaler
 func (k *PublicDCR) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var r string
 	if err := unmarshal(&r); err != nil {
@@ -106,6 +120,8 @@ func (k *PublicDCR) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return err
 }
 
+// Hash160 returns the hash160 of the key
 func (k *PublicDCR) Hash160() []byte { return hash.NewDCR().Hash160(k.SerializeCompressed()) }
 
+// KeyData implement Public
 func (k *PublicDCR) KeyData() KeyData { return k.Hash160() }

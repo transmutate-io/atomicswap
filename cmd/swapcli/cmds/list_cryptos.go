@@ -1,8 +1,10 @@
 package cmds
 
 import (
+	"io"
 	"sort"
 	"strings"
+	"text/template"
 
 	"github.com/spf13/cobra"
 	"github.com/transmutate-io/atomicswap/cryptos"
@@ -28,18 +30,25 @@ func init() {
 	})
 }
 
-func cmdListCryptos(cmd *cobra.Command, args []string) {
-	tpl := outputTemplate(cmd.Flags(), cryptosListTemplates, nil)
+func listCryptos(out io.Writer, tpl *template.Template) error {
 	names := make([]string, 0, len(cryptos.Cryptos))
 	for _, i := range cryptos.Cryptos {
 		names = append(names, strings.ToLower(i.Name))
 	}
 	sort.Strings(names)
-	out, closeOut := openOutput(cmd.Flags())
-	defer closeOut()
 	for _, i := range names {
 		if err := tpl.Execute(out, cryptos.Cryptos[i]); err != nil {
-			errorExit(ecBadTemplate, err)
+			return err
 		}
+	}
+	return nil
+}
+
+func cmdListCryptos(cmd *cobra.Command, args []string) {
+	out, closeOut := openOutput(cmd.Flags())
+	defer closeOut()
+	tpl := outputTemplate(cmd.Flags(), cryptosListTemplates, nil)
+	if err := listCryptos(out, tpl); err != nil {
+		errorExit(ecBadTemplate, err)
 	}
 }

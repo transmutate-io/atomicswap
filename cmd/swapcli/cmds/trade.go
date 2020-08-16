@@ -32,6 +32,13 @@ var (
 		Args:    cobra.NoArgs,
 		Run:     cmdListTrades,
 	}
+	renameTradeCmd = &cobra.Command{
+		Use:     "rename <old_name> <new_name>",
+		Short:   "rename trade",
+		Aliases: []string{"ren", "r"},
+		Args:    cobra.ExactArgs(2),
+		Run:     cmdRenameTrade,
+	}
 	deleteTradeCmd = &cobra.Command{
 		Use:     "delete <name>",
 		Short:   "delete a trade",
@@ -51,13 +58,6 @@ var (
 		Aliases: []string{"imp", "i"},
 		Args:    cobra.NoArgs,
 		Run:     cmdImportTrades,
-	}
-	renameTradeCmd = &cobra.Command{
-		Use:     "rename <old_name> <new_name>",
-		Short:   "rename trade",
-		Aliases: []string{"ren", "r"},
-		Args:    cobra.ExactArgs(2),
-		Run:     cmdRenameTrade,
 	}
 )
 
@@ -81,6 +81,7 @@ func init() {
 	addCommands(TradeCmd, []*cobra.Command{
 		newTradeCmd,
 		listTradesCmd,
+		renameTradeCmd,
 		deleteTradeCmd,
 		exportTradesCmd,
 		importTradesCmd,

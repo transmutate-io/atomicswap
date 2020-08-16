@@ -2,116 +2,65 @@ package cmds
 
 import (
 	"fmt"
+	"os"
 	"strings"
+	"text/template"
 
 	"github.com/c-bata/go-prompt"
 	"github.com/spf13/cobra"
+	"github.com/transmutate-io/atomicswap/cryptos"
 )
 
-var (
-	InteractiveConsoleCmd = &cobra.Command{
-		Use:     "interactive",
-		Short:   "start the interactive console",
-		Aliases: []string{"i", "console", "c"},
-		Args:    cobra.NoArgs,
-		Run:     cmdInteractiveConsole,
-	}
-	exitCommand = &commandCompleter{
-		suggestion: &prompt.Suggest{
-			Text:        "exit",
-			Description: "exit the interactive console",
-		},
-	}
-	upCommand = &commandCompleter{
-		suggestion: &prompt.Suggest{
-			Text:        "..",
-			Description: "move to the parent menu",
-		},
-	}
-	helpCommand = &commandCompleter{
-		suggestion: &prompt.Suggest{
-			Text:        "help",
-			Description: "show the help for the current menu",
-		},
-	}
-)
-
-type commandCompleter struct {
-	suggestion *prompt.Suggest
-	sub        []*commandCompleter
-	parent     *commandCompleter
-}
-
-func newCommandCompleter(cmd *cobra.Command, parent *commandCompleter) *commandCompleter {
-	name := strings.SplitN(cmd.Use, " ", 2)[0]
-	cmds := cmd.Commands()
-	r := &commandCompleter{
-		suggestion: &prompt.Suggest{
-			Text:        name,
-			Description: cmd.Short,
-		},
-		parent: parent,
-		sub:    make([]*commandCompleter, 0, len(cmds)+3),
-	}
-	for _, i := range cmd.Commands() {
-		r.sub = append(r.sub, newCommandCompleter(i, r))
-	}
-	r.sub = append(r.sub, exitCommand, upCommand, helpCommand)
-	return r
-}
-
-const nameSep = "/"
-
-func (cc *commandCompleter) name() string {
-	c := cc
-	parts := make([]string, 0, 8)
-	for {
-		if c == nil {
-			break
+var interactiveActionsHandlers = map[string]func(cmd *cobra.Command){
+	"cryptos": func(cmd *cobra.Command) {
+		tpl, err := template.New("main").Parse("{{ .Name }} ({{ .Short }})\n")
+		if err != nil {
+			fmt.Printf("can't list cryptos: %s\n", err)
+			return
 		}
-		if c.suggestion != nil {
-			parts = append(parts, c.suggestion.Text)
+		fmt.Println("available cryptocurrencies:")
+		if err = listCryptos(os.Stdout, tpl); err != nil {
+			fmt.Printf("can't list cryptos: %s\n", err)
 		}
-		c = c.parent
-	}
-	sz := len(parts)
-	for i := 0; i < sz/2; i++ {
-		parts[i], parts[sz-i-1] = parts[sz-i-1], parts[i]
-	}
-	return strings.Join(parts, nameSep)
+	},
+	"config/network": func(_ *cobra.Command) {
+		fmt.Printf("config network\n")
+	},
+	"config/save": func(_ *cobra.Command) {
+		fmt.Printf("save config\n")
+	},
+	"config/load": func(_ *cobra.Command) {
+		fmt.Printf("load config\n")
+	},
+	"trade/new": func(_ *cobra.Command) {
+		fmt.Printf("new trade\n")
+	},
 }
 
-func (cc *commandCompleter) prompt(p string) string {
-	return cc.name() + p + " "
+func init() {
+	for c := range cryptos.Cryptos {
+		interactiveActionsHandlers["config/clients/"+c] = func(_ *cobra.Command) {
+			fmt.Printf("config %s client\n", c)
+		}
+	}
 }
 
-func (cc *commandCompleter) completer(doc prompt.Document) []prompt.Suggest {
-	r := make([]prompt.Suggest, 0, len(cc.sub))
-	for _, i := range cc.sub {
-		r = append(r, *i.suggestion)
-	}
-	return prompt.FilterHasPrefix(r, doc.GetWordBeforeCursor(), false)
+var InteractiveConsoleCmd = &cobra.Command{
+	Use:     "interactive",
+	Short:   "start the interactive console",
+	Aliases: []string{"i", "console", "c"},
+	Args:    cobra.NoArgs,
+	Run:     cmdInteractiveConsole,
 }
 
 func cmdInteractiveConsole(cmd *cobra.Command, args []string) {
-	rootNode := &commandCompleter{sub: []*commandCompleter{exitCommand}}
-	for _, i := range []*cobra.Command{
-		RedeemCmd,
-		ProposalCmd,
-		RecoverCmd,
-		TradeCmd,
-		LockSetCmd,
-	} {
-		rootNode.sub = append(rootNode.sub, newCommandCompleter(i, rootNode))
-	}
-	rootNode.sub = append(rootNode.sub, helpCommand)
+	rootNode := newRootNode()
 	node := rootNode
 	inputOpts := prompt.OptionAddKeyBind(
 		prompt.KeyBind{
 			Key: prompt.Key(prompt.ControlC),
 			Fn: func(d *prompt.Buffer) {
 				fmt.Println(`please terminate with the "exit" command`)
-				d.Document().Text = "exit\n"
 			},
 		},
 	)
@@ -161,10 +110,4 @@ Outer:
 			fmt.Printf("unknown command: %s\n", c)
 		}
 	}
-}
-
-var interactiveActionsHandlers = map[string]func(cmd *cobra.Command){
-	"trade/new": func(_ *cobra.Command) {
-		fmt.Printf("new trade\n")
-	},
 }

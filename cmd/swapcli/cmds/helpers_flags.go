@@ -18,6 +18,8 @@ import (
 	"github.com/transmutate-io/cryptocore"
 )
 
+func init() { cobra.EnableCommandSorting = false }
+
 func flagCount(fs *pflag.FlagSet, name string) (int, error)              { return fs.GetCount(name) }
 func flagString(fs *pflag.FlagSet, name string) (string, error)          { return fs.GetString(name) }
 func flagDuration(fs *pflag.FlagSet, name string) (time.Duration, error) { return fs.GetDuration(name) }

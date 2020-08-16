@@ -7,10 +7,10 @@ import (
 // Duration represents a yaml marshalable time.Duration
 type Duration time.Duration
 
-// MarshalYAML implements yaml.Marshaler
+// MarshalYAML implement yaml.Marshaler
 func (d Duration) MarshalYAML() (interface{}, error) { return time.Duration(d).String(), nil }
 
-// UnmarshalYAML implements yaml.Unmarshaler
+// UnmarshalYAML implement yaml.Unmarshaler
 func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var r string
 	if err := unmarshal(&r); err != nil {
@@ -24,4 +24,5 @@ func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// String implement fmt.Stringer
 func (d Duration) String() string { return time.Duration(d).String() }

@@ -16,12 +16,12 @@ import (
 // tx represents a transaction
 type txBTC wire.MsgTx
 
-// NewBTC creates a new *txBTC
+// NewBTC creates a new transaction for bitcoin
 func NewBTC() (Tx, error) { return (*txBTC)(wire.NewMsgTx(wire.TxVersion)), nil }
 
 func (tx *txBTC) tx() *wire.MsgTx { return (*wire.MsgTx)(tx) }
 
-// AddOutput adds an output to the transaction
+// AddOutput implement TxUTXO
 func (tx *txBTC) AddOutput(value uint64, script []byte) {
 	tx.tx().AddTxOut(wire.NewTxOut(int64(value), script))
 }
@@ -35,7 +35,7 @@ func bytesReverse(b []byte) []byte {
 	return r
 }
 
-// AddInput adds an input to the transaction
+// AddInput implement TxUTXO
 func (tx *txBTC) AddInput(txID []byte, idx uint32, script []byte, _ uint64) error {
 	h, err := chainhash.NewHash(bytesReverse(txID))
 	if err != nil {
@@ -45,7 +45,7 @@ func (tx *txBTC) AddInput(txID []byte, idx uint32, script []byte, _ uint64) erro
 	return nil
 }
 
-// InputSignature returns the signature for an existing input
+// InputSignature implement TxUTXO
 func (tx *txBTC) InputSignature(idx int, hashType uint32, privKey key.Private) ([]byte, error) {
 	return txscript.RawTxInSignature(
 		tx.tx(),
@@ -56,34 +56,34 @@ func (tx *txBTC) InputSignature(idx int, hashType uint32, privKey key.Private) (
 	)
 }
 
-// SetInputSequenceNumber sets the sequence number for a given input
+// SetInputSequenceNumber implement TxUTXO
 func (tx *txBTC) SetInputSequenceNumber(idx int, seq uint32) {
 	tx.TxIn[idx].Sequence = seq
 }
 
-// InputSequenceNumber returns the sequence number of a given input
+// InputSequenceNumber implement TxUTXO
 func (tx *txBTC) InputSequenceNumber(idx int) uint32 { return tx.tx().TxIn[idx].Sequence }
 
-// SetLockTimeUInt32 sets the locktime
+// SetLockTimeUInt32 implement TxUTXO
 func (tx *txBTC) SetLockTimeUInt32(lt uint32) { tx.LockTime = lt }
 
-// SetLockTime sets the locktime
+// SetLockTime implement TxUTXO
 func (tx *txBTC) SetLockTime(lt time.Time) { tx.LockTime = uint32(lt.UTC().Unix()) }
 
-// SetLockDuration sets the locktime as a duration (counting from time.Now().UTC())
+// SetLockDuration implement TxUTXO
 func (tx *txBTC) SetLockDuration(d time.Duration) { tx.SetLockTime(time.Now().UTC().Add(d)) }
 
-// InputSignatureScript returns the signatureScript field of an input
+// InputSignatureScript implement TxUTXO
 func (tx *txBTC) InputSignatureScript(idx int) []byte {
 	return tx.TxIn[idx].SignatureScript
 }
 
-// SetInputSignatureScript sets the signatureScript field of an input
+// SetInputSignatureScript implement TxUTXO
 func (tx *txBTC) SetInputSignatureScript(idx int, ss []byte) {
 	tx.TxIn[idx].SignatureScript = ss
 }
 
-// SignP2PKInput signs an p2pk input
+// SignP2PKInput implement TxUTXO
 func (tx *txBTC) SignP2PKInput(idx int, hashType uint32, privKey key.Private) error {
 	sig, err := tx.InputSignature(idx, hashType, privKey)
 	if err != nil {
@@ -93,7 +93,7 @@ func (tx *txBTC) SignP2PKInput(idx int, hashType uint32, privKey key.Private) er
 	return nil
 }
 
-// SignP2PKHInput signs a p2pkh input
+// SignP2PKHInput implement TxUTXO
 func (tx *txBTC) SignP2PKHInput(idx int, hashType uint32, privKey key.Private) error {
 	sig, err := tx.InputSignature(idx, hashType, privKey)
 	if err != nil {
@@ -107,7 +107,7 @@ func (tx *txBTC) SignP2PKHInput(idx int, hashType uint32, privKey key.Private) e
 	return nil
 }
 
-// Serialize serializes the transaction
+// Serialize implement Serializer
 func (tx *txBTC) Serialize() ([]byte, error) {
 	r := bytes.NewBuffer(make([]byte, 0, 1024))
 	if err := tx.tx().Serialize(r); err != nil {
@@ -116,16 +116,17 @@ func (tx *txBTC) Serialize() ([]byte, error) {
 	return r.Bytes(), nil
 }
 
-// SerializedSize returns the size of the serialized transaction
+// SerializedSize implement Serializer
 func (tx *txBTC) SerializedSize() uint64 { return uint64(tx.tx().SerializeSize()) }
 
-// TxUTXO returns a TxUTXO transaction
+// TxUTXO implement Tx
 func (tx *txBTC) TxUTXO() (TxUTXO, bool) { return tx, true }
 
-// TxStateBased returns a TxStateBased transaction
+// TxStateBased implement Tx
 func (tx *txBTC) TxStateBased() (TxStateBased, bool) { return nil, false }
 
+// Crypto implement Tx
 func (tx *txBTC) Crypto() *cryptos.Crypto { return cryptos.Cryptos["bitcoin"] }
 
-// Copy returns a copy of tx
+// Copy implement Tx
 func (tx *txBTC) Copy() Tx { return (*txBTC)(tx.tx().Copy()) }

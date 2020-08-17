@@ -9,8 +9,10 @@ import (
 )
 
 type (
+	// NewTxFunc represents a new transaction function
 	NewTxFunc = func() (Tx, error)
 
+	// Serializer represents a serializable object
 	Serializer interface {
 		// Serialize serializes the transaction
 		Serialize() ([]byte, error)
@@ -18,6 +20,7 @@ type (
 		SerializedSize() uint64
 	}
 
+	// TxUTXO represents a utxo transaction
 	TxUTXO interface {
 		// AddOutput adds an output to the transaction
 		AddOutput(value uint64, script []byte)
@@ -43,19 +46,20 @@ type (
 		SignP2PKInput(idx int, hashType uint32, privKey key.Private) error
 		// SignP2PKHInput signs a p2pkh input
 		SignP2PKHInput(idx int, hashType uint32, privKey key.Private) error
-		// // AddInputPrefixes add prefixes to a p2sh input
-		// AddInputPrefixes(idx int, p ...[]byte)
 	}
 
+	// TxStateBased represents a state based transaction
 	TxStateBased interface{}
 
 	Tx interface {
 		Serializer
+
+		// Copy returns a copy of the transaction
 		Copy() Tx
 
+		// Crypto returns the transaction crypto
 		Crypto() *cryptos.Crypto
 
-		// Copy returns a copy of tx
 		// TxUTXO returns a TxUTXO transaction
 		TxUTXO() (TxUTXO, bool)
 		// TxStateBased returns a TxStateBased transaction
@@ -65,10 +69,14 @@ type (
 )
 
 var (
+	// ErrNotStateBased is returned when the transaction is not state based
 	ErrNotStateBased = errors.New("not state based")
-	ErrNotUTXO       = errors.New("not UTXO")
+
+	// ErrNotUTXO is returned when the transaction is not utxo
+	ErrNotUTXO = errors.New("not UTXO")
 )
 
+// New returns a new transaction for the given crypto
 func New(c *cryptos.Crypto) (Tx, error) {
 	nf, ok := txFuncs[c.Name]
 	if !ok {

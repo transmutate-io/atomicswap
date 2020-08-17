@@ -19,7 +19,7 @@ type txBCH struct {
 	InputsAmounts []uint64
 }
 
-// NewBCH creates a new *txBCH
+// NewBCH creates a new transaction for bitcoin-cash
 func NewBCH() (Tx, error) {
 	return &txBCH{
 		MsgTx:         wire.NewMsgTx(wire.TxVersion),
@@ -27,12 +27,12 @@ func NewBCH() (Tx, error) {
 	}, nil
 }
 
-// AddOutput adds an output to the transaction
+// AddOutput implement TxUTXO
 func (tx *txBCH) AddOutput(value uint64, script []byte) {
 	tx.MsgTx.AddTxOut(wire.NewTxOut(int64(value), script))
 }
 
-// AddInput adds an input to the transaction
+// AddInput implement TxUTXO
 func (tx *txBCH) AddInput(txID []byte, idx uint32, script []byte, amount uint64) error {
 	h, err := chainhash.NewHash(bytesReverse(txID))
 	if err != nil {
@@ -43,7 +43,7 @@ func (tx *txBCH) AddInput(txID []byte, idx uint32, script []byte, amount uint64)
 	return nil
 }
 
-// InputSignature returns the signature for an existing input
+// InputSignature implement TxUTXO
 func (tx *txBCH) InputSignature(idx int, hashType uint32, privKey key.Private) ([]byte, error) {
 	return txscript.RawTxInECDSASignature(
 		tx.MsgTx,
@@ -55,34 +55,34 @@ func (tx *txBCH) InputSignature(idx int, hashType uint32, privKey key.Private) (
 	)
 }
 
-// SetInputSequenceNumber sets the sequence number for a given input
+// SetInputSequenceNumber implement TxUTXO
 func (tx *txBCH) SetInputSequenceNumber(idx int, seq uint32) {
 	tx.TxIn[idx].Sequence = seq
 }
 
-// InputSequenceNumber returns the sequence number of a given input
+// InputSequenceNumber implement TxUTXO
 func (tx *txBCH) InputSequenceNumber(idx int) uint32 { return tx.MsgTx.TxIn[idx].Sequence }
 
-// SetLockTimeUInt32 sets the locktime
+// SetLockTimeUInt32 implement TxUTXO
 func (tx *txBCH) SetLockTimeUInt32(lt uint32) { tx.LockTime = lt }
 
-// SetLockTime sets the locktime
+// SetLockTime implement TxUTXO
 func (tx *txBCH) SetLockTime(lt time.Time) { tx.LockTime = uint32(lt.UTC().Unix()) }
 
-// SetLockDuration sets the locktime as a duration (counting from time.Now().UTC())
+// SetLockDuration implement TxUTXO
 func (tx *txBCH) SetLockDuration(d time.Duration) { tx.SetLockTime(time.Now().UTC().Add(d)) }
 
-// InputSignatureScript returns the signatureScript field of an input
+// InputSignatureScript implement TxUTXO
 func (tx *txBCH) InputSignatureScript(idx int) []byte {
 	return tx.TxIn[idx].SignatureScript
 }
 
-// SetInputSignatureScript sets the signatureScript field of an input
+// SetInputSignatureScript implement TxUTXO
 func (tx *txBCH) SetInputSignatureScript(idx int, ss []byte) {
 	tx.TxIn[idx].SignatureScript = ss
 }
 
-// SignP2PKInput signs an p2pk input
+// SignP2PKInput implement TxUTXO
 func (tx *txBCH) SignP2PKInput(idx int, hashType uint32, privKey key.Private) error {
 	sig, err := tx.InputSignature(idx, hashType, privKey)
 	if err != nil {
@@ -92,7 +92,7 @@ func (tx *txBCH) SignP2PKInput(idx int, hashType uint32, privKey key.Private) er
 	return nil
 }
 
-// SignP2PKHInput signs a p2pkh input
+// SignP2PKHInput implement TxUTXO
 func (tx *txBCH) SignP2PKHInput(idx int, hashType uint32, privKey key.Private) error {
 	sig, err := tx.InputSignature(idx, hashType, privKey)
 	if err != nil {
@@ -106,7 +106,7 @@ func (tx *txBCH) SignP2PKHInput(idx int, hashType uint32, privKey key.Private) e
 	return nil
 }
 
-// Serialize serializes the transaction
+// Serialize implement Serializer
 func (tx *txBCH) Serialize() ([]byte, error) {
 	r := bytes.NewBuffer(make([]byte, 0, 1024))
 	if err := tx.MsgTx.Serialize(r); err != nil {
@@ -115,18 +115,18 @@ func (tx *txBCH) Serialize() ([]byte, error) {
 	return r.Bytes(), nil
 }
 
-// SerializedSize returns the size of the serialized transaction
+// SerializedSize implement Serializer
 func (tx *txBCH) SerializedSize() uint64 { return uint64(tx.MsgTx.SerializeSize()) }
 
-// TxUTXO returns a TxUTXO transaction
+// TxUTXO implement Tx
 func (tx *txBCH) TxUTXO() (TxUTXO, bool) { return tx, true }
 
-// TxStateBased returns a TxStateBased transaction
+// TxStateBased implement Tx
 func (tx *txBCH) TxStateBased() (TxStateBased, bool) { return nil, false }
 
 func (tx *txBCH) Crypto() *cryptos.Crypto { return cryptos.Cryptos["bitcoin"] }
 
-// Copy returns a copy of tx
+// Copy implement Tx
 func (tx *txBCH) Copy() Tx {
 	r := &txBCH{
 		MsgTx:         tx.MsgTx.Copy(),

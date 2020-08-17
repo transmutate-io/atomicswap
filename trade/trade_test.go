@@ -182,7 +182,7 @@ func recoverFunds(t Trade, tc *testutil.Crypto, pf printfFunc) error {
 	if err != nil {
 		return err
 	}
-	if remDur := ld.Locktime.Add(time.Second).Sub(time.Now()); remDur > 0 {
+	if remDur := ld.LockTime.Add(time.Second).Sub(time.Now()); remDur > 0 {
 		pf("waiting for %s\n", remDur)
 		time.Sleep(remDur)
 	}

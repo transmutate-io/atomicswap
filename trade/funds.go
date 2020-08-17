@@ -13,21 +13,31 @@ import (
 )
 
 type (
+	// FundsData holds information about funds
 	FundsData interface {
+		// AddFunds adds funds to the manager
 		AddFunds(funds interface{})
+		// Funds returns the fund on the manager
 		Funds() interface{}
+		// SetLock sets the lock for the funds
 		SetLock(lock Lock)
+		// Lock returns the lock for the funds
 		Lock() Lock
 	}
 
+	// Lock represents a cryptocurrency lock
 	Lock interface {
+		// Bytes returns the lock bytes
 		Bytes() types.Bytes
+		// LockData returns the lock data
 		LockData() (*LockData, error)
+		// Address returns the address for the given chain
 		Address(chain params.Chain) (string, error)
 	}
 
+	// LockData represents a lock
 	LockData struct {
-		Locktime        time.Time
+		LockTime        time.Time
 		TokenHash       types.Bytes
 		RedeemKeyData   key.KeyData
 		RecoveryKeyData key.KeyData
@@ -79,7 +89,7 @@ func parseLockScript(c *cryptos.Crypto, ls []byte) (*LockData, error) {
 		return nil, err
 	}
 	r := &LockData{}
-	r.Locktime = time.Unix(n, 0)
+	r.LockTime = time.Unix(n, 0)
 	// token hash
 	if r.TokenHash, err = hex.DecodeString(inst[12]); err != nil {
 		return nil, err

@@ -15,10 +15,12 @@ func newFundsDataDOGE() FundsData {
 	}
 }
 
+// MarshalYAML implement yaml.Marshaler
 func (fd *fundsDataDOGE) MarshalYAML() (interface{}, error) {
 	return fd.fundsDataBTC, nil
 }
 
+// UnmarshalYAML implement yaml.Unmarshaler
 func (fd *fundsDataDOGE) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	r := &fundsDataBTC{}
 	if err := unmarshal(r); err != nil {
@@ -28,6 +30,7 @@ func (fd *fundsDataDOGE) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	return nil
 }
 
+// Lock implement FundsData
 func (fd *fundsDataDOGE) Lock() Lock { return &fundsLockDOGE{fundsLockBTC(fd.LockScript)} }
 
 type fundsLockDOGE struct{ fundsLockBTC }
@@ -38,18 +41,22 @@ func newFundsLockDOGE(l types.Bytes) Lock {
 	}
 }
 
+// LockData implement Lock
 func (fl *fundsLockDOGE) LockData() (*LockData, error) {
 	return parseLockScript(cryptos.Dogecoin, fl.fundsLockBTC)
 }
 
+// Address implement Lock
 func (fl *fundsLockDOGE) Address(chain params.Chain) (string, error) {
 	return networks.All[cryptos.Dogecoin][chain].P2SHFromScript(fl.fundsLockBTC)
 }
 
+// MarshalYAML implement yaml.Marshaler
 func (fl *fundsLockDOGE) MarshalYAML() (interface{}, error) {
 	return fl.fundsLockBTC.Bytes().Hex(), nil
 }
 
+// UnmarshalYAML implement yaml.Unmarshaler
 func (fl *fundsLockDOGE) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	r := fundsLockBTC{}
 	if err := unmarshal(&r); err != nil {

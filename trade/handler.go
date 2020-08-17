@@ -9,11 +9,15 @@ import (
 )
 
 type (
+	// StageHandlerFunc is a trade stage handler function
 	StageHandlerFunc = func(trade Trade) error
-	StageHandlerMap  = map[stages.Stage]StageHandlerFunc
-	Handler          struct{ handlers StageHandlerMap }
+	// StageHandlerMap is a map of stage handlers
+	StageHandlerMap = map[stages.Stage]StageHandlerFunc
+	// Handler is a trade handler
+	Handler struct{ handlers StageHandlerMap }
 )
 
+// NewHandler returns a new *Handler
 func NewHandler(hm StageHandlerMap) *Handler {
 	r := &Handler{handlers: make(StageHandlerMap, 16)}
 	if hm != nil {
@@ -22,22 +26,26 @@ func NewHandler(hm StageHandlerMap) *Handler {
 	return r
 }
 
+// NewHandlerDefaults returns a new *Handler with the default handlers installed
 func NewHandlerDefaults(hm StageHandlerMap) *Handler {
 	r := NewHandler(DefaultStageHandlers)
 	r.InstallStageHandlers(hm)
 	return r
 }
 
+// InstallStageHandlers installs multiple handlers from a stage handler map
 func (sh *Handler) InstallStageHandlers(hm StageHandlerMap) {
 	for k, v := range hm {
 		sh.handlers[k] = v
 	}
 }
 
+// InstallStageHandler installs a stage handler
 func (sh *Handler) InstallStageHandler(s stages.Stage, h StageHandlerFunc) {
 	sh.handlers[s] = h
 }
 
+// Unhandled returns the unhandler stages of the trade
 func (sh *Handler) Unhandled(s ...stages.Stage) []stages.Stage {
 	r := make([]stages.Stage, 0, len(s))
 	for _, i := range s {
@@ -48,6 +56,7 @@ func (sh *Handler) Unhandled(s ...stages.Stage) []stages.Stage {
 	return r
 }
 
+// HandleStage handles a single trade stage
 func (sh *Handler) HandleStage(s stages.Stage, t Trade) error {
 	h, ok := sh.handlers[s]
 	if !ok {
@@ -56,6 +65,7 @@ func (sh *Handler) HandleStage(s stages.Stage, t Trade) error {
 	return h(t)
 }
 
+// HandleTrade handles a trade
 func (sh *Handler) HandleTrade(t Trade) error {
 	stager := t.Stager()
 	h := sh.Unhandled(stager.Stages()...)
@@ -72,8 +82,10 @@ func (sh *Handler) HandleTrade(t Trade) error {
 	}
 }
 
+// StagesNotHandledError represents an error related to unhandled stages
 type StagesNotHandledError []stages.Stage
 
+// Error implement error
 func (e StagesNotHandledError) Error() string {
 	s := []stages.Stage(e)
 	ss := make([]string, 0, len(s))
@@ -84,8 +96,11 @@ func (e StagesNotHandledError) Error() string {
 }
 
 var (
-	NoOpHandler          = func(_ Trade) error { return nil }
-	InterruptHandler     = func(_ Trade) error { return ErrInterruptTrade }
+	// NoOpHandler no operation handler
+	NoOpHandler = func(_ Trade) error { return nil }
+	// InterruptHandler interrupt trade handler
+	InterruptHandler = func(_ Trade) error { return ErrInterruptTrade }
+	// DefaultStageHandlers default handlers
 	DefaultStageHandlers = StageHandlerMap{
 		stages.Done:         func(_ Trade) error { return nil },
 		stages.GenerateKeys: func(tr Trade) error { return tr.GenerateKeys() },
@@ -98,5 +113,6 @@ var (
 			return err
 		},
 	}
+	// ErrInterruptTrade is returned when a trade interruption happens
 	ErrInterruptTrade = errors.New("trade interrupted")
 )

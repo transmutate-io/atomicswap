@@ -19,41 +19,69 @@ import (
 )
 
 type (
+	// TraderInfo represents a trader information
 	TraderInfo struct {
 		Crypto *cryptos.Crypto `yaml:"crypto"`
 		Amount types.Amount    `yaml:"amount"`
 	}
 
+	// BuyerTrade represents a buyer trade
 	BuyerTrade interface {
+		// GenerateToken generates a new token
 		GenerateToken() (types.Bytes, error)
+		// GenerateBuyProposal generates a buy proposal
 		GenerateBuyProposal() (*BuyProposal, error)
+		// SetLocks sets the locks for the trade
 		SetLocks(locks *BuyProposalResponse) error
 	}
 
+	// SellerTrade represents a seller trade
 	SellerTrade interface {
+		// AcceptBuyProposal accepts a buy proposal
 		AcceptBuyProposal(prop *BuyProposal) error
+		// Locks returns the locks for the trade
 		Locks() *BuyProposalResponse
 	}
 
+	// Trade represents a trade
 	Trade interface {
+		// Role returns the user role in the trade
 		Role() roles.Role
+		// Duration returns the trade duration
 		Duration() duration.Duration
+		// Token returns the token
 		Token() types.Bytes
+		// TokenHash returns the token hash
 		TokenHash() types.Bytes
+		// OwnInfo returns the trader info for the user
 		OwnInfo() *TraderInfo
+		// TraderInfo returns the trader info for the trader
 		TraderInfo() *TraderInfo
+		// RedeemKey returns the redeem key
 		RedeemKey() key.Private
+		// RecoveryKey returns the recovery key
 		RecoveryKey() key.Private
+		// RedeemableFunds returns the FundsData for the redeemable funds
 		RedeemableFunds() FundsData
+		// RecoverableFunds returns the FundsData for the recoverable funds
 		RecoverableFunds() FundsData
+		// Stager returns the trade *stages.Stager
 		Stager() *stages.Stager
+		// GenerateKeys generates both redeem and recovery keys
 		GenerateKeys() error
+		// SetToken sets the trade token (and token hash)
 		SetToken(token types.Bytes)
+		// RedeemTxFixedFee generates a redeem transaction with fixed fee
 		RedeemTxFixedFee(lockScript []byte, fee uint64) (tx.Tx, error)
+		// RedeemTx generates a redeem transaction with fee per byte
 		RedeemTx(lockScript []byte, feePerByte uint64) (tx.Tx, error)
+		// RecoveryTxFixedFee generates a recovery transaction with fixed fee
 		RecoveryTxFixedFee(lockScript []byte, fee uint64) (tx.Tx, error)
+		// RecoveryTx generates a recovery transaction with fee per byte
 		RecoveryTx(lockScript []byte, feePerByte uint64) (tx.Tx, error)
+		// Buyer returns a buyer trade
 		Buyer() (BuyerTrade, error)
+		// Seller returns a seller trade
 		Seller() (SellerTrade, error)
 	}
 )
@@ -157,6 +185,7 @@ func (bt *baseTrade) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// TokenHash returns the hash for the given token
 func TokenHash(t []byte) []byte { return hash.Ripemd160Sum(hash.Sha256Sum(t)) }
 
 // SetToken sets the token
@@ -187,6 +216,7 @@ const tokenSize = 32
 // read random token
 func readRandomToken() ([]byte, error) { return readRandom(tokenSize) }
 
+// GenerateKeys implement BuyerTrade
 func (bt *baseTrade) GenerateToken() (types.Bytes, error) {
 	// generate token
 	rt, err := readRandomToken()
@@ -198,6 +228,7 @@ func (bt *baseTrade) GenerateToken() (types.Bytes, error) {
 	return rt, nil
 }
 
+// GenerateKeys implement Trade
 func (bt *baseTrade) GenerateKeys() error {
 	var err error
 	// generate recovery key
@@ -210,10 +241,14 @@ func (bt *baseTrade) GenerateKeys() error {
 }
 
 var (
-	ErrNotABuyerTrade  = errors.New("not a buyer trade")
+	// ErrNotABuyerTrade is returned if the trade is not a buy
+	ErrNotABuyerTrade = errors.New("not a buyer trade")
+
+	// ErrNotASellerTrade is returned if the trade is not a sell
 	ErrNotASellerTrade = errors.New("not a seller trade")
 )
 
+// GenerateBuyProposal implement BuyerTrade
 func (bt *baseTrade) GenerateBuyProposal() (*BuyProposal, error) {
 	// only a buyer can generate a proposal
 	return &BuyProposal{
@@ -250,6 +285,7 @@ func generateTimeLock(c *cryptos.Crypto, lockTime time.Time, tokenHash []byte, r
 	)
 }
 
+// AcceptBuyProposal implement SellerTrade
 func (bt *baseTrade) AcceptBuyProposal(prop *BuyProposal) error {
 	// set token hash
 	bt.TokenHash = prop.TokenHash
@@ -303,12 +339,17 @@ func (bt *baseTrade) AcceptBuyProposal(prop *BuyProposal) error {
 }
 
 var (
-	ErrMismatchTokenHash   = errors.New("mismatching token hash")
+	// ErrMismatchTokenHash is returned when there is a token hash mismatch
+	ErrMismatchTokenHash = errors.New("mismatching token hash")
+
+	// ErrInvalidLockInterval is returned when the time lock interval is invalid
 	ErrInvalidLockInterval = errors.New("invalid lock interval")
-	ErrMismatchKeyData     = errors.New("mismatching key data")
+
+	// ErrMismatchKeyData is returned when there is a mismatch in the key data
+	ErrMismatchKeyData = errors.New("mismatching key data")
 )
 
-// SetLocks sets the buyer and seller locks
+// SetLocks implement BuyerTrade
 func (bt *baseTrade) SetLocks(locks *BuyProposalResponse) error {
 	bd, err := locks.Buyer.LockData()
 	if err != nil {
@@ -318,7 +359,7 @@ func (bt *baseTrade) SetLocks(locks *BuyProposalResponse) error {
 	if err != nil {
 		return err
 	}
-	if bd.Locktime.Sub(sd.Locktime) != time.Duration(bt.Duration)/2 {
+	if bd.LockTime.Sub(sd.LockTime) != time.Duration(bt.Duration)/2 {
 		return ErrInvalidLockInterval
 	}
 	if !bytes.Equal(bd.TokenHash, sd.TokenHash) || !bytes.Equal(bd.TokenHash, bt.TokenHash) {
@@ -335,6 +376,7 @@ func (bt *baseTrade) SetLocks(locks *BuyProposalResponse) error {
 	return nil
 }
 
+// Locks implement SellerTrade
 func (bt *baseTrade) Locks() *BuyProposalResponse {
 	return &BuyProposalResponse{
 		Buyer:  bt.RedeemableFunds.Lock(),
@@ -342,6 +384,7 @@ func (bt *baseTrade) Locks() *BuyProposalResponse {
 	}
 }
 
+// ErrNotUTXO is returned in the case the crypto is not a utxo crypto
 var ErrNotUTXO = errors.New("not a utxo crypto")
 
 func (bt *baseTrade) newRedeemTxUTXO(lockScript []byte, fee uint64) (tx.Tx, error) {
@@ -394,12 +437,12 @@ func (bt *baseTrade) newRedeemTx(lockScript []byte, fee uint64) (tx.Tx, error) {
 	}
 }
 
-// RedeemTxFixedFee returns the redeem transaction for the locked funds with a fixed fee
+// RedeemTxFixedFee implement Trade
 func (bt *baseTrade) RedeemTxFixedFee(lockScript []byte, fee uint64) (tx.Tx, error) {
 	return bt.newRedeemTx(lockScript, fee)
 }
 
-// RedeemTx returns the redeem transaction for the locked funds
+// RedeemTx implement Trade
 func (bt *baseTrade) RedeemTx(lockScript []byte, feePerByte uint64) (tx.Tx, error) {
 	tx, err := bt.newRedeemTx(lockScript, 0)
 	if err != nil {
@@ -435,7 +478,7 @@ func (bt *baseTrade) newRecoveryTxUTXO(lockScript []byte, fee uint64) (tx.Tx, er
 	if err != nil {
 		return nil, err
 	}
-	tx.SetLockTime(lst.Locktime.UTC())
+	tx.SetLockTime(lst.LockTime.UTC())
 	for i := range outputs {
 		sig, err := tx.InputSignature(i, 1, bt.RecoveryKey)
 		if err != nil {
@@ -463,12 +506,12 @@ func (bt *baseTrade) newRecoveryTx(lockScript []byte, fee uint64) (tx.Tx, error)
 	}
 }
 
-// RecoveryTxFixedFee returns the recovery transaction for the locked funds with a fixed fee
+// RecoveryTxFixedFee implement Trade
 func (bt *baseTrade) RecoveryTxFixedFee(lockScript []byte, fee uint64) (tx.Tx, error) {
 	return bt.newRecoveryTx(lockScript, fee)
 }
 
-// RecoveryTx returns the recovery transaction for the locked funds
+// RecoveryTx implement Trade
 func (bt *baseTrade) RecoveryTx(lockScript []byte, feePerByte uint64) (tx.Tx, error) {
 	tx, err := bt.newRecoveryTx(lockScript, 0)
 	if err != nil {

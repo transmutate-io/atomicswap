@@ -32,6 +32,7 @@ const (
 	ecCantListLockSets
 	ecCantListProposals
 	ecCantListTrades
+	ecCantLoadConfig
 	ecCantOpenLockSet
 	ecCantOpenOutput
 	ecCantOpenTrade
@@ -65,6 +66,7 @@ var ecMessages = map[int]string{
 	ecCantListLockSets:     "can't list locksets: %s\n",
 	ecCantListProposals:    "can't list proposals: %s\n",
 	ecCantListTrades:       "can't list trades: %s\n",
+	ecCantLoadConfig:       "can't load config: %s\n",
 	ecCantOpenLockSet:      "can't open lock set: %s\n",
 	ecCantOpenOutput:       "can't create output file: %s\n",
 	ecCantOpenTrade:        "can't open trade \"%s\": %s\n",

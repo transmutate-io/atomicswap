@@ -239,7 +239,7 @@ func flagCryptoChain(c *cryptos.Crypto) params.Chain {
 			return i.Chain
 		}
 	}
-	return params.MainNet
+	panic("unknown network")
 }
 
 func mustFlagFormat(fs *pflag.FlagSet) string        { return mustFlagString(fs, "format") }

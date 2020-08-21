@@ -136,7 +136,7 @@ func cmdExportTrades(cmd *cobra.Command, args []string) {
 	err := eachTrade(tradesDir(cmd), func(name string, tr trade.Trade) error {
 		if _, exp := names[name]; exp || mustFlagAll(cmd.Flags()) {
 			delete(names, name)
-			trades[strings.Join(filepath.SplitList(name), "/")] = tr
+			trades[filepath.ToSlash(name)] = tr
 		}
 		return nil
 	})

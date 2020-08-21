@@ -4,8 +4,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/transmutate-io/atomicswap/cryptos"
 	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
 	"github.com/transmutate-io/cryptocore/types"
@@ -88,14 +90,14 @@ func init() {
 	})
 }
 
-func cmdNewTrade(cmd *cobra.Command, args []string) {
+func newTrade(ownAmount types.Amount, ownCrypto *cryptos.Crypto, traderAmount types.Amount, traderCrypto *cryptos.Crypto, dur time.Duration) (trade.Trade, error) {
 	tr, err := trade.NewOnChainBuy(
-		types.Amount(args[1]), parseCrypto(args[2]),
-		types.Amount(args[3]), parseCrypto(args[4]),
-		parseDuration(args[5]),
+		ownAmount, ownCrypto,
+		traderAmount, traderCrypto,
+		dur,
 	)
 	if err != nil {
-		errorExit(ecCantCreateTrade, err)
+		return nil, err
 	}
 	th := trade.NewHandler(trade.DefaultStageHandlers)
 	th.InstallStageHandler(stages.SendProposal, trade.InterruptHandler)
@@ -103,9 +105,21 @@ func cmdNewTrade(cmd *cobra.Command, args []string) {
 		th.InstallStageHandler(i, trade.NoOpHandler)
 	}
 	if err = th.HandleTrade(tr); err != nil && err != trade.ErrInterruptTrade {
+		return nil, err
+	}
+	return tr, nil
+}
+
+func cmdNewTrade(cmd *cobra.Command, args []string) {
+	tr, err := newTrade(
+		types.Amount(args[1]), mustParseCrypto(args[2]),
+		types.Amount(args[3]), mustParseCrypto(args[4]),
+		mustParseDuration(args[5]),
+	)
+	if err != nil {
 		errorExit(ecCantCreateTrade, err)
 	}
-	saveTrade(cmd, args[0], tr)
+	mustSaveTrade(cmd, args[0], tr)
 }
 
 func cmdListTrades(cmd *cobra.Command, args []string) {
@@ -166,7 +180,7 @@ func cmdImportTrades(cmd *cobra.Command, args []string) {
 	}
 	for n, tr := range trades {
 		n = filepath.Join(strings.Split(n, "/")...)
-		saveTrade(cmd, n, tr)
+		mustSaveTrade(cmd, n, tr)
 	}
 }
 

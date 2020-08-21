@@ -122,7 +122,7 @@ func cmdAcceptLockSet(cmd *cobra.Command, args []string) {
 	if err := th.HandleTrade(tr); err != nil && err != trade.ErrInterruptTrade {
 		errorExit(ecCantAcceptLockSet, err)
 	}
-	saveTrade(cmd, args[0], tr)
+	mustSaveTrade(cmd, args[0], tr)
 }
 
 func cmdShowLockSetInfo(cmd *cobra.Command, args []string) {
@@ -138,8 +138,8 @@ func cmdShowLockSetInfo(cmd *cobra.Command, args []string) {
 	tpl := mustOutputTemplate(cmd.Flags(), lockSetInfoTemplates, template.FuncMap{"now": time.Now})
 	err := tpl.Execute(out, newLockSetInfo(
 		tr,
-		newLockInfo(cmd, ls.Buyer, tr.OwnInfo().Crypto),
-		newLockInfo(cmd, ls.Seller, tr.TraderInfo().Crypto),
+		mustNewLockInfo(cmd, ls.Buyer, tr.OwnInfo().Crypto),
+		mustNewLockInfo(cmd, ls.Seller, tr.TraderInfo().Crypto),
 	))
 	if err != nil {
 		errorExit(ecBadTemplate, err)

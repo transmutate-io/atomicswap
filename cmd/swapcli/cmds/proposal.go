@@ -124,5 +124,5 @@ func cmdAcceptProposal(cmd *cobra.Command, args []string) {
 	if err := th.HandleTrade(newTrade); err != nil && err != trade.ErrInterruptTrade {
 		errorExit(ecCantCreateTrade, err)
 	}
-	saveTrade(cmd, args[0], newTrade)
+	mustSaveTrade(cmd, args[0], newTrade)
 }

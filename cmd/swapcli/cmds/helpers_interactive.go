@@ -10,16 +10,9 @@ import (
 
 	"github.com/c-bata/go-prompt"
 	"github.com/spf13/cobra"
-	"github.com/transmutate-io/atomicswap/cryptos"
 )
 
 var (
-	exitCommand = &commandCompleter{
-		suggestion: &prompt.Suggest{
-			Text:        "exit",
-			Description: "exit the interactive console",
-		},
-	}
 	upCommand = &commandCompleter{
 		suggestion: &prompt.Suggest{
 			Text:        "..",
@@ -32,6 +25,12 @@ var (
 			Description: "show the help for the current menu",
 		},
 	}
+	exitCommand = &commandCompleter{
+		suggestion: &prompt.Suggest{
+			Text:        "exit",
+			Description: "exit the interactive console",
+		},
+	}
 	tailCommands  = []*commandCompleter{upCommand, helpCommand, exitCommand}
 	configCommand = &commandCompleter{
 		suggestion: &prompt.Suggest{
@@ -41,56 +40,96 @@ var (
 	}
 )
 
-func init() {
-	configClientsCommand := &commandCompleter{
-		parent: configCommand,
+func newClientTLSConfigMenu(parent *commandCompleter) *commandCompleter {
+	r := &commandCompleter{
+		parent: parent,
 		suggestion: &prompt.Suggest{
-			Text:        "clients",
-			Description: "configure cryptocurrency clients",
+			Text:        "tls",
+			Description: "configure tls",
 		},
 	}
-	for c := range cryptos.Cryptos {
-		configClientsCommand.sub = append(configClientsCommand.sub, &commandCompleter{
-			parent: configClientsCommand,
-			suggestion: &prompt.Suggest{
-				Text:        c,
-				Description: fmt.Sprintf("configure %s client", c),
-			},
-		})
-	}
-	configClientsCommand.sub = append(configClientsCommand.sub, tailCommands...)
-	configCommand.sub = append(configCommand.sub,
+	r.sub = append(r.sub,
 		&commandCompleter{
-			parent: configCommand,
+			parent: r,
 			suggestion: &prompt.Suggest{
-				Text:        "network",
-				Description: "configure which network to use",
-			},
-		},
-		configClientsCommand,
-		&commandCompleter{
-			parent: configCommand,
-			suggestion: &prompt.Suggest{
-				Text:        "save",
-				Description: "save configuration",
+				Text:        "ca",
+				Description: "configure CA certificate",
 			},
 		},
 		&commandCompleter{
-			parent: configCommand,
+			parent: r,
 			suggestion: &prompt.Suggest{
-				Text:        "load",
-				Description: "load configuration",
+				Text:        "cert",
+				Description: "configure client certificate",
 			},
 		},
 		&commandCompleter{
-			parent: configCommand,
+			parent: r,
+			suggestion: &prompt.Suggest{
+				Text:        "key",
+				Description: "configure client key",
+			},
+		},
+		&commandCompleter{
+			parent: r,
+			suggestion: &prompt.Suggest{
+				Text:        "skipverify",
+				Description: "configure TLS to skip certificate verification",
+			},
+		},
+		&commandCompleter{
+			parent: r,
 			suggestion: &prompt.Suggest{
 				Text:        "show",
-				Description: "show the current configuration",
+				Description: "show configuration",
 			},
 		},
 	)
-	configCommand.sub = append(configCommand.sub, tailCommands...)
+	r.sub = append(r.sub, tailCommands...)
+	return r
+}
+
+func newClientConfigMenu(name string, parent *commandCompleter) *commandCompleter {
+	r := &commandCompleter{
+		parent: parent,
+		suggestion: &prompt.Suggest{
+			Text:        name,
+			Description: fmt.Sprintf("configure %s client", name),
+		},
+	}
+	r.sub = append(r.sub,
+		&commandCompleter{
+			parent: r,
+			suggestion: &prompt.Suggest{
+				Text:        "address",
+				Description: "configure the address",
+			},
+		},
+		&commandCompleter{
+			parent: r,
+			suggestion: &prompt.Suggest{
+				Text:        "username",
+				Description: "configure the username",
+			},
+		},
+		&commandCompleter{
+			parent: r,
+			suggestion: &prompt.Suggest{
+				Text:        "password",
+				Description: "configure the password",
+			},
+		},
+		newClientTLSConfigMenu(r),
+		&commandCompleter{
+			parent: r,
+			suggestion: &prompt.Suggest{
+				Text:        "show",
+				Description: "show configuration",
+			},
+		},
+	)
+	r.sub = append(r.sub, tailCommands...)
+	return r
 }
 
 type commandCompleter struct {
@@ -176,36 +215,55 @@ func (cc *commandCompleter) completer(doc prompt.Document) []prompt.Suggest {
 	return prompt.FilterHasPrefix(r, doc.GetWordBeforeCursor(), false)
 }
 
-func inputNetwork() string {
-	choices := make([]prompt.Suggest, 0, 3)
-	for _, i := range []string{"mainnet", "testnet", "locanet"} {
-		choices = append(choices, prompt.Suggest{
-			Text:        i,
-			Description: "set the network to " + i,
-		})
-	}
-	pr := fmt.Sprintf("new network (%s)> ", mainConfig.Network)
-	r, ok := inputMultiChoice(pr, mainConfig.Network, choices, func(_ []prompt.Suggest) {
-		fmt.Printf("\navailable networks:\n")
-		for _, i := range choices {
-			fmt.Printf("  %s\n", i.Text)
-		}
-		fmt.Printf("\n.. to cancel and move up\n\n")
-	})
-	if !ok {
-		return mainConfig.Network
+func inputTextWithDefault(pr, def string) string {
+	r := prompt.Input(
+		fmt.Sprintf("%s (%s): ", pr, def),
+		func(prompt.Document) []prompt.Suggest { return nil },
+	)
+	if strings.TrimSpace(r) == "" {
+		return def
 	}
 	return r
+}
+
+func inputText(pr string) string {
+	return prompt.Input(
+		fmt.Sprintf("%s: ", pr),
+		func(prompt.Document) []prompt.Suggest { return nil },
+	)
+}
+
+var yesNoMap = map[string]bool{"yes": true, "no": false}
+
+func inputYesNo(pr string, def bool) (bool, bool) {
+	choices := make([]prompt.Suggest, 0, 2)
+	for _, i := range []string{"no", "yes"} {
+		choices = append(choices, prompt.Suggest{Text: i})
+	}
+	var d string
+	if def {
+		d = choices[1].Text
+	} else {
+		d = choices[0].Text
+	}
+	r, ok := inputMultiChoice(pr, d, choices, func(_ []prompt.Suggest) {
+		fmt.Printf("\nchoose yes or no\n")
+	})
+	if !ok {
+		return false, false
+	}
+	return yesNoMap[r], true
 }
 
 func inputMultiChoice(pr string, def string, choices []prompt.Suggest, helpFunc func(c []prompt.Suggest)) (string, bool) {
 	choices = append(choices, *tailCommands[0].suggestion, *tailCommands[1].suggestion)
 	for {
-		input := prompt.Input(pr, func(doc prompt.Document) []prompt.Suggest {
+		input := prompt.Input(fmt.Sprintf("%s (%s): ", pr, def), func(doc prompt.Document) []prompt.Suggest {
 			return prompt.FilterHasPrefix(choices, doc.GetWordBeforeCursor(), false)
 		})
 		switch ii := strings.TrimSpace(input); ii {
 		case "":
+			return def, true
 		case "..":
 			return "", false
 		case "help":
@@ -221,61 +279,41 @@ func inputMultiChoice(pr string, def string, choices []prompt.Suggest, helpFunc 
 	}
 }
 
-var (
-	errInvalidPath = errors.New("invalid path")
-	pathSep        = string([]rune{filepath.Separator})
-)
+var pathSep = string([]rune{filepath.Separator})
 
 func trimPath(s, p string) string {
 	return strings.TrimPrefix(strings.TrimPrefix(s, p), pathSep)
 }
 
-func inputFilename(pr string, basePath string, mustExist bool) (string, error) {
+func inputPath(pr string, rootPath string, mustExist bool, pathToSuggestionFn func(path string, text string) (prompt.Suggest, bool)) (string, error) {
 	for {
 		input := prompt.Input(pr, func(doc prompt.Document) []prompt.Suggest {
 			r := make([]prompt.Suggest, 0, 0)
 			text := doc.TextBeforeCursor()
-			fullPath := filepath.Clean(filepath.Join(basePath, text))
-			if strings.Contains(fullPath, "..") {
-				return nil
+			var fullPath string
+			if filepath.IsAbs(text) {
+				fullPath = text
+			} else {
+				fullPath = filepath.Join(rootPath, text)
 			}
 			var dirName string
 			if text == "" {
-				dirName = filepath.Clean(basePath)
-			} else if strings.HasSuffix(text, pathSep) {
-				dirName = fullPath
+				dirName = rootPath
+			} else if filepath.IsAbs(text) {
+				dirName, _ = filepath.Split(text)
 			} else {
-				dirName, _ = filepath.Split(fullPath)
+				if strings.HasSuffix(text, pathSep) {
+					dirName = fullPath
+				} else {
+					dirName, _ = filepath.Split(fullPath)
+				}
 			}
-			err := filepath.Walk(dirName, func(path string, info os.FileInfo, err error) error {
-				if err != nil {
-					e, ok := err.(*os.PathError)
-					if !ok || e.Err != syscall.ENOENT {
-						return err
-					}
-					return nil
+			err := listPath(dirName, func(path string) {
+				sug, ok := pathToSuggestionFn(path, text)
+				if !ok {
+					return
 				}
-				var isDir bool
-				relPath := trimPath(path, dirName)
-				if info.IsDir() {
-					if len(relPath) == 0 {
-						return nil
-					} else {
-						isDir = true
-					}
-				}
-				path = trimPath(path, basePath)
-				if strings.HasPrefix(path, text) {
-					var s string
-					if isDir {
-						s = "/"
-					}
-					r = append(r, prompt.Suggest{Text: fmt.Sprintf("%s%s", path, s)})
-					if isDir {
-						return filepath.SkipDir
-					}
-				}
-				return nil
+				r = append(r, sug)
 			})
 			if err != nil {
 				return nil
@@ -285,12 +323,90 @@ func inputFilename(pr string, basePath string, mustExist bool) (string, error) {
 		if strings.TrimSpace(input) == "" {
 			return "", nil
 		}
-		r := filepath.Clean(filepath.Join(basePath, input))
+		var r string
+		if filepath.IsAbs(input) {
+			r = input
+		} else {
+			r = filepath.Join(rootPath, input)
+		}
 		if mustExist {
-			if _, err := os.Stat(r); err != nil {
+			info, err := os.Stat(r)
+			if err != nil {
 				return "", err
+			}
+			if info.IsDir() {
+				return "", errors.New("not a file")
 			}
 		}
 		return r, nil
+	}
+}
+
+func listPath(rootPath string, entryFn func(string)) error {
+	return filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			e, ok := err.(*os.PathError)
+			if !ok {
+				return err
+			}
+			if e.Err != syscall.ENOENT && e.Err != syscall.EACCES {
+				return err
+			}
+			return nil
+		}
+		if info.IsDir() {
+			if filepath.Clean(rootPath) == filepath.Clean(path) {
+				return nil
+			}
+		}
+		entryFn(path)
+		if info.IsDir() {
+			return filepath.SkipDir
+		}
+		return nil
+	})
+}
+
+func inputSandboxedFilename(pr string, rootPath string, mustExist bool) (string, error) {
+	return inputPath(pr, rootPath, mustExist, newSandboxedPathFilter(rootPath))
+}
+
+func inputFilename(pr string, rootPath string, mustExit bool) (string, error) {
+	return inputPath(pr, rootPath, mustExit, newAbsolutePathFilter(rootPath))
+}
+
+func newSandboxedPathFilter(rootPath string) func(string, string) (prompt.Suggest, bool) {
+	return func(path string, text string) (prompt.Suggest, bool) {
+		cRootPath := filepath.Clean(rootPath)
+		cPath := filepath.Clean(path)
+		if !strings.HasPrefix(cPath, cRootPath) {
+			return prompt.Suggest{}, false
+		}
+		p := trimPath(cPath, cRootPath)
+		if !strings.HasPrefix(p, text) {
+			return prompt.Suggest{}, false
+		}
+		return prompt.Suggest{Text: p}, true
+	}
+}
+
+func newAbsolutePathFilter(rootPath string) func(string, string) (prompt.Suggest, bool) {
+	return func(path string, text string) (prompt.Suggest, bool) {
+		if filepath.IsAbs(text) && strings.HasPrefix(path, text) {
+			return prompt.Suggest{Text: path}, true
+		} else {
+			if strings.HasPrefix(filepath.Clean(text), "..") {
+				_, pathName := filepath.Split(path)
+				textDir, textName := filepath.Split(text)
+				if strings.HasPrefix(pathName, textName) {
+					return prompt.Suggest{Text: textDir + pathName}, true
+				}
+			} else {
+				if relPath := trimPath(path, rootPath); strings.HasPrefix(relPath, text) {
+					return prompt.Suggest{Text: relPath}, true
+				}
+			}
+		}
+		return prompt.Suggest{}, false
 	}
 }

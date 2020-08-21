@@ -78,7 +78,7 @@ func cmdListRecoverable(cmd *cobra.Command, args []string) {
 }
 
 func recoverFunds(tr trade.Trade, cl cryptocore.Client, cryptoInfo *trade.TraderInfo, addr string, feeFixed bool, fee uint64, out io.Writer, verbose int) error {
-	addrScript, err := networks.AllByName[cryptoInfo.Crypto.Name][flagCryptoChain(cryptoInfo.Crypto)].
+	addrScript, err := networks.AllByName[cryptoInfo.Crypto.Name][mustFlagCryptoChain(cryptoInfo.Crypto)].
 		AddressToScript(addr)
 	if err != nil {
 		return err

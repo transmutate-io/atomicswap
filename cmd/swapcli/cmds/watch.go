@@ -145,7 +145,7 @@ func newDepositWatcher(
 		sig := make(chan os.Signal, 0)
 		signal.Notify(sig, os.Interrupt, os.Kill)
 		targetAmount := cryptoInfo.Amount.UInt64(cryptoInfo.Crypto.Decimals)
-		depositAddr, err := funds.Lock().Address(flagCryptoChain(cryptoInfo.Crypto))
+		depositAddr, err := funds.Lock().Address(mustFlagCryptoChain(cryptoInfo.Crypto))
 		if err != nil {
 			return err
 		}
@@ -272,7 +272,7 @@ func cmdWatchDeposit(
 			mustFlagConfirmations(fs),
 			wd,
 			selectWatchData(wd),
-			func(t trade.Trade) { saveTrade(cmd, tradeName, t) },
+			func(t trade.Trade) { mustSaveTrade(cmd, tradeName, t) },
 			func(nwd *watchData) { saveWatchData(cmd, tradeName, nwd) },
 		),
 		selectInterruptStage(tr): trade.InterruptHandler,
@@ -283,7 +283,7 @@ func cmdWatchDeposit(
 	if err := th.HandleTrade(tr); err != nil && err != trade.ErrInterruptTrade {
 		errorExit(ecFailedToWatch, err)
 	}
-	saveTrade(cmd, tradeName, tr)
+	mustSaveTrade(cmd, tradeName, tr)
 }
 
 func cmdWatchOwnDeposit(cmd *cobra.Command, args []string) {
@@ -369,5 +369,5 @@ func cmdWatchSecretToken(cmd *cobra.Command, args []string) {
 	if err := th.HandleTrade(tr); err != nil && err != trade.ErrInterruptTrade {
 		errorExit(ecFailedToWatch, err)
 	}
-	saveTrade(cmd, args[0], tr)
+	mustSaveTrade(cmd, args[0], tr)
 }

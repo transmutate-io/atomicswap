@@ -4,15 +4,17 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"text/template"
+	"time"
 
 	"github.com/c-bata/go-prompt"
 	"github.com/spf13/cobra"
 	"github.com/transmutate-io/atomicswap/cryptos"
 	"github.com/transmutate-io/cryptocore"
+	"github.com/transmutate-io/cryptocore/types"
 	"gopkg.in/yaml.v2"
 )
 
@@ -22,6 +24,22 @@ var InteractiveConsoleCmd = &cobra.Command{
 	Aliases: []string{"i", "console", "c"},
 	Args:    cobra.NoArgs,
 	Run:     cmdInteractiveConsole,
+}
+
+func init() {
+	addFlagCryptoChain(InteractiveConsoleCmd.Flags())
+	for c := range cryptos.Cryptos {
+		interactiveActionsHandlers["config/clients/"+c+"/address"] = newActionConfigClientAddress(c)
+		interactiveActionsHandlers["config/clients/"+c+"/username"] = newActionConfigClientUsername(c)
+		interactiveActionsHandlers["config/clients/"+c+"/password"] = newActionConfigClientPassword(c)
+		interactiveActionsHandlers["config/clients/"+c+"/show"] = newActionConfigClientShow(c)
+
+		interactiveActionsHandlers["config/clients/"+c+"/tls/ca"] = newActionConfigClientTLSCaCert(c)
+		interactiveActionsHandlers["config/clients/"+c+"/tls/cert"] = newActionConfigClientTLSCert(c)
+		interactiveActionsHandlers["config/clients/"+c+"/tls/key"] = newActionConfigClientTLSKey(c)
+		interactiveActionsHandlers["config/clients/"+c+"/tls/skipverify"] = newActionConfigClientTLSSkipVerify(c)
+		interactiveActionsHandlers["config/clients/"+c+"/tls/show"] = newActionConfigClientTLSShow(c)
+	}
 }
 
 func cmdInteractiveConsole(cmd *cobra.Command, args []string) {
@@ -88,24 +106,60 @@ Outer:
 }
 
 var interactiveActionsHandlers = map[string]func(cmd *cobra.Command){
-	"cryptos":        actionListCryptos,
-	"config/network": actionConfigNetwork,
-	"config/save":    actionSaveConfig,
-	"config/load":    actionLoadConfig,
-	"config/show":    actionShowConfig,
-	"trade/new":      actionNewTrade,
+	"cryptos":      actionListCryptos,
+	"config/save":  actionSaveConfig,
+	"config/load":  actionLoadConfig,
+	"config/show":  actionShowConfig,
+	"trade/new":    actionNewTrade,
+	"trade/list":   actionListTrades,
+	"trade/rename": actionRenameTrade,
+	"trade/delete": actionDeleteTrade,
+	"trade/export": actionExportTrades,
+	"trade/import": actionImportTrades,
 }
 
 func init() {
+	configClientsCommand := &commandCompleter{
+		parent: configCommand,
+		suggestion: &prompt.Suggest{
+			Text:        "clients",
+			Description: "configure cryptocurrency clients",
+		},
+	}
+	cc := make([]string, 0, len(cryptos.Cryptos))
 	for c := range cryptos.Cryptos {
-		interactiveActionsHandlers["config/clients/"+c] = newCryptoConfigMenu(c)
+		cc = append(cc, c)
 	}
-}
-
-func newCryptoConfigMenu(name string) func(*cobra.Command) {
-	return func(_ *cobra.Command) {
-		fmt.Printf("config %s client\n", name)
+	sort.Strings(cc)
+	for _, c := range cc {
+		configClientsCommand.sub = append(configClientsCommand.sub, newClientConfigMenu(c, configClientsCommand))
 	}
+	configClientsCommand.sub = append(configClientsCommand.sub, tailCommands...)
+	configCommand.sub = append(configCommand.sub,
+		configClientsCommand,
+		&commandCompleter{
+			parent: configCommand,
+			suggestion: &prompt.Suggest{
+				Text:        "save",
+				Description: "save configuration",
+			},
+		},
+		&commandCompleter{
+			parent: configCommand,
+			suggestion: &prompt.Suggest{
+				Text:        "load",
+				Description: "load configuration",
+			},
+		},
+		&commandCompleter{
+			parent: configCommand,
+			suggestion: &prompt.Suggest{
+				Text:        "show",
+				Description: "show the current configuration",
+			},
+		},
+	)
+	configCommand.sub = append(configCommand.sub, tailCommands...)
 }
 
 func actionListCryptos(cmd *cobra.Command) {
@@ -114,51 +168,267 @@ func actionListCryptos(cmd *cobra.Command) {
 		fmt.Printf("can't list cryptos: %s\n", err)
 		return
 	}
-	fmt.Println("available cryptocurrencies:")
+	fmt.Printf("\navailable cryptocurrencies:\n\n")
 	if err = listCryptos(os.Stdout, tpl); err != nil {
 		fmt.Printf("can't list cryptos: %s\n", err)
 	}
+	fmt.Println()
+}
+
+func actionNewTrade(cmd *cobra.Command) {
+	var (
+		tradeName    string
+		ownAmount    types.Amount
+		ownCrypto    *cryptos.Crypto
+		traderAmount types.Amount
+		traderCrypto *cryptos.Crypto
+		dur          time.Duration
+	)
+	if tradeName = inputText("trade name"); tradeName == "" {
+		fmt.Printf("trade creation aborted\n")
+		return
+	}
+	for {
+		if v := inputText("own amount"); v != "" {
+			if ownAmount = types.Amount(v); !ownAmount.Valid() {
+				fmt.Printf("invalid amount\n")
+				continue
+			}
+			break
+		}
+	}
+	cryptosNames := sortedCryptos()
+	cryptosSuggestions := make([]prompt.Suggest, 0, len(cryptosNames))
+	for _, i := range cryptosNames {
+		cryptosSuggestions = append(cryptosSuggestions, prompt.Suggest{Text: i})
+	}
+	helpFunc := func(c []prompt.Suggest) {
+		fmt.Printf("\navailable cryptocurrencies:\n\n")
+		for _, i := range c[:len(c)-1] {
+			fmt.Printf("  %s\n", i.Text)
+		}
+		fmt.Printf("\n  .. to abort\n\n")
+	}
+	for {
+		c, ok := inputMultiChoice("own crypto", cryptosNames[0], cryptosSuggestions, helpFunc)
+		if !ok {
+			fmt.Printf("trade creation aborted\n")
+			return
+		}
+		own, err := parseCrypto(c)
+		if err != nil {
+			fmt.Printf("invalid crypto: %s\n", err)
+			continue
+		}
+		ownCrypto = own
+		break
+	}
+	for {
+		if v := inputText("trader amount"); v != "" {
+			if traderAmount = types.Amount(v); !traderAmount.Valid() {
+				fmt.Printf("invalid amount\n")
+				continue
+			}
+			break
+		}
+	}
+	for {
+		c, ok := inputMultiChoice("trader crypto", cryptosNames[0], cryptosSuggestions, helpFunc)
+		if !ok {
+			fmt.Printf("trade creation aborted\n")
+			return
+		}
+		trader, err := parseCrypto(c)
+		if err != nil {
+			fmt.Printf("invalid crypto: %s\n", err)
+			continue
+		}
+		traderCrypto = trader
+		break
+	}
+	for {
+		v := inputText("duration")
+		if v == "" {
+			fmt.Printf("trade creation aborted\n")
+			return
+		}
+		var err error
+		dur, err = time.ParseDuration(v)
+		if err != nil {
+			fmt.Printf("invalid duration: %s\n", err)
+			continue
+		}
+		break
+	}
+	tr, err := newTrade(ownAmount, ownCrypto, traderAmount, traderCrypto, dur)
+	if err != nil {
+		fmt.Printf("can't create a new trade: %s\n", err)
+		return
+	}
+	if err = saveTrade(cmd, tradeName, tr); err != nil {
+		fmt.Printf("can't save trade: %s\n", err)
+	}
+}
+
+func actionListTrades(cmd *cobra.Command) {
+	fmt.Print("actionListTrades\n")
+}
+
+func actionRenameTrade(cmd *cobra.Command) {
+	fmt.Print("actionRenameTrade\n")
+}
+
+func actionDeleteTrade(cmd *cobra.Command) {
+	fmt.Print("actionDeleteTrade\n")
+}
+
+func actionExportTrades(cmd *cobra.Command) {
+	fmt.Print("actionExportTrades\n")
+}
+
+func actionImportTrades(cmd *cobra.Command) {
+	fmt.Print("actionImportTrades\n")
 }
 
 type clientConfig struct {
-	Addr string
-	cryptocore.TLSConfig
+	Address  string
+	Username string
+	Password string
+	TLS      cryptocore.TLSConfig
 }
 
-type consoleConfig struct {
-	Network string
-	Clients map[string]*clientConfig
-}
+type consoleConfig map[string]*clientConfig
 
-var mainConfig = &consoleConfig{}
-
-const DEFAULT_CONSOLE_CONFIG_NAME = "console_defaults.yaml"
-
-func configDir(cmd *cobra.Command) string { return filepath.Join(dataDir(cmd), "config") }
-
-func consoleConfigPath(cmd *cobra.Command, name string) string {
-	if name == "" {
-		name = DEFAULT_CONSOLE_CONFIG_NAME
+func (cc consoleConfig) client(name string) *clientConfig {
+	r, ok := mainConfig[name]
+	if !ok {
+		return &clientConfig{}
 	}
-	return filepath.Join(configDir(cmd), name)
+	return r
+}
+
+var mainConfig = consoleConfig{}
+
+type consoleCommand = func(*cobra.Command)
+
+func newActionConfigClientAddress(name string) consoleCommand {
+	return func(cmd *cobra.Command) {
+		cfg := mainConfig.client(name)
+		cfg.Address = inputTextWithDefault("new address", cfg.Address)
+		mainConfig[name] = cfg
+	}
+}
+
+func newActionConfigClientUsername(name string) consoleCommand {
+	return func(cmd *cobra.Command) {
+		cfg := mainConfig.client(name)
+		cfg.Username = inputTextWithDefault("new username", cfg.Username)
+		mainConfig[name] = cfg
+	}
+}
+
+func newActionConfigClientPassword(name string) consoleCommand {
+	return func(cmd *cobra.Command) {
+		cfg := mainConfig.client(name)
+		cfg.Password = inputTextWithDefault("new password", cfg.Password)
+		mainConfig[name] = cfg
+	}
+}
+
+func newActionConfigClientShow(name string) consoleCommand {
+	return func(cmd *cobra.Command) {
+		b := bytes.NewBuffer(make([]byte, 0, 1024))
+		err := yaml.NewEncoder(b).Encode(mainConfig.client(name))
+		if err != nil {
+			fmt.Printf("can't encode config:% s\n", err)
+			return
+		}
+		fmt.Printf("\n%s client configuration:\n\n%s\n\n", name, b.String())
+	}
+}
+
+func newActionConfigClientTLSCaCert(name string) consoleCommand {
+	return func(cmd *cobra.Command) {
+		cfg := mainConfig.client(name)
+		fn, err := inputFilename("CA certificate file: ", ".", true)
+		if err != nil {
+			fmt.Printf("can't find file: %s\n", err)
+			return
+		}
+		cfg.TLS.CA = fn
+		mainConfig[name] = cfg
+	}
+}
+
+func newActionConfigClientTLSCert(name string) consoleCommand {
+	return func(cmd *cobra.Command) {
+		cfg := mainConfig.client(name)
+		fn, err := inputFilename("Client certificate file: ", ".", true)
+		if err != nil {
+			fmt.Printf("can't find file: %s\n", err)
+			return
+		}
+		cfg.TLS.ClientCertificate = fn
+		mainConfig[name] = cfg
+	}
+}
+
+func newActionConfigClientTLSKey(name string) consoleCommand {
+	return func(cmd *cobra.Command) {
+		cfg := mainConfig.client(name)
+		fn, err := inputFilename("Client key file: ", ".", true)
+		if err != nil {
+			fmt.Printf("can't find file: %s\n", err)
+			return
+		}
+		cfg.TLS.ClientKey = fn
+		mainConfig[name] = cfg
+	}
+}
+
+func newActionConfigClientTLSSkipVerify(name string) consoleCommand {
+	return func(cmd *cobra.Command) {
+		cfg := mainConfig.client(name)
+		skip, ok := inputYesNo("skip certificate verification", false)
+		if !ok {
+			return
+		}
+		cfg.TLS.SkipVerify = skip
+		mainConfig[name] = cfg
+	}
+}
+
+func newActionConfigClientTLSShow(name string) consoleCommand {
+	return func(cmd *cobra.Command) {
+		cfg := mainConfig.client(name)
+		if err := yaml.NewEncoder(os.Stdout).Encode(cfg.TLS); err != nil {
+			fmt.Printf("can't encode tls config: %s\n", err)
+		}
+	}
 }
 
 func loadConfigFile(cmd *cobra.Command, name string) error {
-	f, err := os.Open(consoleConfigPath(cmd, name))
+	var def bool
+	if strings.TrimSpace(name) == "" {
+		name = consoleConfigPath(cmd, DEFAULT_CONSOLE_CONFIG_NAME)
+		def = true
+	}
+	f, err := os.Open(name)
 	if err != nil {
-		e, ok := err.(*os.PathError)
-		if !ok || e.Err != syscall.ENOENT {
-			return err
+		if def {
+			if e, ok := err.(*os.PathError); !ok || e.Err != syscall.ENOENT {
+				return err
+			}
+			mainConfig = consoleConfig{}
+			return nil
 		}
-		mainConfig = &consoleConfig{Network: "mainnet"}
-		return nil
 	}
 	defer f.Close()
 	return yaml.NewDecoder(f).Decode(mainConfig)
 }
 
 func actionLoadConfig(cmd *cobra.Command) {
-	name, err := inputFilename("file to load: ", configDir(cmd), true)
+	name, err := inputSandboxedFilename("file to load: ", consoleConfigDir(cmd), true)
 	if err != nil {
 		fmt.Printf("can't load config file: %s\n", err)
 	}
@@ -168,7 +438,10 @@ func actionLoadConfig(cmd *cobra.Command) {
 }
 
 func saveConfigFile(cmd *cobra.Command, name string) error {
-	f, err := createFile(consoleConfigPath(cmd, name))
+	if strings.TrimSpace(name) == "" {
+		name = consoleConfigPath(cmd, DEFAULT_CONSOLE_CONFIG_NAME)
+	}
+	f, err := createFile(name)
 	if err != nil {
 		return err
 	}
@@ -177,17 +450,13 @@ func saveConfigFile(cmd *cobra.Command, name string) error {
 }
 
 func actionSaveConfig(cmd *cobra.Command) {
-	if err := saveConfigFile(cmd, ""); err != nil {
+	name, err := inputSandboxedFilename("save to file: ", consoleConfigDir(cmd), false)
+	if err != nil {
 		fmt.Printf("can't save config file: %s\n", err)
 	}
-}
-
-func actionConfigNetwork(cmd *cobra.Command) {
-	mainConfig.Network = inputNetwork()
-}
-
-func actionNewTrade(cmd *cobra.Command) {
-	fmt.Printf("new trade\n")
+	if err := saveConfigFile(cmd, name); err != nil {
+		fmt.Printf("can't save config file: %s\n", err)
+	}
 }
 
 func actionShowConfig(cmd *cobra.Command) {
@@ -198,5 +467,3 @@ func actionShowConfig(cmd *cobra.Command) {
 	}
 	fmt.Printf("\ncurrent configuration:\n\n%s\n\n", b.String())
 }
-
-// func action (cmd*cobra.Command){}

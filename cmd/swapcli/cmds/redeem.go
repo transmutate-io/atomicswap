@@ -80,7 +80,7 @@ func newRedeemHandler(
 	cl cryptocore.Client,
 ) func(trade.Trade) error {
 	return func(tr trade.Trade) error {
-		addrScript, err := networks.AllByName[tr.TraderInfo().Crypto.Name][flagCryptoChain(tr.TraderInfo().Crypto)].
+		addrScript, err := networks.AllByName[tr.TraderInfo().Crypto.Name][mustFlagCryptoChain(tr.TraderInfo().Crypto)].
 			AddressToScript(addr)
 		if err != nil {
 			return err
@@ -133,5 +133,5 @@ func cmdRedeemToAddress(cmd *cobra.Command, args []string) {
 	if err := th.HandleTrade(tr); err != nil {
 		errorExit(ecCantRedeem, err)
 	}
-	saveTrade(cmd, args[0], tr)
+	mustSaveTrade(cmd, args[0], tr)
 }

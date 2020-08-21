@@ -118,18 +118,22 @@ func createFile(p string) (*os.File, error) {
 	return os.Create(p)
 }
 
-func parseCrypto(c string) *cryptos.Crypto {
+func parseCrypto(c string) (*cryptos.Crypto, error) {
 	if r, err := cryptos.ParseShort(c); err == nil {
-		return r
+		return r, nil
 	}
-	r, err := cryptos.Parse(c)
+	return cryptos.Parse(c)
+}
+
+func mustParseCrypto(c string) *cryptos.Crypto {
+	r, err := parseCrypto(c)
 	if err != nil {
 		errorExit(ecUnknownCrypto, c)
 	}
 	return r
 }
 
-func parseDuration(d string) time.Duration {
+func mustParseDuration(d string) time.Duration {
 	r, err := time.ParseDuration(d)
 	if err != nil {
 		errorExit(ecInvalidDuration, d)
@@ -187,13 +191,20 @@ func openTrade(cmd *cobra.Command, name string) trade.Trade {
 	return r
 }
 
-func saveTrade(cmd *cobra.Command, name string, tr trade.Trade) {
+func saveTrade(cmd *cobra.Command, name string, tr trade.Trade) error {
 	f, err := createFile(tradePath(cmd, name))
 	if err != nil {
-		errorExit(ecCantSaveTrade, err)
+		return err
 	}
 	defer f.Close()
 	if err = yaml.NewEncoder(f).Encode(tr); err != nil {
+		return err
+	}
+	return nil
+}
+
+func mustSaveTrade(cmd *cobra.Command, name string, tr trade.Trade) {
+	if err := saveTrade(cmd, name, tr); err != nil {
 		errorExit(ecCantSaveTrade, err)
 	}
 }
@@ -246,4 +257,15 @@ func saveWatchData(cmd *cobra.Command, name string, wd *watchData) {
 	if err = yaml.NewEncoder(f).Encode(wd); err != nil {
 		errorExit(ecCantSaveWatchData, err)
 	}
+}
+
+func consoleConfigDir(cmd *cobra.Command) string { return filepath.Join(dataDir(cmd), "config") }
+
+const DEFAULT_CONSOLE_CONFIG_NAME = "console_defaults.yaml"
+
+func consoleConfigPath(cmd *cobra.Command, name string) string {
+	if name == "" {
+		name = DEFAULT_CONSOLE_CONFIG_NAME
+	}
+	return filepath.Join(consoleConfigDir(cmd), name)
 }

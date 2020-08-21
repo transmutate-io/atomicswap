@@ -30,13 +30,17 @@ func init() {
 	})
 }
 
-func listCryptos(out io.Writer, tpl *template.Template) error {
-	names := make([]string, 0, len(cryptos.Cryptos))
+func sortedCryptos() []string {
+	r := make([]string, 0, len(cryptos.Cryptos))
 	for _, i := range cryptos.Cryptos {
-		names = append(names, strings.ToLower(i.Name))
+		r = append(r, strings.ToLower(i.Name))
 	}
-	sort.Strings(names)
-	for _, i := range names {
+	sort.Strings(r)
+	return r
+}
+
+func listCryptos(out io.Writer, tpl *template.Template) error {
+	for _, i := range sortedCryptos() {
 		if err := tpl.Execute(out, cryptos.Cryptos[i]); err != nil {
 			return err
 		}

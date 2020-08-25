@@ -122,18 +122,18 @@ var interactiveActionsHandlers = map[string]func(cmd *cobra.Command){
 	"proposal/list":     actionListProposals,
 	"proposal/export":   actionExportProposal,
 	"proposal/accept":   actionAcceptProposal,
-	"lockset/list":      nil,
-	"lockset/export":    nil,
-	"lockset/accept":    nil,
-	"lockset/info":      nil,
-	"watch/list":        nil,
-	"watch/own":         nil,
-	"watch/trader":      nil,
-	"watch/secret":      nil,
-	"redeem/list":       nil,
-	"redeem/toaddress":  nil,
-	"recover/list":      nil,
-	"recover/toaddress": nil,
+	"lockset/list":      actionListLockSets,
+	"lockset/export":    actionExportLockSet,
+	"lockset/accept":    actionAcceptLockSet,
+	"lockset/info":      actionLockSetInfo,
+	"watch/list":        actionListWatchable,
+	"watch/own":         actionWatchOwn,
+	"watch/trader":      actionWatchTrader,
+	"watch/secret":      actionWatchSecret,
+	"redeem/list":       actionListRedeemable,
+	"redeem/toaddress":  actionRedeem,
+	"recover/list":      actionListRecoverable,
+	"recover/toaddress": actionRecover,
 }
 
 func init() {
@@ -709,3 +709,157 @@ func actionAcceptProposal(cmd *cobra.Command) {
 		fmt.Printf("can't accept proposal: %s\n", err)
 	}
 }
+
+func actionListLockSets(cmd *cobra.Command) {
+	tpl, err := template.New("main").Parse(tradeListTemplates[len(tradeListTemplates)-1])
+	if err != nil {
+		fmt.Printf("can't parse template: %s\n", err)
+		return
+	}
+	if err := listLockSets(tradesDir(cmd), os.Stdout, tpl); err != nil {
+		fmt.Printf("can't list locksets: %s\n", err)
+	}
+}
+
+func actionExportLockSet(cmd *cobra.Command) {
+	tn, err := inputTradeName(cmd, "lockset to export: ", true)
+	if err != nil {
+		fmt.Printf("can't read lockset name: %s\n", err)
+		return
+	}
+	if tn == "" {
+		fmt.Printf("aborted\n")
+		return
+	}
+	outFn, err := inputFilename("export to: ", ".", false)
+	if err != nil {
+		fmt.Printf("can't read filename: %s\n", err)
+		return
+	}
+	if outFn == "" {
+		fmt.Printf("aborted\n")
+		return
+	}
+	f, err := createFile(outFn)
+	if err != nil {
+		fmt.Printf("can't create output file: %s\n", err)
+		return
+	}
+	defer f.Close()
+	if err = exportLockSet(tn, f); err != nil {
+		fmt.Printf("can't export lockset: %s\n", err)
+		return
+	}
+}
+
+func actionAcceptLockSet(cmd *cobra.Command) {
+	tp, err := inputTradeName(cmd, "trade: ", true)
+	if err != nil {
+		fmt.Printf("can't find trade: %s\n", err)
+		return
+	}
+	if tp == "" {
+		fmt.Printf("aborted\n")
+		return
+	}
+	inFn, err := inputFilename("lockset file: ", ".", true)
+	if err != nil {
+		fmt.Printf("can't find lockset file: %s\n", err)
+		return
+	}
+	if inFn == "" {
+		fmt.Printf("aborted\n")
+		return
+	}
+	lsBytes, err := ioutil.ReadFile(inFn)
+	if err != nil {
+		fmt.Printf("can't read lockset file: %s\n", err)
+		return
+	}
+	tpl, err := template.New("main").
+		Funcs(template.FuncMap{"now": time.Now}).
+		Parse(lockSetInfoTemplates[len(lockSetInfoTemplates)-1])
+	if err != nil {
+		fmt.Printf("can't parse template: %s\n", err)
+		return
+	}
+	fmt.Printf("\nlockset info:\n\n")
+	if err = showLockSetInfo(tp, bytes.NewReader(lsBytes), os.Stdout, tpl); err != nil {
+		fmt.Printf("can't show lockset info: %s\n", err)
+		return
+	}
+	fmt.Printf("\n")
+	accepted, ok := inputYesNo("accept locks", false)
+	if !ok {
+		fmt.Printf("aborted\n")
+		return
+	}
+	if !accepted {
+		fmt.Printf("not accepted\n")
+		return
+	}
+	tr, err := openTrade(tp)
+	if err != nil {
+		fmt.Printf("can't open trade: %s\n", err)
+		return
+	}
+	if err := acceptLockSet(tr, bytes.NewReader(lsBytes)); err != nil {
+		fmt.Printf("can't accept trade: %s\n", err)
+		return
+	}
+	if err = saveTrade(tp, tr); err != nil {
+		fmt.Printf("can't save trade: %s\n", err)
+	}
+}
+
+func actionLockSetInfo(cmd *cobra.Command) {
+	tp, err := inputTradeName(cmd, "trade: ", true)
+	if err != nil {
+		fmt.Printf("can't find trade: %s\n", err)
+		return
+	}
+	if tp == "" {
+		fmt.Printf("aborted\n")
+		return
+	}
+	inFn, err := inputFilename("lockset file: ", ".", true)
+	if err != nil {
+		fmt.Printf("can't find lockset file: %s\n", err)
+		return
+	}
+	if inFn == "" {
+		fmt.Printf("aborted\n")
+		return
+	}
+	fin, err := os.Open(inFn)
+	if err != nil {
+		fmt.Printf("can't open lockset file: %s\n", err)
+		return
+	}
+	defer fin.Close()
+	tpl, err := newLockSetTemplate().
+		Parse(lockSetInfoTemplates[len(lockSetInfoTemplates)-1])
+	if err != nil {
+		fmt.Printf("can't parse template: %s\n", err)
+		return
+	}
+	if err = showLockSetInfo(tp, fin, os.Stdout, tpl); err != nil {
+		fmt.Printf("can't show lockset info: %s\n", err)
+	}
+}
+
+func actionListWatchable(cmd *cobra.Command) {}
+
+func actionWatchOwn(cmd *cobra.Command) {}
+
+func actionWatchTrader(cmd *cobra.Command) {}
+
+func actionWatchSecret(cmd *cobra.Command) {}
+
+func actionListRedeemable(cmd *cobra.Command) {}
+
+func actionRedeem(cmd *cobra.Command) {}
+
+func actionListRecoverable(cmd *cobra.Command) {}
+
+func actionRecover(cmd *cobra.Command) {}

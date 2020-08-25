@@ -132,17 +132,25 @@ func newTradeInfo(name string, trade trade.Trade) templateData {
 	return templateData{"name": name, "trade": trade}
 }
 
-func mustNewLockInfo(cmd *cobra.Command, l trade.Lock, c *cryptos.Crypto) templateData {
+func newLockInfo(l trade.Lock, c *cryptos.Crypto) (templateData, error) {
 	chain := mustFlagCryptoChain(c)
 	addr, err := l.Address(chain)
 	if err != nil {
-		errorExit(ecCantCalculateAddress, err)
+		return nil, err
 	}
 	ld, err := l.LockData()
 	if err != nil {
+		return nil, err
+	}
+	return templateData{"depositAddr": addr, "chain": chain, "lockData": ld}, nil
+}
+
+func mustNewLockInfo(cmd *cobra.Command, l trade.Lock, c *cryptos.Crypto) templateData {
+	r, err := newLockInfo(l, c)
+	if err != nil {
 		errorExit(ecInvalidLockData, err)
 	}
-	return templateData{"depositAddr": addr, "chain": chain, "lockData": ld}
+	return r
 }
 
 func newLockSetInfo(trade trade.Trade, buyer, seller templateData) templateData {

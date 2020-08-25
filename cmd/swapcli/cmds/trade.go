@@ -1,9 +1,10 @@
 package cmds
 
 import (
+	"io"
 	"os"
 	"path/filepath"
-	"strings"
+	"text/template"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -72,12 +73,10 @@ func init() {
 		},
 		exportTradesCmd.Flags(): []flagFunc{
 			addFlagAll,
+			addFlagOutput,
 		},
 		importTradesCmd.Flags(): []flagFunc{
 			addFlagInput,
-		},
-		exportTradesCmd.Flags(): []flagFunc{
-			addFlagOutput,
 		},
 	})
 	addCommands(TradeCmd, []*cobra.Command{
@@ -122,14 +121,17 @@ func cmdNewTrade(cmd *cobra.Command, args []string) {
 	mustSaveTrade(cmd, args[0], tr)
 }
 
+func listTrades(td string, out io.Writer, tpl *template.Template) error {
+	return eachTrade(td, func(name string, tr trade.Trade) error {
+		return tpl.Execute(out, newTradeInfo(name, tr))
+	})
+}
+
 func cmdListTrades(cmd *cobra.Command, args []string) {
 	tpl := mustOutputTemplate(cmd.Flags(), tradeListTemplates, nil)
 	out, closeOut := mustOpenOutput(cmd.Flags())
 	defer closeOut()
-	err := eachTrade(tradesDir(cmd), func(name string, tr trade.Trade) error {
-		return tpl.Execute(out, newTradeInfo(name, tr))
-	})
-	if err != nil {
+	if err := listTrades(tradesDir(cmd), out, tpl); err != nil {
 		errorExit(ecCantListTrades, err)
 	}
 }
@@ -141,28 +143,42 @@ func cmdDeleteTrade(cmd *cobra.Command, args []string) {
 	}
 }
 
-func cmdExportTrades(cmd *cobra.Command, args []string) {
-	names := make(map[string]struct{}, len(args))
-	for _, i := range args {
-		names[i] = struct{}{}
-	}
+type tradeSelectFunc = func(name string, tr trade.Trade) bool
+
+func exportTrades(td string, tradeSelect tradeSelectFunc) (map[string]trade.Trade, error) {
 	trades := make(map[string]trade.Trade, 16)
-	err := eachTrade(tradesDir(cmd), func(name string, tr trade.Trade) error {
-		if _, exp := names[name]; exp || mustFlagAll(cmd.Flags()) {
-			delete(names, name)
-			trades[filepath.ToSlash(name)] = tr
+	err := eachTrade(td, func(name string, tr trade.Trade) error {
+		if tradeSelect(name, tr) {
+			trades[name] = tr
 		}
 		return nil
 	})
 	if err != nil {
+		return nil, err
+	}
+	return trades, nil
+}
+
+func cmdExportTrades(cmd *cobra.Command, args []string) {
+	var ts tradeSelectFunc
+	if mustFlagAll(cmd.Flags()) {
+		ts = func(name string, tr trade.Trade) bool { return true }
+	} else {
+		names := make(map[string]struct{}, len(args))
+		for _, i := range args {
+			names[i] = struct{}{}
+		}
+		ts = func(name string, tr trade.Trade) bool {
+			_, ok := names[name]
+			return ok
+		}
+	}
+	trades, err := exportTrades(tradesDir(cmd), ts)
+	if err != nil {
 		errorExit(ecCantExportTrades, err)
 	}
-	n := make([]string, 0, len(names))
-	for i := range names {
-		n = append(n, i)
-	}
-	if len(names) > 0 {
-		errorExit(ecCantExportTrades, strings.Join(n, ", "))
+	if len(trades) == 0 {
+		errorExit(ecCantExportTrades, "no trades selected")
 	}
 	out, closeOut := mustOpenOutput(cmd.Flags())
 	defer closeOut()
@@ -179,14 +195,20 @@ func cmdImportTrades(cmd *cobra.Command, args []string) {
 		errorExit(ecCantImportTrades, err)
 	}
 	for n, tr := range trades {
-		n = filepath.Join(strings.Split(n, "/")...)
-		mustSaveTrade(cmd, n, tr)
+		mustSaveTrade(cmd, filepath.FromSlash(n), tr)
 	}
 }
 
+func renameFile(oldPath string, newPath string) error {
+	d, _ := filepath.Split(newPath)
+	if err := os.MkdirAll(d, 0755); err != nil {
+		return err
+	}
+	return os.Rename(oldPath, newPath)
+}
+
 func cmdRenameTrade(cmd *cobra.Command, args []string) {
-	err := os.Rename(tradePath(cmd, args[0]), tradePath(cmd, args[1]))
-	if err != nil {
+	if err := renameFile(tradePath(cmd, args[0]), tradePath(cmd, args[1])); err != nil {
 		errorExit(ecCantRenameTrade, err)
 	}
 }

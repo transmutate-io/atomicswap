@@ -142,7 +142,6 @@ func mustParseDuration(d string) time.Duration {
 }
 
 func eachTrade(td string, f func(string, trade.Trade) error) error {
-	tdPrefix := td + string([]rune{filepath.Separator})
 	return filepath.Walk(td, func(path string, info os.FileInfo, err error) error {
 		if info == nil || info.IsDir() {
 			return nil
@@ -156,7 +155,7 @@ func eachTrade(td string, f func(string, trade.Trade) error) error {
 		if err = yaml.NewDecoder(tf).Decode(tr); err != nil {
 			return err
 		}
-		return f(strings.TrimPrefix(path, tdPrefix), tr)
+		return f(filepath.ToSlash(trimPath(path, td)), tr)
 	})
 }
 

@@ -267,7 +267,7 @@ func inputMultiChoice(pr string, def string, choices []prompt.Suggest, helpFunc 
 		case "..":
 			return "", false
 		case "help":
-			helpFunc(choices[:len(choices)-1])
+			helpFunc(choices[:len(choices)-2])
 		default:
 			for _, i := range choices[:len(choices)-2] {
 				if input == i.Text {
@@ -409,4 +409,8 @@ func newAbsolutePathFilter(rootPath string) func(string, string) (prompt.Suggest
 		}
 		return prompt.Suggest{}, false
 	}
+}
+
+func inputTradeName(cmd *cobra.Command, pr string, mustExist bool) (string, error) {
+	return inputSandboxedFilename(pr, tradesDir(cmd), mustExist)
 }

@@ -3,7 +3,9 @@ package cmds
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"syscall"
@@ -13,6 +15,7 @@ import (
 	"github.com/c-bata/go-prompt"
 	"github.com/spf13/cobra"
 	"github.com/transmutate-io/atomicswap/cryptos"
+	"github.com/transmutate-io/atomicswap/trade"
 	"github.com/transmutate-io/cryptocore"
 	"github.com/transmutate-io/cryptocore/types"
 	"gopkg.in/yaml.v2"
@@ -33,7 +36,6 @@ func init() {
 		interactiveActionsHandlers["config/clients/"+c+"/username"] = newActionConfigClientUsername(c)
 		interactiveActionsHandlers["config/clients/"+c+"/password"] = newActionConfigClientPassword(c)
 		interactiveActionsHandlers["config/clients/"+c+"/show"] = newActionConfigClientShow(c)
-
 		interactiveActionsHandlers["config/clients/"+c+"/tls/ca"] = newActionConfigClientTLSCaCert(c)
 		interactiveActionsHandlers["config/clients/"+c+"/tls/cert"] = newActionConfigClientTLSCert(c)
 		interactiveActionsHandlers["config/clients/"+c+"/tls/key"] = newActionConfigClientTLSKey(c)
@@ -178,13 +180,20 @@ func actionListCryptos(cmd *cobra.Command) {
 func actionNewTrade(cmd *cobra.Command) {
 	var (
 		tradeName    string
+		err          error
 		ownAmount    types.Amount
 		ownCrypto    *cryptos.Crypto
 		traderAmount types.Amount
 		traderCrypto *cryptos.Crypto
 		dur          time.Duration
 	)
-	if tradeName = inputText("trade name"); tradeName == "" {
+	tradeName, err = inputTradeName(cmd, "new trade name: ", false)
+	if err != nil {
+		fmt.Printf("can't create new trade: %s\n", err)
+		return
+	}
+	tradeName = trimPath(tradeName, tradesDir(cmd))
+	if tradeName == "" {
 		fmt.Printf("trade creation aborted\n")
 		return
 	}
@@ -204,7 +213,7 @@ func actionNewTrade(cmd *cobra.Command) {
 	}
 	helpFunc := func(c []prompt.Suggest) {
 		fmt.Printf("\navailable cryptocurrencies:\n\n")
-		for _, i := range c[:len(c)-1] {
+		for _, i := range c {
 			fmt.Printf("  %s\n", i.Text)
 		}
 		fmt.Printf("\n  .. to abort\n\n")
@@ -271,23 +280,148 @@ func actionNewTrade(cmd *cobra.Command) {
 }
 
 func actionListTrades(cmd *cobra.Command) {
-	fmt.Print("actionListTrades\n")
+	tpl, err := template.New("main").Parse(tradeListTemplates[len(tradeListTemplates)-1])
+	if err != nil {
+		fmt.Printf("can't parse template: %s\n", err)
+		return
+	}
+	fmt.Printf("\nexisting trades:\n\n")
+	if err := listTrades(tradesDir(cmd), os.Stdout, tpl); err != nil {
+		fmt.Printf("can't list trades: %s\n", err)
+		return
+	}
+	fmt.Println()
 }
 
 func actionRenameTrade(cmd *cobra.Command) {
-	fmt.Print("actionRenameTrade\n")
+	tradeName, err := inputTradeName(cmd, "trade name: ", true)
+	if err != nil {
+		fmt.Printf("can't open trade: %s\n", err)
+		return
+	}
+	if tradeName == "" {
+		fmt.Printf("aborted\n")
+		return
+	}
+	newName, err := inputTradeName(cmd, "new trade name: ", false)
+	if err != nil {
+		fmt.Printf("can't open trade: %s\n", err)
+		return
+	}
+	if newName == "" {
+		fmt.Printf("aborted\n")
+		return
+	}
+	if err = renameFile(tradeName, newName); err != nil {
+		fmt.Printf("can't rename trade: %s\n", err)
+	}
 }
 
 func actionDeleteTrade(cmd *cobra.Command) {
-	fmt.Print("actionDeleteTrade\n")
+	tradeName, err := inputTradeName(cmd, "trade name: ", true)
+	if err != nil {
+		fmt.Printf("can't open trade: %s\n", err)
+		return
+	}
+	if tradeName == "" {
+		fmt.Printf("aborted\n")
+		return
+	}
+	if err = os.Remove(tradeName); err != nil {
+		fmt.Printf("can't delete trade: %s\n", err)
+	}
 }
 
 func actionExportTrades(cmd *cobra.Command) {
-	fmt.Print("actionExportTrades\n")
+	tradesNames := make(map[string]struct{}, 4)
+	td := tradesDir(cmd)
+	for {
+		if len(tradesNames) > 0 {
+			fmt.Printf("\nselected trades:\n\n")
+			for i := range tradesNames {
+				fmt.Printf("  %s\n", i)
+			}
+			fmt.Println()
+		}
+		tn, err := inputTradeName(cmd, "add/remove trade: ", true)
+		if err != nil {
+			fmt.Printf("can't add/remove trade: %s\n", err)
+			continue
+		}
+		if tn == "" {
+			break
+		}
+		tn = trimPath(tn, td)
+		if _, ok := tradesNames[tn]; ok {
+			delete(tradesNames, tn)
+		} else {
+			tradesNames[tn] = struct{}{}
+		}
+	}
+	if len(tradesNames) == 0 {
+		fmt.Printf("no trades selected. aborting\n")
+		return
+	}
+	trades, err := exportTrades(td, func(name string, tr trade.Trade) bool {
+		_, ok := tradesNames[name]
+		return ok
+	})
+	if err != nil {
+		fmt.Printf("can't export trades: %s\n", err)
+		return
+	}
+	outFn, err := inputFilename("output file (blank to stdout): ", ".", false)
+	if err != nil {
+		fmt.Printf("can't open output file: %s\n", err)
+		return
+	}
+	var fout io.Writer
+	if outFn == "" {
+		fout = os.Stdout
+	} else {
+		f, err := createFile(outFn)
+		if err != nil {
+			fmt.Printf("can't open output file: %s\n", err)
+			return
+		}
+		defer f.Close()
+		fout = f
+	}
+	if err = yaml.NewEncoder(fout).Encode(trades); err != nil {
+		fmt.Printf("can't encode trades: %s\n", err)
+	}
 }
 
 func actionImportTrades(cmd *cobra.Command) {
-	fmt.Print("actionImportTrades\n")
+	inFn, err := inputFilename("input file: ", ".", true)
+	if err != nil {
+		fmt.Printf("can't open input file: %s\n", err)
+		return
+	}
+	f, err := os.Open(inFn)
+	if err != nil {
+		fmt.Printf("can't open input file: %s\n", err)
+		return
+	}
+	defer f.Close()
+	trades := make(map[string]*trade.OnChainTrade, 16)
+	if err = yaml.NewDecoder(f).Decode(trades); err != nil {
+		fmt.Printf("can't decoe trades file: %s\n", err)
+		return
+	}
+	td := tradesDir(cmd)
+	for n, tr := range trades {
+		f, err := createFile(filepath.Join(td, filepath.FromSlash(n)))
+		if err != nil {
+			fmt.Printf("can't create trade: %s\n", err)
+			return
+		}
+		defer f.Close()
+		if err = yaml.NewEncoder(f).Encode(tr); err != nil {
+			fmt.Printf("can't encode trade: %s\n", err)
+			return
+		}
+	}
 }
 
 type clientConfig struct {

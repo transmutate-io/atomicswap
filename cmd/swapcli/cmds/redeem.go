@@ -113,7 +113,7 @@ func newRedeemHandler(
 }
 
 func cmdRedeemToAddress(cmd *cobra.Command, args []string) {
-	tr := openTrade(cmd, args[0])
+	tr := mustOpenTrade(cmd, args[0])
 	out, closeOut := mustOpenOutput(cmd.Flags())
 	defer closeOut()
 	fs := cmd.Flags()

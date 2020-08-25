@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -108,16 +109,31 @@ Outer:
 }
 
 var interactiveActionsHandlers = map[string]func(cmd *cobra.Command){
-	"cryptos":      actionListCryptos,
-	"config/save":  actionSaveConfig,
-	"config/load":  actionLoadConfig,
-	"config/show":  actionShowConfig,
-	"trade/new":    actionNewTrade,
-	"trade/list":   actionListTrades,
-	"trade/rename": actionRenameTrade,
-	"trade/delete": actionDeleteTrade,
-	"trade/export": actionExportTrades,
-	"trade/import": actionImportTrades,
+	"cryptos":           actionListCryptos,
+	"config/save":       actionSaveConfig,
+	"config/load":       actionLoadConfig,
+	"config/show":       actionShowConfig,
+	"trade/new":         actionNewTrade,
+	"trade/list":        actionListTrades,
+	"trade/rename":      actionRenameTrade,
+	"trade/delete":      actionDeleteTrade,
+	"trade/export":      actionExportTrades,
+	"trade/import":      actionImportTrades,
+	"proposal/list":     actionListProposals,
+	"proposal/export":   actionExportProposal,
+	"proposal/accept":   actionAcceptProposal,
+	"lockset/list":      nil,
+	"lockset/export":    nil,
+	"lockset/accept":    nil,
+	"lockset/info":      nil,
+	"watch/list":        nil,
+	"watch/own":         nil,
+	"watch/trader":      nil,
+	"watch/secret":      nil,
+	"redeem/list":       nil,
+	"redeem/toaddress":  nil,
+	"recover/list":      nil,
+	"recover/toaddress": nil,
 }
 
 func init() {
@@ -274,7 +290,7 @@ func actionNewTrade(cmd *cobra.Command) {
 		fmt.Printf("can't create a new trade: %s\n", err)
 		return
 	}
-	if err = saveTrade(cmd, tradeName, tr); err != nil {
+	if err = saveTrade(tradePath(cmd, tradeName), tr); err != nil {
 		fmt.Printf("can't save trade: %s\n", err)
 	}
 }
@@ -406,7 +422,7 @@ func actionImportTrades(cmd *cobra.Command) {
 	defer f.Close()
 	trades := make(map[string]*trade.OnChainTrade, 16)
 	if err = yaml.NewDecoder(f).Decode(trades); err != nil {
-		fmt.Printf("can't decoe trades file: %s\n", err)
+		fmt.Printf("can't decode trades file: %s\n", err)
 		return
 	}
 	td := tradesDir(cmd)
@@ -600,4 +616,96 @@ func actionShowConfig(cmd *cobra.Command) {
 		return
 	}
 	fmt.Printf("\ncurrent configuration:\n\n%s\n\n", b.String())
+}
+
+func actionListProposals(cmd *cobra.Command) {
+	tpl, err := template.New("main").Parse(tradeListTemplates[len(tradeListTemplates)-1])
+	if err != nil {
+		fmt.Printf("can't parse template: %s\n", err)
+		return
+	}
+	if err = listProposals(tradesDir(cmd), os.Stdout, tpl); err != nil {
+		fmt.Printf("can't list proposals: %s\n", err)
+	}
+}
+
+func actionExportProposal(cmd *cobra.Command) {
+	tn, err := inputTradeName(cmd, "trade: ", true)
+	if err != nil {
+		fmt.Printf("can't open trade: %s\n", err)
+		return
+	}
+	if tn == "" {
+		fmt.Printf("aborted\n")
+		return
+	}
+	tr, err := openTrade(tn)
+	if err != nil {
+		fmt.Printf("can't open trade: %s\n", err)
+		return
+	}
+	buyerTrade, err := tr.Buyer()
+	if err != nil {
+		fmt.Printf("can't open trade: %s\n", err)
+		return
+	}
+	outFn, err := inputFilename("output file (blank for stdout): ", ".", false)
+	if err != nil {
+		fmt.Printf("can't open output file: %s\n", err)
+		return
+	}
+	var fout io.Writer
+	if outFn == "" {
+		fout = os.Stdout
+	} else {
+		f, err := createFile(outFn)
+		if err != nil {
+			fmt.Printf("can't open output file: %s\n", err)
+			return
+		}
+		defer f.Close()
+		fout = f
+	}
+	prop, err := buyerTrade.GenerateBuyProposal()
+	if err != nil {
+		fmt.Printf("can't generate buy proposal: %s\n", err)
+		return
+	}
+	if err = yaml.NewEncoder(fout).Encode(prop); err != nil {
+		fmt.Printf("can't encode proposal: %s\n", err)
+	}
+}
+
+func actionAcceptProposal(cmd *cobra.Command) {
+	tn, err := inputTradeName(cmd, "new trade: ", false)
+	if err != nil {
+		fmt.Printf("can't open trade: %s\n", err)
+		return
+	}
+	if tn == "" {
+		fmt.Printf("aborted\n")
+		return
+	}
+	propFn, err := inputFilename("proposal: ", ".", true)
+	if err != nil {
+		fmt.Printf("can't open proposal: %s\n", err)
+		return
+	}
+	if propFn == "" {
+		fmt.Printf("aborted\n")
+		return
+	}
+	b, err := ioutil.ReadFile(propFn)
+	if err != nil {
+		fmt.Printf("can't read proposal: %s\n", err)
+		return
+	}
+	prop, err := trade.UnamrshalBuyProposal(b)
+	if err != nil {
+		fmt.Printf("can't decode proposal: %s\n", err)
+		return
+	}
+	if err = acceptProposal("", tn, prop); err != nil {
+		fmt.Printf("can't accept proposal: %s\n", err)
+	}
 }

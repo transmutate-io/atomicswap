@@ -177,21 +177,29 @@ func eachLockSet(td string, f func(string, trade.Trade) error) error {
 	})
 }
 
-func openTrade(cmd *cobra.Command, name string) trade.Trade {
-	f, err := os.Open(tradePath(cmd, name))
+func openTrade(tp string) (trade.Trade, error) {
+	f, err := os.Open(tp)
 	if err != nil {
-		errorExit(ecCantOpenTrade, name, err)
+		return nil, err
 	}
 	defer f.Close()
 	r := &trade.OnChainTrade{}
 	if err = yaml.NewDecoder(f).Decode(r); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+func mustOpenTrade(cmd *cobra.Command, name string) trade.Trade {
+	r, err := openTrade(tradePath(cmd, name))
+	if err != nil {
 		errorExit(ecCantOpenTrade, name, err)
 	}
 	return r
 }
 
-func saveTrade(cmd *cobra.Command, name string, tr trade.Trade) error {
-	f, err := createFile(tradePath(cmd, name))
+func saveTrade(tp string, tr trade.Trade) error {
+	f, err := createFile(tp)
 	if err != nil {
 		return err
 	}
@@ -203,7 +211,7 @@ func saveTrade(cmd *cobra.Command, name string, tr trade.Trade) error {
 }
 
 func mustSaveTrade(cmd *cobra.Command, name string, tr trade.Trade) {
-	if err := saveTrade(cmd, name, tr); err != nil {
+	if err := saveTrade(tradePath(cmd, name), tr); err != nil {
 		errorExit(ecCantSaveTrade, err)
 	}
 }

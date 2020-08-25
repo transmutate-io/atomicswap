@@ -88,7 +88,7 @@ func cmdListLockSets(cmd *cobra.Command, args []string) {
 }
 
 func cmdExportLockSet(cmd *cobra.Command, args []string) {
-	tr := openTrade(cmd, args[0])
+	tr := mustOpenTrade(cmd, args[0])
 	str, err := tr.Seller()
 	if err != nil {
 		errorExit(ecCantExportLockSet, err)
@@ -102,7 +102,7 @@ func cmdExportLockSet(cmd *cobra.Command, args []string) {
 }
 
 func cmdAcceptLockSet(cmd *cobra.Command, args []string) {
-	tr := openTrade(cmd, args[0])
+	tr := mustOpenTrade(cmd, args[0])
 	th := trade.NewHandler(trade.DefaultStageHandlers)
 	th.InstallStageHandlers(trade.StageHandlerMap{
 		stages.ReceiveProposalResponse: func(t trade.Trade) error {
@@ -126,7 +126,7 @@ func cmdAcceptLockSet(cmd *cobra.Command, args []string) {
 }
 
 func cmdShowLockSetInfo(cmd *cobra.Command, args []string) {
-	tr := openTrade(cmd, args[0])
+	tr := mustOpenTrade(cmd, args[0])
 	if _, err := tr.Buyer(); err != nil {
 		errorExit(ecCantOpenTrade, err)
 	}

@@ -253,7 +253,7 @@ func cmdWatchDeposit(
 	selectFunds func(trade.Trade) trade.FundsData,
 	selectInterruptStage func(trade.Trade) stages.Stage,
 ) {
-	tr := openTrade(cmd, tradeName)
+	tr := mustOpenTrade(cmd, tradeName)
 	fs := cmd.Flags()
 	out, closeOut := mustOpenOutput(fs)
 	defer closeOut()
@@ -354,7 +354,7 @@ func newSecretTokenWatcher(cl cryptocore.Client, firstBlock uint64, wd *watchDat
 }
 
 func cmdWatchSecretToken(cmd *cobra.Command, args []string) {
-	tr := openTrade(cmd, args[0])
+	tr := mustOpenTrade(cmd, args[0])
 	fs := cmd.Flags()
 	cl := newClient(fs, tr.OwnInfo().Crypto)
 	wd := openWatchData(cmd, args[0])

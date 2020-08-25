@@ -1,7 +1,10 @@
 package cmds
 
 import (
+	"io"
 	"io/ioutil"
+	"path/filepath"
+	"text/template"
 
 	"github.com/spf13/cobra"
 	"github.com/transmutate-io/atomicswap/roles"
@@ -60,61 +63,54 @@ func init() {
 	})
 }
 
+func listProposals(td string, out io.Writer, tpl *template.Template) error {
+	return eachProposal(td, func(name string, tr trade.Trade) error {
+		return tpl.Execute(out, newTradeInfo(name, tr))
+	})
+}
+
 func cmdListProposals(cmd *cobra.Command, args []string) {
 	tpl := mustOutputTemplate(cmd.Flags(), tradeListTemplates, nil)
 	out, closeOut := mustOpenOutput(cmd.Flags())
 	defer closeOut()
-	err := eachProposal(tradesDir(cmd), func(name string, tr trade.Trade) error {
-		return tpl.Execute(out, newTradeInfo(name, tr))
-	})
-	if err != nil {
+	if err := listProposals(tradesDir(cmd), out, tpl); err != nil {
 		errorExit(ecCantListProposals, err)
 	}
 }
 
-func cmdExportProposal(cmd *cobra.Command, args []string) {
-	tr := openTrade(cmd, args[0])
+func exportProposal(tr trade.Trade, out io.Writer) error {
 	if tr.Role() != roles.Buyer {
 		errorExit(ecNotABuyer)
 	}
 	btr, err := tr.Buyer()
 	if err != nil {
-		errorExit(ecCantExportProposal, err)
+		return err
 	}
 	prop, err := btr.GenerateBuyProposal()
 	if err != nil {
-		errorExit(ecCantExportProposal, err)
+		return err
 	}
+	return yaml.NewEncoder(out).Encode(prop)
+}
+
+func cmdExportProposal(cmd *cobra.Command, args []string) {
 	out, closeOut := mustOpenOutput(cmd.Flags())
 	defer closeOut()
-	if err = yaml.NewEncoder(out).Encode(prop); err != nil {
+	if err := exportProposal(mustOpenTrade(cmd, args[0]), out); err != nil {
 		errorExit(ecCantExportProposal, err)
 	}
 }
 
-func cmdAcceptProposal(cmd *cobra.Command, args []string) {
+func acceptProposal(tp string, name string, prop *trade.BuyProposal) error {
 	newTrade := trade.NewOnChainSell()
 	th := trade.NewHandler(trade.DefaultStageHandlers)
 	th.InstallStageHandlers(trade.StageHandlerMap{
 		stages.ReceiveProposal: func(tr trade.Trade) error {
-			in, inClose := mustOpenInput(cmd.Flags())
-			defer inClose()
-			b, err := ioutil.ReadAll(in)
-			if err != nil {
-				return err
-			}
-			prop, err := trade.UnamrshalBuyProposal(b)
-			if err != nil {
-				return err
-			}
 			str, err := tr.Seller()
 			if err != nil {
 				return err
 			}
-			if err := str.AcceptBuyProposal(prop); err != nil {
-				return err
-			}
-			return nil
+			return str.AcceptBuyProposal(prop)
 		},
 		stages.SendProposalResponse: trade.InterruptHandler,
 	})
@@ -122,7 +118,45 @@ func cmdAcceptProposal(cmd *cobra.Command, args []string) {
 		th.InstallStageHandler(i, trade.NoOpHandler)
 	}
 	if err := th.HandleTrade(newTrade); err != nil && err != trade.ErrInterruptTrade {
+		return err
+	}
+	return saveTrade(filepath.Join(tp, filepath.FromSlash(name)), newTrade)
+}
+
+func cmdAcceptProposal(cmd *cobra.Command, args []string) {
+	in, inClose := mustOpenInput(cmd.Flags())
+	defer inClose()
+	b, err := ioutil.ReadAll(in)
+	if err != nil {
 		errorExit(ecCantCreateTrade, err)
 	}
-	mustSaveTrade(cmd, args[0], newTrade)
+	prop, err := trade.UnamrshalBuyProposal(b)
+	if err != nil {
+		errorExit(ecCantCreateTrade, err)
+	}
+	if err = acceptProposal(tradesDir(cmd), args[0], prop); err != nil {
+		errorExit(ecCantCreateTrade, err)
+	}
+	// newTrade := trade.NewOnChainSell()
+	// th := trade.NewHandler(trade.DefaultStageHandlers)
+	// th.InstallStageHandlers(trade.StageHandlerMap{
+	// 	stages.ReceiveProposal: func(tr trade.Trade) error {
+	// 		str, err := tr.Seller()
+	// 		if err != nil {
+	// 			return err
+	// 		}
+	// 		if err := str.AcceptBuyProposal(prop); err != nil {
+	// 			return err
+	// 		}
+	// 		return nil
+	// 	},
+	// 	stages.SendProposalResponse: trade.InterruptHandler,
+	// })
+	// for _, i := range th.Unhandled(newTrade.Stager().Stages()...) {
+	// 	th.InstallStageHandler(i, trade.NoOpHandler)
+	// }
+	// if err := th.HandleTrade(newTrade); err != nil && err != trade.ErrInterruptTrade {
+	// 	errorExit(ecCantCreateTrade, err)
+	// }
+	// mustSaveTrade(cmd, args[0], newTrade)
 }

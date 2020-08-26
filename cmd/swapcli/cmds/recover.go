@@ -115,7 +115,13 @@ func cmdRecoverToAddress(cmd *cobra.Command, args []string) {
 	fs := cmd.Flags()
 	err := recoverFunds(
 		tr,
-		newClient(fs, tr.OwnInfo().Crypto),
+		mustNewclient(
+			tr.OwnInfo().Crypto,
+			mustFlagRPCAddress(fs),
+			mustFlagRPCUsername(fs),
+			mustFlagRPCPassword(fs),
+			mustFlagRPCTLSConfig(fs),
+		),
 		tr.OwnInfo(),
 		args[1],
 		flagFeeFixed(fs),

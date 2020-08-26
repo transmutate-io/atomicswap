@@ -3,9 +3,9 @@ package cmds
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"time"
 
-	"github.com/spf13/pflag"
 	"github.com/transmutate-io/atomicswap/cryptos"
 	"github.com/transmutate-io/atomicswap/hash"
 	"github.com/transmutate-io/atomicswap/script"
@@ -27,17 +27,32 @@ var newClientFuncs = map[string]newClientFunc{
 	cryptos.BitcoinCash.Name: cryptocore.NewClientBCH,
 }
 
-func newClient(fs *pflag.FlagSet, c *cryptos.Crypto) cryptocore.Client {
+func newClient(
+	c *cryptos.Crypto,
+	address string,
+	username string,
+	password string,
+	tlsConf *cryptocore.TLSConfig,
+) (cryptocore.Client, error) {
 	nc, ok := newClientFuncs[c.Name]
 	if !ok {
+		return nil, errors.New("client unavailable")
+	}
+	return nc(address, username, password, tlsConf), nil
+}
+
+func mustNewclient(
+	c *cryptos.Crypto,
+	address string,
+	username string,
+	password string,
+	tlsConf *cryptocore.TLSConfig,
+) cryptocore.Client {
+	r, err := newClient(c, address, username, password, tlsConf)
+	if err != nil {
 		errorExit(ecUnknownCrypto, c.Name)
 	}
-	return nc(
-		mustFlagRPCAddress(fs),
-		mustFlagRPCUsername(fs),
-		mustFlagRPCPassword(fs),
-		mustFlagRPCTLSConfig(fs),
-	)
+	return r
 }
 
 type blockWatchData struct {

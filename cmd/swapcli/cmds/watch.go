@@ -97,11 +97,8 @@ func init() {
 	})
 }
 
-func cmdListWatchable(cmd *cobra.Command, args []string) {
-	out, closeOut := mustOpenOutput(cmd.Flags())
-	defer closeOut()
-	tpl := mustOutputTemplate(cmd.Flags(), watchableTradesTemplates, nil)
-	eachTrade(tradesDir(cmd), func(name string, tr trade.Trade) error {
+func listWatchable(td string, out io.Writer, tpl *template.Template) error {
+	return eachTrade(td, func(name string, tr trade.Trade) error {
 		switch tr.Stager().Stage() {
 		case stages.SendProposalResponse,
 			stages.LockFunds,
@@ -113,6 +110,15 @@ func cmdListWatchable(cmd *cobra.Command, args []string) {
 		}
 		return tpl.Execute(out, newTradeInfo(name, tr))
 	})
+}
+
+func cmdListWatchable(cmd *cobra.Command, args []string) {
+	out, closeOut := mustOpenOutput(cmd.Flags())
+	defer closeOut()
+	tpl := mustOutputTemplate(cmd.Flags(), watchableTradesTemplates, nil)
+	if err := listWatchable(tradesDir(cmd), out, tpl); err != nil {
+		errorExit(ecFailedToWatch, err)
+	}
 }
 
 func containsString(s []string, v string) bool {
@@ -244,6 +250,52 @@ func newDepositWatcher(
 	}
 }
 
+func watchDeposit(
+	tr trade.Trade,
+	wd *watchData,
+	out io.Writer,
+	depositTpl *template.Template,
+	blockTpl *template.Template,
+	cl cryptocore.Client,
+	firstBlock uint64,
+	ignoreTarget bool,
+	confirmations uint64,
+	watchStage stages.Stage,
+	selectCryptoInfo func(trade.Trade) *trade.TraderInfo,
+	selectWatchData func(*watchData) *blockWatchData,
+	selectFunds func(trade.Trade) trade.FundsData,
+	selectInterruptStage func(trade.Trade) stages.Stage,
+	tradeSave func(trade.Trade),
+	wdSave func(*watchData),
+) error {
+	cryptoInfo := selectCryptoInfo(tr)
+	th := trade.NewHandler(trade.StageHandlerMap{
+		watchStage: newDepositWatcher(
+			out,
+			depositTpl,
+			blockTpl,
+			cl,
+			firstBlock,
+			cryptoInfo,
+			selectFunds(tr),
+			ignoreTarget,
+			confirmations,
+			wd,
+			selectWatchData(wd),
+			tradeSave,
+			wdSave,
+		),
+		selectInterruptStage(tr): trade.InterruptHandler,
+	})
+	for _, i := range th.Unhandled(tr.Stager().Stages()...) {
+		th.InstallStageHandler(i, trade.NoOpHandler)
+	}
+	if err := th.HandleTrade(tr); err != nil && err != trade.ErrInterruptTrade {
+		return err
+	}
+	return nil
+}
+
 func cmdWatchDeposit(
 	cmd *cobra.Command,
 	tradeName string,
@@ -254,33 +306,35 @@ func cmdWatchDeposit(
 	selectInterruptStage func(trade.Trade) stages.Stage,
 ) {
 	tr := mustOpenTrade(cmd, tradeName)
+	wd := mustOpenWatchData(cmd, tradeName)
 	fs := cmd.Flags()
 	out, closeOut := mustOpenOutput(fs)
 	defer closeOut()
-	wd := openWatchData(cmd, tradeName)
-	cryptoInfo := selectCryptoInfo(tr)
-	th := trade.NewHandler(trade.StageHandlerMap{
-		watchStage: newDepositWatcher(
-			out,
-			mustOutputTemplate(fs, depositChunkLogTemplates, nil),
-			mustOutputTemplate(fs, blockInspectionTemplates, nil),
-			newClient(fs, cryptoInfo.Crypto),
-			flagFirstBlock(fs),
-			cryptoInfo,
-			selectFunds(tr),
-			mustFlagIgnoreTarget(fs),
-			mustFlagConfirmations(fs),
-			wd,
-			selectWatchData(wd),
-			func(t trade.Trade) { mustSaveTrade(cmd, tradeName, t) },
-			func(nwd *watchData) { saveWatchData(cmd, tradeName, nwd) },
+	err := watchDeposit(
+		tr,
+		wd,
+		out,
+		mustOutputTemplate(fs, depositChunkLogTemplates, nil),
+		mustOutputTemplate(fs, blockInspectionTemplates, nil),
+		mustNewclient(
+			selectCryptoInfo(tr).Crypto,
+			mustFlagRPCAddress(fs),
+			mustFlagRPCUsername(fs),
+			mustFlagRPCPassword(fs),
+			mustFlagRPCTLSConfig(fs),
 		),
-		selectInterruptStage(tr): trade.InterruptHandler,
-	})
-	for _, i := range th.Unhandled(tr.Stager().Stages()...) {
-		th.InstallStageHandler(i, trade.NoOpHandler)
-	}
-	if err := th.HandleTrade(tr); err != nil && err != trade.ErrInterruptTrade {
+		flagFirstBlock(fs),
+		mustFlagIgnoreTarget(fs),
+		mustFlagConfirmations(fs),
+		watchStage,
+		selectCryptoInfo,
+		selectWatchData,
+		selectFunds,
+		selectInterruptStage,
+		func(t trade.Trade) { mustSaveTrade(cmd, tradeName, t) },
+		func(nwd *watchData) { saveWatchData(watchDataPath(cmd, tradeName), nwd) },
+	)
+	if err != nil {
 		errorExit(ecFailedToWatch, err)
 	}
 	mustSaveTrade(cmd, tradeName, tr)
@@ -353,20 +407,33 @@ func newSecretTokenWatcher(cl cryptocore.Client, firstBlock uint64, wd *watchDat
 	}
 }
 
-func cmdWatchSecretToken(cmd *cobra.Command, args []string) {
-	tr := mustOpenTrade(cmd, args[0])
-	fs := cmd.Flags()
-	cl := newClient(fs, tr.OwnInfo().Crypto)
-	wd := openWatchData(cmd, args[0])
+func watchSecretToken(tr trade.Trade, wd *watchData, cl cryptocore.Client, firstBlock uint64) error {
 	th := trade.NewHandler(nil)
 	th.InstallStageHandlers(trade.StageHandlerMap{
-		stages.WaitFundsRedeemed: newSecretTokenWatcher(cl, flagFirstBlock(fs), wd),
+		stages.WaitFundsRedeemed: newSecretTokenWatcher(cl, firstBlock, wd),
 		stages.RedeemFunds:       trade.InterruptHandler,
 	})
 	for _, i := range th.Unhandled(tr.Stager().Stages()...) {
 		th.InstallStageHandler(i, trade.NoOpHandler)
 	}
 	if err := th.HandleTrade(tr); err != nil && err != trade.ErrInterruptTrade {
+		return err
+	}
+	return nil
+}
+
+func cmdWatchSecretToken(cmd *cobra.Command, args []string) {
+	tr := mustOpenTrade(cmd, args[0])
+	fs := cmd.Flags()
+	cl := mustNewclient(
+		tr.OwnInfo().Crypto,
+		mustFlagRPCAddress(fs),
+		mustFlagRPCUsername(fs),
+		mustFlagRPCPassword(fs),
+		mustFlagRPCTLSConfig(fs),
+	)
+	wd := mustOpenWatchData(cmd, args[0])
+	if err := watchSecretToken(tr, wd, cl, flagFirstBlock(fs)); err != nil {
 		errorExit(ecFailedToWatch, err)
 	}
 	mustSaveTrade(cmd, args[0], tr)

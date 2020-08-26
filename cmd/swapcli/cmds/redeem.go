@@ -124,7 +124,13 @@ func cmdRedeemToAddress(cmd *cobra.Command, args []string) {
 			flagFee(fs),
 			out,
 			mustVerboseLevel(fs, 1),
-			newClient(fs, tr.TraderInfo().Crypto),
+			mustNewclient(
+				tr.TraderInfo().Crypto,
+				mustFlagRPCAddress(fs),
+				mustFlagRPCUsername(fs),
+				mustFlagRPCPassword(fs),
+				mustFlagRPCTLSConfig(fs),
+			),
 		),
 	})
 	for _, i := range th.Unhandled(tr.Stager().Stages()...) {

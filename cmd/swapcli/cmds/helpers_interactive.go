@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -413,4 +414,21 @@ func newAbsolutePathFilter(rootPath string) func(string, string) (prompt.Suggest
 
 func inputTradeName(cmd *cobra.Command, pr string, mustExist bool) (string, error) {
 	return inputSandboxedFilename(pr, tradesDir(cmd), mustExist)
+}
+
+func inputInt(pr string, def int) (int, bool) {
+	for {
+		v := inputText(fmt.Sprintf("%s (%v): ", pr, def))
+		if v == "" {
+			return def, true
+		} else if v == ".." {
+			return 0, false
+		}
+		i, err := strconv.Atoi(v)
+		if err != nil {
+			fmt.Printf("%#v is not a number: %s\n", v, err)
+			continue
+		}
+		return i, true
+	}
 }

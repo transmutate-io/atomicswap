@@ -25,6 +25,7 @@ const (
 	ecCantCreateTrade
 	ecCantDeleteTrade
 	ecCantExportLockSet
+	ecCantShowLockSetInfo
 	ecCantExportProposal
 	ecCantExportTrades
 	ecCantGetFlag
@@ -59,6 +60,7 @@ var ecMessages = map[int]string{
 	ecCantCreateTrade:      "can't create trade: %s\n",
 	ecCantDeleteTrade:      "can't delete trade: %s\n",
 	ecCantExportLockSet:    "can't export lock set: %s\n",
+	ecCantShowLockSetInfo:  "can't show lockset info: %s\n",
 	ecCantExportProposal:   "can't export proposal: %s\n",
 	ecCantExportTrades:     "can't export trades: %s\n",
 	ecCantGetFlag:          "can't get flag: %s\n",
@@ -236,32 +238,44 @@ func watchDataPath(cmd *cobra.Command, name string) string {
 	return filepath.Join(watchDataDir(cmd), name)
 }
 
-func openWatchData(cmd *cobra.Command, name string) *watchData {
+func openWatchData(wdPath string) (*watchData, error) {
 	r := &watchData{
 		Own:    &blockWatchData{Top: 0, Bottom: 0},
 		Trader: &blockWatchData{Top: 0, Bottom: 0},
 	}
-	f, err := os.Open(watchDataPath(cmd, name))
+	f, err := os.Open(wdPath)
 	if err != nil {
 		if e, ok := err.(*os.PathError); ok && e.Err == syscall.ENOENT {
-			return r
+			return r, nil
 		}
-		errorExit(ecCantOpenWatchData, err)
+		return nil, err
 	}
 	defer f.Close()
 	if err = yaml.NewDecoder(f).Decode(r); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+func mustOpenWatchData(cmd *cobra.Command, name string) *watchData {
+	r, err := openWatchData(watchDataPath(cmd, name))
+	if err != nil {
 		errorExit(ecCantOpenWatchData, err)
 	}
 	return r
 }
 
-func saveWatchData(cmd *cobra.Command, name string, wd *watchData) {
-	f, err := createFile(watchDataPath(cmd, name))
+func saveWatchData(wdPath string, wd *watchData) error {
+	f, err := createFile(wdPath)
 	if err != nil {
-		errorExit(ecCantSaveWatchData, err)
+		return err
 	}
 	defer f.Close()
-	if err = yaml.NewEncoder(f).Encode(wd); err != nil {
+	return yaml.NewEncoder(f).Encode(wd)
+}
+
+func mustSaveWatchData(cmd *cobra.Command, name string, wd *watchData) {
+	if err := saveWatchData(watchDataPath(cmd, name), wd); err != nil {
 		errorExit(ecCantSaveWatchData, err)
 	}
 }

@@ -16,6 +16,8 @@ import (
 	"github.com/c-bata/go-prompt"
 	"github.com/spf13/cobra"
 	"github.com/transmutate-io/atomicswap/cryptos"
+	"github.com/transmutate-io/atomicswap/roles"
+	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
 	"github.com/transmutate-io/cryptocore"
 	"github.com/transmutate-io/cryptocore/types"
@@ -208,11 +210,11 @@ func actionNewTrade(cmd *cobra.Command) {
 		fmt.Printf("can't create new trade: %s\n", err)
 		return
 	}
-	tradeName = trimPath(tradeName, tradesDir(cmd))
 	if tradeName == "" {
 		fmt.Printf("trade creation aborted\n")
 		return
 	}
+	tradeName = trimPath(tradeName, tradesDir(cmd))
 	for {
 		if v := inputText("own amount"); v != "" {
 			if ownAmount = types.Amount(v); !ownAmount.Valid() {
@@ -848,18 +850,195 @@ func actionLockSetInfo(cmd *cobra.Command) {
 	}
 }
 
-func actionListWatchable(cmd *cobra.Command) {}
+func actionListWatchable(cmd *cobra.Command) {
+	tpl, err := template.New("main").Parse(watchableTradesTemplates[len(watchableTradesTemplates)-1])
+	if err != nil {
+		fmt.Printf("can't parse template: %s\n", err)
+		return
+	}
+	if err := listWatchable(tradesDir(cmd), os.Stdout, tpl); err != nil {
+		fmt.Printf("can't list watchable trades: %s\n", err)
+	}
+}
 
-func actionWatchOwn(cmd *cobra.Command) {}
+func tradePathToWatchData(cmd *cobra.Command, tp string) string {
+	return watchDataPath(cmd, trimPath(tp, tradesDir(cmd)))
+}
 
-func actionWatchTrader(cmd *cobra.Command) {}
+func actionWatch(
+	cmd *cobra.Command,
+	watchStage stages.Stage,
+	selectCryptoInfo func(trade.Trade) *trade.TraderInfo,
+	selectWatchData func(*watchData) *blockWatchData,
+	selectFunds func(trade.Trade) trade.FundsData,
+	selectInterruptStage func(trade.Trade) stages.Stage,
+) error {
+	tn, err := inputTradeName(cmd, "trade: ", true)
+	if err != nil {
+		return err
+	}
+	if tn == "" {
+		return nil
+	}
+	tr, err := openTrade(tn)
+	if err != nil {
+		return err
+	}
+	wd, err := openWatchData(tradePathToWatchData(cmd, tn))
+	if err != nil {
+		return err
+	}
+	depositTpl, err := template.New("main").
+		Parse(depositChunkLogTemplates[len(depositChunkLogTemplates)-1])
+	if err != nil {
+		return err
+	}
+	blockTpl, err := template.New("main").
+		Parse(blockInspectionTemplates[len(blockInspectionTemplates)-1])
+	if err != nil {
+		return err
+	}
+	clientCfg := mainConfig.client(tr.OwnInfo().Crypto.Name)
+	cl, err := newClient(
+		tr.OwnInfo().Crypto,
+		clientCfg.Address,
+		clientCfg.Username,
+		clientCfg.Username,
+		&clientCfg.TLS,
+	)
+	if err != nil {
+		return err
+	}
+	firstBlock, ok := inputInt("lower height: ", 1)
+	if !ok {
+		fmt.Printf("aborted\n")
+		return nil
+	}
+	confirmations, ok := inputInt("confirmations", 1)
+	if !ok {
+		fmt.Printf("aborted\n")
+		return nil
+	}
+	return watchDeposit(
+		tr,
+		wd,
+		os.Stdout,
+		depositTpl,
+		blockTpl,
+		cl,
+		uint64(firstBlock),
+		false,
+		uint64(confirmations),
+		watchStage,
+		selectCryptoInfo,
+		selectWatchData,
+		selectFunds,
+		selectInterruptStage,
+		func(tr trade.Trade) {
+			if err := saveTrade(tn, tr); err != nil {
+				fmt.Printf("error saving trade: %s\n", err)
+			}
+		},
+		func(wd *watchData) {
+			if err := saveWatchData(tn, wd); err != nil {
+				fmt.Printf("error saving watch data: %s\n", err)
+			}
+		},
+	)
+}
 
-func actionWatchSecret(cmd *cobra.Command) {}
+func actionWatchOwn(cmd *cobra.Command) {
+	err := actionWatch(
+		cmd,
+		stages.LockFunds,
+		func(tr trade.Trade) *trade.TraderInfo { return tr.OwnInfo() },
+		func(wd *watchData) *blockWatchData { return wd.Own },
+		func(tr trade.Trade) trade.FundsData { return tr.RecoverableFunds() },
+		func(tr trade.Trade) stages.Stage {
+			if tr.Role() == roles.Buyer {
+				return stages.WaitLockedFunds
+			}
+			return stages.WaitFundsRedeemed
+		},
+	)
+	if err != nil {
+		fmt.Printf("can't watch deposit: %s\n", err)
+	}
+}
 
-func actionListRedeemable(cmd *cobra.Command) {}
+func actionWatchTrader(cmd *cobra.Command) {
+	err := actionWatch(
+		cmd,
+		stages.WaitLockedFunds,
+		func(tr trade.Trade) *trade.TraderInfo { return tr.TraderInfo() },
+		func(wd *watchData) *blockWatchData { return wd.Trader },
+		func(tr trade.Trade) trade.FundsData { return tr.RedeemableFunds() },
+		func(tr trade.Trade) stages.Stage {
+			if tr.Role() == roles.Buyer {
+				return stages.RedeemFunds
+			}
+			return stages.LockFunds
+		},
+	)
+	if err != nil {
+		fmt.Printf("can't watch deposit: %s\n", err)
+	}
+}
 
-func actionRedeem(cmd *cobra.Command) {}
+func actionWatchSecret(cmd *cobra.Command) {
+	tn, err := inputTradeName(cmd, "trade: ", true)
+	if err != nil {
+		fmt.Printf("can't find trade: %s\n", err)
+		return
+	}
+	if tn == "" {
+		fmt.Printf("aborted\n")
+		return
+	}
+	tr, err := openTrade(tn)
+	if err != nil {
+		fmt.Printf("can't open trade: %s\n", err)
+		return
+	}
+	wd, err := openWatchData(tradePathToWatchData(cmd, tn))
+	if err != nil {
+		fmt.Printf("can't open watch data: %s\n", err)
+		return
+	}
+	clientCfg := mainConfig.client(tr.OwnInfo().Crypto.Name)
+	cl, err := newClient(
+		tr.OwnInfo().Crypto,
+		clientCfg.Address,
+		clientCfg.Username,
+		clientCfg.Username,
+		&clientCfg.TLS,
+	)
+	if err != nil {
+		fmt.Printf("can't create client: %s\n", err)
+		return
+	}
+	firstBlock, ok := inputInt("lower height: ", 1)
+	if !ok {
+		fmt.Printf("aborted\n")
+		return
+	}
+	if err := watchSecretToken(tr, wd, cl, uint64(firstBlock)); err != nil {
+		fmt.Printf("error watching for the secret token: %s\n", err)
+	}
+}
 
-func actionListRecoverable(cmd *cobra.Command) {}
+func actionListRedeemable(cmd *cobra.Command) {
+	// list redeemable
+}
 
-func actionRecover(cmd *cobra.Command) {}
+func actionRedeem(cmd *cobra.Command) {
+	// redeem
+}
+
+func actionListRecoverable(cmd *cobra.Command) {
+	// list recoverable
+}
+
+func actionRecover(cmd *cobra.Command) {
+	// recover
+}

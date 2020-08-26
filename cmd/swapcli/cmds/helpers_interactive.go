@@ -11,6 +11,8 @@ import (
 
 	"github.com/c-bata/go-prompt"
 	"github.com/spf13/cobra"
+	"github.com/transmutate-io/atomicswap/trade"
+	"github.com/transmutate-io/cryptocore/types"
 )
 
 var (
@@ -266,6 +268,7 @@ func inputMultiChoice(pr string, def string, choices []prompt.Suggest, helpFunc 
 		case "":
 			return def, true
 		case "..":
+			fmt.Println("aborted")
 			return "", false
 		case "help":
 			helpFunc(choices[:len(choices)-2])
@@ -322,6 +325,7 @@ func inputPath(pr string, rootPath string, mustExist bool, pathToSuggestionFn fu
 			return r
 		})
 		if strings.TrimSpace(input) == "" {
+			fmt.Println("aborted")
 			return "", nil
 		}
 		var r string
@@ -416,12 +420,13 @@ func inputTradeName(cmd *cobra.Command, pr string, mustExist bool) (string, erro
 	return inputSandboxedFilename(pr, tradesDir(cmd), mustExist)
 }
 
-func inputInt(pr string, def int) (int, bool) {
+func inputIntWithDefault(pr string, def int) (int, bool) {
 	for {
 		v := inputText(fmt.Sprintf("%s (%v): ", pr, def))
 		if v == "" {
 			return def, true
 		} else if v == ".." {
+			fmt.Println("aborted")
 			return 0, false
 		}
 		i, err := strconv.Atoi(v)
@@ -431,4 +436,37 @@ func inputInt(pr string, def int) (int, bool) {
 		}
 		return i, true
 	}
+}
+
+func inputAmount(pr string) (types.Amount, bool) {
+	for {
+		if v := inputText("trader amount"); v != "" {
+			if v == "" {
+				fmt.Println("aborted")
+				return "", false
+			}
+			r := types.Amount(v)
+			if !r.Valid() {
+				fmt.Printf("invalid amount\n")
+				continue
+			}
+			return r, true
+		}
+	}
+}
+
+func openTradeFromInput(cmd *cobra.Command, pr string) (string, trade.Trade, error) {
+	tn, err := inputTradeName(cmd, pr, true)
+	if err != nil {
+		return "", nil, err
+	}
+	if tn == "" {
+		return "", nil, nil
+	}
+	tr, err := openTrade(tn)
+	if err != nil {
+		fmt.Printf("can't open trade: %s\n", err)
+		return "", nil, err
+	}
+	return tn, tr, nil
 }

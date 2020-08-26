@@ -20,7 +20,6 @@ import (
 	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
 	"github.com/transmutate-io/cryptocore"
-	"github.com/transmutate-io/cryptocore/types"
 	"gopkg.in/yaml.v2"
 )
 
@@ -199,9 +198,7 @@ func actionNewTrade(cmd *cobra.Command) {
 	var (
 		tradeName    string
 		err          error
-		ownAmount    types.Amount
 		ownCrypto    *cryptos.Crypto
-		traderAmount types.Amount
 		traderCrypto *cryptos.Crypto
 		dur          time.Duration
 	)
@@ -211,18 +208,12 @@ func actionNewTrade(cmd *cobra.Command) {
 		return
 	}
 	if tradeName == "" {
-		fmt.Printf("trade creation aborted\n")
 		return
 	}
 	tradeName = trimPath(tradeName, tradesDir(cmd))
-	for {
-		if v := inputText("own amount"); v != "" {
-			if ownAmount = types.Amount(v); !ownAmount.Valid() {
-				fmt.Printf("invalid amount\n")
-				continue
-			}
-			break
-		}
+	ownAmount, ok := inputAmount("own amount")
+	if !ok {
+		return
 	}
 	cryptosNames := sortedCryptos()
 	cryptosSuggestions := make([]prompt.Suggest, 0, len(cryptosNames))
@@ -237,9 +228,8 @@ func actionNewTrade(cmd *cobra.Command) {
 		fmt.Printf("\n  .. to abort\n\n")
 	}
 	for {
-		c, ok := inputMultiChoice("own crypto", cryptosNames[0], cryptosSuggestions, helpFunc)
+		c, ok := inputMultiChoice("own crypto", cryptosSuggestions[0].Text, cryptosSuggestions, helpFunc)
 		if !ok {
-			fmt.Printf("trade creation aborted\n")
 			return
 		}
 		own, err := parseCrypto(c)
@@ -250,19 +240,19 @@ func actionNewTrade(cmd *cobra.Command) {
 		ownCrypto = own
 		break
 	}
-	for {
-		if v := inputText("trader amount"); v != "" {
-			if traderAmount = types.Amount(v); !traderAmount.Valid() {
-				fmt.Printf("invalid amount\n")
-				continue
-			}
+	traderAmount, ok := inputAmount("trader amount")
+	if !ok {
+		return
+	}
+	for i, s := range cryptosSuggestions {
+		if s.Text == ownCrypto.Name {
+			cryptosSuggestions = append(cryptosSuggestions[:i], cryptosSuggestions[i+1:]...)
 			break
 		}
 	}
 	for {
-		c, ok := inputMultiChoice("trader crypto", cryptosNames[0], cryptosSuggestions, helpFunc)
+		c, ok := inputMultiChoice("trader crypto", cryptosSuggestions[0].Text, cryptosSuggestions, helpFunc)
 		if !ok {
-			fmt.Printf("trade creation aborted\n")
 			return
 		}
 		trader, err := parseCrypto(c)
@@ -276,7 +266,7 @@ func actionNewTrade(cmd *cobra.Command) {
 	for {
 		v := inputText("duration")
 		if v == "" {
-			fmt.Printf("trade creation aborted\n")
+			fmt.Println("aborted")
 			return
 		}
 		var err error
@@ -318,7 +308,6 @@ func actionRenameTrade(cmd *cobra.Command) {
 		return
 	}
 	if tradeName == "" {
-		fmt.Printf("aborted\n")
 		return
 	}
 	newName, err := inputTradeName(cmd, "new trade name: ", false)
@@ -327,7 +316,6 @@ func actionRenameTrade(cmd *cobra.Command) {
 		return
 	}
 	if newName == "" {
-		fmt.Printf("aborted\n")
 		return
 	}
 	if err = renameFile(tradeName, newName); err != nil {
@@ -342,7 +330,6 @@ func actionDeleteTrade(cmd *cobra.Command) {
 		return
 	}
 	if tradeName == "" {
-		fmt.Printf("aborted\n")
 		return
 	}
 	if err = os.Remove(tradeName); err != nil {
@@ -632,18 +619,12 @@ func actionListProposals(cmd *cobra.Command) {
 }
 
 func actionExportProposal(cmd *cobra.Command) {
-	tn, err := inputTradeName(cmd, "trade: ", true)
+	tn, tr, err := openTradeFromInput(cmd, "trade to export: ")
 	if err != nil {
 		fmt.Printf("can't open trade: %s\n", err)
 		return
 	}
-	if tn == "" {
-		fmt.Printf("aborted\n")
-		return
-	}
-	tr, err := openTrade(tn)
-	if err != nil {
-		fmt.Printf("can't open trade: %s\n", err)
+	if tn == "" && tr == nil {
 		return
 	}
 	buyerTrade, err := tr.Buyer()
@@ -685,7 +666,6 @@ func actionAcceptProposal(cmd *cobra.Command) {
 		return
 	}
 	if tn == "" {
-		fmt.Printf("aborted\n")
 		return
 	}
 	propFn, err := inputFilename("proposal: ", ".", true)
@@ -694,7 +674,6 @@ func actionAcceptProposal(cmd *cobra.Command) {
 		return
 	}
 	if propFn == "" {
-		fmt.Printf("aborted\n")
 		return
 	}
 	b, err := ioutil.ReadFile(propFn)
@@ -730,7 +709,6 @@ func actionExportLockSet(cmd *cobra.Command) {
 		return
 	}
 	if tn == "" {
-		fmt.Printf("aborted\n")
 		return
 	}
 	outFn, err := inputFilename("export to: ", ".", false)
@@ -739,7 +717,6 @@ func actionExportLockSet(cmd *cobra.Command) {
 		return
 	}
 	if outFn == "" {
-		fmt.Printf("aborted\n")
 		return
 	}
 	f, err := createFile(outFn)
@@ -755,13 +732,12 @@ func actionExportLockSet(cmd *cobra.Command) {
 }
 
 func actionAcceptLockSet(cmd *cobra.Command) {
-	tp, err := inputTradeName(cmd, "trade: ", true)
+	tp, tr, err := openTradeFromInput(cmd, "trade: ")
 	if err != nil {
-		fmt.Printf("can't find trade: %s\n", err)
+		fmt.Printf("can't open trade: %s\n", err)
 		return
 	}
-	if tp == "" {
-		fmt.Printf("aborted\n")
+	if tp == "" && tr == nil {
 		return
 	}
 	inFn, err := inputFilename("lockset file: ", ".", true)
@@ -770,7 +746,6 @@ func actionAcceptLockSet(cmd *cobra.Command) {
 		return
 	}
 	if inFn == "" {
-		fmt.Printf("aborted\n")
 		return
 	}
 	lsBytes, err := ioutil.ReadFile(inFn)
@@ -793,16 +768,10 @@ func actionAcceptLockSet(cmd *cobra.Command) {
 	fmt.Printf("\n")
 	accepted, ok := inputYesNo("accept locks", false)
 	if !ok {
-		fmt.Printf("aborted\n")
 		return
 	}
 	if !accepted {
 		fmt.Printf("not accepted\n")
-		return
-	}
-	tr, err := openTrade(tp)
-	if err != nil {
-		fmt.Printf("can't open trade: %s\n", err)
 		return
 	}
 	if err := acceptLockSet(tr, bytes.NewReader(lsBytes)); err != nil {
@@ -821,7 +790,6 @@ func actionLockSetInfo(cmd *cobra.Command) {
 		return
 	}
 	if tp == "" {
-		fmt.Printf("aborted\n")
 		return
 	}
 	inFn, err := inputFilename("lockset file: ", ".", true)
@@ -830,7 +798,6 @@ func actionLockSetInfo(cmd *cobra.Command) {
 		return
 	}
 	if inFn == "" {
-		fmt.Printf("aborted\n")
 		return
 	}
 	fin, err := os.Open(inFn)
@@ -873,16 +840,12 @@ func actionWatch(
 	selectFunds func(trade.Trade) trade.FundsData,
 	selectInterruptStage func(trade.Trade) stages.Stage,
 ) error {
-	tn, err := inputTradeName(cmd, "trade: ", true)
+	tn, tr, err := openTradeFromInput(cmd, "trade to watch: ")
 	if err != nil {
 		return err
 	}
-	if tn == "" {
+	if tn == "" && tr == nil {
 		return nil
-	}
-	tr, err := openTrade(tn)
-	if err != nil {
-		return err
 	}
 	wd, err := openWatchData(tradePathToWatchData(cmd, tn))
 	if err != nil {
@@ -909,14 +872,12 @@ func actionWatch(
 	if err != nil {
 		return err
 	}
-	firstBlock, ok := inputInt("lower height: ", 1)
+	firstBlock, ok := inputIntWithDefault("lower height: ", 1)
 	if !ok {
-		fmt.Printf("aborted\n")
 		return nil
 	}
-	confirmations, ok := inputInt("confirmations", 1)
+	confirmations, ok := inputIntWithDefault("confirmations", 1)
 	if !ok {
-		fmt.Printf("aborted\n")
 		return nil
 	}
 	return watchDeposit(
@@ -986,18 +947,12 @@ func actionWatchTrader(cmd *cobra.Command) {
 }
 
 func actionWatchSecret(cmd *cobra.Command) {
-	tn, err := inputTradeName(cmd, "trade: ", true)
-	if err != nil {
-		fmt.Printf("can't find trade: %s\n", err)
-		return
-	}
-	if tn == "" {
-		fmt.Printf("aborted\n")
-		return
-	}
-	tr, err := openTrade(tn)
+	tn, tr, err := openTradeFromInput(cmd, "trade to watch: ")
 	if err != nil {
 		fmt.Printf("can't open trade: %s\n", err)
+		return
+	}
+	if tn == "" && tr == nil {
 		return
 	}
 	wd, err := openWatchData(tradePathToWatchData(cmd, tn))
@@ -1017,9 +972,8 @@ func actionWatchSecret(cmd *cobra.Command) {
 		fmt.Printf("can't create client: %s\n", err)
 		return
 	}
-	firstBlock, ok := inputInt("lower height: ", 1)
+	firstBlock, ok := inputIntWithDefault("lower height: ", 1)
 	if !ok {
-		fmt.Printf("aborted\n")
 		return
 	}
 	if err := watchSecretToken(tr, wd, cl, uint64(firstBlock)); err != nil {
@@ -1028,11 +982,76 @@ func actionWatchSecret(cmd *cobra.Command) {
 }
 
 func actionListRedeemable(cmd *cobra.Command) {
-	// list redeemable
+	tpl, err := template.New("main").Parse(tradeListTemplates[len(tradeListTemplates)-1])
+	if err != nil {
+		fmt.Printf("can't parse template: %s\n", err)
+		return
+	}
+	fmt.Printf("\nredeemable trades:\n\n")
+	if err := listRedeemable(tradesDir(cmd), os.Stdout, tpl); err != nil {
+		fmt.Printf("can't list redeemable trades: %s\n", err)
+		return
+	}
+	fmt.Println()
 }
 
 func actionRedeem(cmd *cobra.Command) {
-	// redeem
+	tn, tr, err := openTradeFromInput(cmd, "trade to redeem: ")
+	if err != nil {
+		fmt.Printf("can't open trade: %s\n", err)
+		return
+	}
+	if tn == "" && tr == nil {
+		return
+	}
+	destAddr := inputText(fmt.Sprintf("destination address (%s)", tr.TraderInfo().Crypto.Name))
+	if destAddr == "" {
+		fmt.Println("aborted")
+		return
+	}
+	choices := []prompt.Suggest{
+		{Text: "fixed", Description: "fixed fee"},
+		{Text: "byte", Description: "per byte fee"},
+	}
+	ft, ok := inputMultiChoice("fee type", choices[0].Text, choices, func(c []prompt.Suggest) {
+		fmt.Printf("\nfee types:\n\n")
+		for _, i := range c {
+			fmt.Printf("  %s - %s\n", i.Text, i.Description)
+		}
+		fmt.Printf("\n  .. abort\n\n")
+	})
+	if !ok {
+		return
+	}
+	var pr string
+	if ft == "fixed" {
+		pr = "fee"
+	} else {
+		pr = "fee per byte"
+	}
+	fee, ok := inputIntWithDefault(pr, 1)
+	if !ok {
+		return
+	}
+	var fixedFee bool
+	if ft == "fixed" {
+		fixedFee = true
+	}
+	cfg := mainConfig.client(tr.TraderInfo().Crypto.Name)
+	err = redeemToAddress(
+		tr,
+		os.Stdout,
+		destAddr,
+		cfg.Address,
+		cfg.Username,
+		cfg.Password,
+		&cfg.TLS,
+		uint64(fee),
+		fixedFee,
+	)
+	if err != nil {
+		fmt.Printf("can't redeem funds: %s\n", err)
+	}
 }
 
 func actionListRecoverable(cmd *cobra.Command) {

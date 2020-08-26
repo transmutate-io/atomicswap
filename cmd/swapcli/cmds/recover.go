@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"text/template"
 
 	"github.com/spf13/cobra"
 	"github.com/transmutate-io/atomicswap/networks"
@@ -56,12 +57,8 @@ func init() {
 	})
 }
 
-func cmdListRecoverable(cmd *cobra.Command, args []string) {
-	fs := cmd.Flags()
-	out, closeOut := mustOpenOutput(fs)
-	defer closeOut()
-	tpl := mustOutputTemplate(fs, tradeListTemplates, nil)
-	err := eachTrade(tradesDir(cmd), func(name string, tr trade.Trade) error {
+func listRecoverable(td string, out io.Writer, tpl *template.Template) error {
+	return eachTrade(td, func(name string, tr trade.Trade) error {
 		for _, i := range tr.Stager().Stages() {
 			if i == stages.LockFunds {
 				return nil
@@ -72,12 +69,19 @@ func cmdListRecoverable(cmd *cobra.Command, args []string) {
 		}
 		return tpl.Execute(out, newTradeInfo(name, tr))
 	})
-	if err != nil {
+}
+
+func cmdListRecoverable(cmd *cobra.Command, args []string) {
+	fs := cmd.Flags()
+	out, closeOut := mustOpenOutput(fs)
+	defer closeOut()
+	tpl := mustOutputTemplate(fs, tradeListTemplates, nil)
+	if err := listRecoverable(tradesDir(cmd), out, tpl); err != nil {
 		errorExit(ecCantListTrades)
 	}
 }
 
-func recoverFunds(tr trade.Trade, cl cryptocore.Client, cryptoInfo *trade.TraderInfo, addr string, feeFixed bool, fee uint64, out io.Writer, verbose int) error {
+func recoverFunds(tr trade.Trade, cl cryptocore.Client, cryptoInfo *trade.TraderInfo, addr string, feeFixed bool, fee uint64, out io.Writer, verboseRaw bool) error {
 	addrScript, err := networks.AllByName[cryptoInfo.Crypto.Name][mustFlagCryptoChain(cryptoInfo.Crypto)].
 		AddressToScript(addr)
 	if err != nil {
@@ -97,7 +101,7 @@ func recoverFunds(tr trade.Trade, cl cryptocore.Client, cryptoInfo *trade.Trader
 	if err != nil {
 		return err
 	}
-	if verbose > 0 {
+	if verboseRaw {
 		fmt.Fprintf(out, "raw transaction: %s\n", hex.EncodeToString(b))
 	}
 	txID, err := cl.SendRawTransaction(b)
@@ -113,6 +117,10 @@ func cmdRecoverToAddress(cmd *cobra.Command, args []string) {
 	out, closeOut := mustOpenOutput(cmd.Flags())
 	defer closeOut()
 	fs := cmd.Flags()
+	var verboseRaw bool
+	if mustVerboseLevel(fs, 1) > 0 {
+		verboseRaw = true
+	}
 	err := recoverFunds(
 		tr,
 		mustNewclient(
@@ -127,7 +135,7 @@ func cmdRecoverToAddress(cmd *cobra.Command, args []string) {
 		flagFeeFixed(fs),
 		flagFee(fs),
 		out,
-		mustVerboseLevel(fs, 1),
+		verboseRaw,
 	)
 	if err != nil {
 		errorExit(ecCantRecover, err)

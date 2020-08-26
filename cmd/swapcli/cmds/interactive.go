@@ -995,19 +995,19 @@ func actionListRedeemable(cmd *cobra.Command) {
 	fmt.Println()
 }
 
-func actionRedeem(cmd *cobra.Command) {
-	tn, tr, err := openTradeFromInput(cmd, "trade to redeem: ")
+func inputRedeemRecoverData(cmd *cobra.Command, pr string) (trade.Trade, string, uint64, bool, bool) {
+	tn, tr, err := openTradeFromInput(cmd, pr)
 	if err != nil {
 		fmt.Printf("can't open trade: %s\n", err)
-		return
+		return nil, "", 0, false, false
 	}
 	if tn == "" && tr == nil {
-		return
+		return nil, "", 0, false, false
 	}
 	destAddr := inputText(fmt.Sprintf("destination address (%s)", tr.TraderInfo().Crypto.Name))
 	if destAddr == "" {
 		fmt.Println("aborted")
-		return
+		return nil, "", 0, false, false
 	}
 	choices := []prompt.Suggest{
 		{Text: "fixed", Description: "fixed fee"},
@@ -1021,24 +1021,32 @@ func actionRedeem(cmd *cobra.Command) {
 		fmt.Printf("\n  .. abort\n\n")
 	})
 	if !ok {
-		return
+		return nil, "", 0, false, false
 	}
-	var pr string
+	var intPr string
 	if ft == "fixed" {
-		pr = "fee"
+		intPr = "fee"
 	} else {
-		pr = "fee per byte"
+		intPr = "fee per byte"
 	}
-	fee, ok := inputIntWithDefault(pr, 1)
+	fee, ok := inputIntWithDefault(intPr, 1)
 	if !ok {
-		return
+		return nil, "", 0, false, false
 	}
 	var fixedFee bool
 	if ft == "fixed" {
 		fixedFee = true
 	}
+	return tr, destAddr, uint64(fee), fixedFee, true
+}
+
+func actionRedeem(cmd *cobra.Command) {
+	tr, destAddr, fee, fixedFee, ok := inputRedeemRecoverData(cmd, "trade to redeem: ")
+	if !ok {
+		return
+	}
 	cfg := mainConfig.client(tr.TraderInfo().Crypto.Name)
-	err = redeemToAddress(
+	err := redeemToAddress(
 		tr,
 		os.Stdout,
 		destAddr,
@@ -1055,9 +1063,47 @@ func actionRedeem(cmd *cobra.Command) {
 }
 
 func actionListRecoverable(cmd *cobra.Command) {
-	// list recoverable
+	tpl, err := template.New("main").Parse(tradeListTemplates[len(tradeListTemplates)-1])
+	if err != nil {
+		fmt.Printf("can't parse template: %s\n", err)
+		return
+	}
+	fmt.Printf("\nrecoverable trades:\n\n")
+	if err := listRecoverable(tradesDir(cmd), os.Stdout, tpl); err != nil {
+		fmt.Printf("can't list recoverable trades: %s\n", err)
+		return
+	}
+	fmt.Println()
 }
 
 func actionRecover(cmd *cobra.Command) {
-	// recover
+	tr, destAddr, fee, fixedFee, ok := inputRedeemRecoverData(cmd, "trade to recover: ")
+	if !ok {
+		return
+	}
+	cfg := mainConfig.client(tr.TraderInfo().Crypto.Name)
+	cl, err := newClient(
+		tr.OwnInfo().Crypto,
+		cfg.Address,
+		cfg.Username,
+		cfg.Password,
+		&cfg.TLS,
+	)
+	if err != nil {
+		fmt.Printf("can't create client: %s\n", err)
+		return
+	}
+	err = recoverFunds(
+		tr,
+		cl,
+		tr.OwnInfo(),
+		destAddr,
+		fixedFee,
+		fee,
+		os.Stdout,
+		true,
+	)
+	if err != nil {
+		fmt.Printf("can't recover funds: %s\n", err)
+	}
 }

@@ -103,7 +103,7 @@ func newTrade(ownAmount types.Amount, ownCrypto *cryptos.Crypto, traderAmount ty
 	for _, i := range th.Unhandled(tr.Stager().Stages()...) {
 		th.InstallStageHandler(i, trade.NoOpHandler)
 	}
-	if err = th.HandleTrade(tr); err != nil && err != trade.ErrInterruptTrade {
+	if err = th.HandleTrade(tr); err != nil {
 		return nil, err
 	}
 	return tr, nil

@@ -127,10 +127,7 @@ func acceptLockSet(tr trade.Trade, lsIn io.Reader) error {
 	for _, i := range th.Unhandled(tr.Stager().Stages()...) {
 		th.InstallStageHandler(i, trade.NoOpHandler)
 	}
-	if err := th.HandleTrade(tr); err != nil && err != trade.ErrInterruptTrade {
-		errorExit(ecCantAcceptLockSet, err)
-	}
-	return nil
+	return th.HandleTrade(tr)
 }
 
 func cmdAcceptLockSet(cmd *cobra.Command, args []string) {

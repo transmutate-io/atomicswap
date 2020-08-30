@@ -128,8 +128,7 @@ func redeemToAddress(
 	fee uint64,
 	fixedFee bool,
 ) error {
-	cfg := mainConfig.client(tr.TraderInfo().Crypto.Name)
-	cl, err := newClient(tr.TraderInfo().Crypto, cfg.Address, cfg.Username, cfg.Password, &cfg.TLS)
+	cl, err := newClient(tr.TraderInfo().Crypto, addr, username, password, tlsConf)
 	if err != nil {
 		return err
 	}

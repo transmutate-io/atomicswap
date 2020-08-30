@@ -117,7 +117,7 @@ func acceptProposal(tp string, name string, prop *trade.BuyProposal) error {
 	for _, i := range th.Unhandled(newTrade.Stager().Stages()...) {
 		th.InstallStageHandler(i, trade.NoOpHandler)
 	}
-	if err := th.HandleTrade(newTrade); err != nil && err != trade.ErrInterruptTrade {
+	if err := th.HandleTrade(newTrade); err != nil {
 		return err
 	}
 	return saveTrade(filepath.Join(tp, filepath.FromSlash(name)), newTrade)

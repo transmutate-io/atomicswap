@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/transmutate-io/atomicswap/cryptos"
@@ -14,10 +15,9 @@ import (
 	"github.com/transmutate-io/cryptocore/block"
 	"github.com/transmutate-io/cryptocore/tx"
 	"github.com/transmutate-io/cryptocore/types"
-	"golang.org/x/sync/errgroup"
 )
 
-type newClientFunc func(addr, user, pass string, tlsConf *cryptocore.TLSConfig) cryptocore.Client
+type newClientFunc func(addr, user, pass string, tlsConf *cryptocore.TLSConfig) (cryptocore.Client, error)
 
 var newClientFuncs = map[string]newClientFunc{
 	cryptos.Bitcoin.Name:     cryptocore.NewClientBTC,
@@ -38,7 +38,7 @@ func newClient(
 	if !ok {
 		return nil, errors.New("client unavailable")
 	}
-	return nc(address, username, password, tlsConf), nil
+	return nc(address, username, password, tlsConf)
 }
 
 func mustNewclient(
@@ -73,16 +73,14 @@ func getBlockAtHeight(cl cryptocore.Client, height uint64) (block.Block, error) 
 	return cl.Block(bh)
 }
 
-const (
-	initTimeout = time.Second
-	maxTimeout  = time.Second * 30
-)
+var errClosed = errors.New("closed")
 
 func blockTransactions(cl cryptocore.Client, txs []types.Bytes, closec chan struct{}) ([]tx.Tx, error) {
 	r := make([]tx.Tx, 0, len(txs))
 	for _, i := range txs {
 		select {
 		case <-closec:
+			return nil, errClosed
 		default:
 		}
 		tx, err := cl.Transaction(i)
@@ -99,23 +97,30 @@ type blockData struct {
 	txs    []tx.Tx
 }
 
+const (
+	initTimeout = time.Second
+	maxTimeout  = time.Minute
+)
+
 func iterateBlocks(cl cryptocore.Client, wd *blockWatchData, stopBottom uint64) (chan *blockData, chan error, func()) {
 	closec := make(chan struct{}, 0)
-	eg := &errgroup.Group{}
 	bdc := make(chan *blockData, 0)
 	errc := make(chan error, 1)
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
 	closeIter := func() {
 		close(closec)
-		// 	wg.Wait()
-		// 	close(errc)
-		// 	close(bdc)
+		wg.Wait()
+		close(errc)
+		close(bdc)
 	}
 	blockCount, err := cl.BlockCount()
 	if err != nil {
 		errc <- err
 		return bdc, errc, closeIter
 	}
-	eg.Go(func() error {
+	go func() {
+		defer wg.Done()
 		var (
 			height        uint64
 			nextBlockHash []byte
@@ -146,22 +151,27 @@ func iterateBlocks(cl cryptocore.Client, wd *blockWatchData, stopBottom uint64) 
 					select {
 					case <-closec:
 						timer.Stop()
-						return nil
+						return
 					case <-timer.C:
 						timer.Stop()
+						continue
 					}
-					continue
 				}
-				return err
-			}
-			blockTxs, err := blockTransactions(cl, block.Transactions(), closec)
-			if err != nil {
-				return err
+				errc <- err
+				return
 			}
 			timeout = initTimeout
+			blockTxs, err := blockTransactions(cl, block.Transactions(), closec)
+			if err != nil {
+				if err == errClosed {
+					return
+				}
+				errc <- err
+				return
+			}
 			select {
 			case <-closec:
-				return nil
+				return
 			case bdc <- &blockData{
 				height: uint64(block.Height()),
 				txs:    blockTxs,
@@ -170,8 +180,9 @@ func iterateBlocks(cl cryptocore.Client, wd *blockWatchData, stopBottom uint64) 
 				nextBlockHash = block.NextBlockHash()
 			}
 		}
-	})
-	eg.Go(func() error {
+	}()
+	go func() {
+		defer wg.Done()
 		var (
 			height        uint64
 			prevBlockHash []byte
@@ -183,7 +194,7 @@ func iterateBlocks(cl cryptocore.Client, wd *blockWatchData, stopBottom uint64) 
 		}
 		for {
 			if height < stopBottom {
-				return nil
+				return
 			}
 			var (
 				block block.Block
@@ -195,15 +206,20 @@ func iterateBlocks(cl cryptocore.Client, wd *blockWatchData, stopBottom uint64) 
 				block, err = cl.Block(prevBlockHash)
 			}
 			if err != nil {
-				return err
+				errc <- err
+				return
 			}
 			blockTxs, err := blockTransactions(cl, block.Transactions(), closec)
 			if err != nil {
-				return err
+				if err == errClosed {
+					return
+				}
+				errc <- err
+				return
 			}
 			select {
 			case <-closec:
-				return nil
+				return
 			case bdc <- &blockData{
 				height: uint64(block.Height()),
 				txs:    blockTxs,
@@ -212,13 +228,8 @@ func iterateBlocks(cl cryptocore.Client, wd *blockWatchData, stopBottom uint64) 
 				height = uint64(block.Height()) - 1
 			}
 			if height+1 == stopBottom {
-				return nil
+				return
 			}
-		}
-	})
-	go func() {
-		if err := eg.Wait(); err != nil {
-			errc <- err
 		}
 	}()
 	return bdc, errc, closeIter

@@ -433,7 +433,7 @@ type clientConfig struct {
 	Address  string
 	Username string
 	Password string
-	TLS      cryptocore.TLSConfig
+	TLS      *cryptocore.TLSConfig
 }
 
 type consoleConfig map[string]*clientConfig
@@ -494,6 +494,9 @@ func newActionConfigClientTLSCaCert(name string) consoleCommand {
 			fmt.Printf("can't find file: %s\n", err)
 			return
 		}
+		if cfg.TLS == nil {
+			cfg.TLS = &cryptocore.TLSConfig{}
+		}
 		cfg.TLS.CA = fn
 		mainConfig[name] = cfg
 	}
@@ -506,6 +509,9 @@ func newActionConfigClientTLSCert(name string) consoleCommand {
 		if err != nil {
 			fmt.Printf("can't find file: %s\n", err)
 			return
+		}
+		if cfg.TLS == nil {
+			cfg.TLS = &cryptocore.TLSConfig{}
 		}
 		cfg.TLS.ClientCertificate = fn
 		mainConfig[name] = cfg
@@ -520,6 +526,9 @@ func newActionConfigClientTLSKey(name string) consoleCommand {
 			fmt.Printf("can't find file: %s\n", err)
 			return
 		}
+		if cfg.TLS == nil {
+			cfg.TLS = &cryptocore.TLSConfig{}
+		}
 		cfg.TLS.ClientKey = fn
 		mainConfig[name] = cfg
 	}
@@ -531,6 +540,9 @@ func newActionConfigClientTLSSkipVerify(name string) consoleCommand {
 		skip, ok := inputYesNo("skip certificate verification", false)
 		if !ok {
 			return
+		}
+		if cfg.TLS == nil {
+			cfg.TLS = &cryptocore.TLSConfig{}
 		}
 		cfg.TLS.SkipVerify = skip
 		mainConfig[name] = cfg
@@ -571,6 +583,9 @@ func actionLoadConfig(cmd *cobra.Command) {
 	if err != nil {
 		fmt.Printf("can't load config file: %s\n", err)
 	}
+	if name == "" {
+		return
+	}
 	if err := loadConfigFile(cmd, name); err != nil {
 		fmt.Printf("can't load config file: %s\n", err)
 	}
@@ -592,6 +607,9 @@ func actionSaveConfig(cmd *cobra.Command) {
 	name, err := inputSandboxedFilename("save to file: ", consoleConfigDir(cmd), false)
 	if err != nil {
 		fmt.Printf("can't save config file: %s\n", err)
+	}
+	if name == "" {
+		return
 	}
 	if err := saveConfigFile(cmd, name); err != nil {
 		fmt.Printf("can't save config file: %s\n", err)
@@ -861,18 +879,19 @@ func actionWatch(
 	if err != nil {
 		return err
 	}
-	clientCfg := mainConfig.client(tr.OwnInfo().Crypto.Name)
+	cryptoInfo := selectCryptoInfo(tr)
+	clientCfg := mainConfig.client(cryptoInfo.Crypto.Name)
 	cl, err := newClient(
-		tr.OwnInfo().Crypto,
+		cryptoInfo.Crypto,
 		clientCfg.Address,
 		clientCfg.Username,
-		clientCfg.Username,
-		&clientCfg.TLS,
+		clientCfg.Password,
+		clientCfg.TLS,
 	)
 	if err != nil {
 		return err
 	}
-	firstBlock, ok := inputIntWithDefault("lower height: ", 1)
+	firstBlock, ok := inputIntWithDefault("lower height", 1)
 	if !ok {
 		return nil
 	}
@@ -901,7 +920,7 @@ func actionWatch(
 			}
 		},
 		func(wd *watchData) {
-			if err := saveWatchData(tn, wd); err != nil {
+			if err := saveWatchData(tradePathToWatchData(cmd, tn), wd); err != nil {
 				fmt.Printf("error saving watch data: %s\n", err)
 			}
 		},
@@ -965,19 +984,35 @@ func actionWatchSecret(cmd *cobra.Command) {
 		tr.OwnInfo().Crypto,
 		clientCfg.Address,
 		clientCfg.Username,
-		clientCfg.Username,
-		&clientCfg.TLS,
+		clientCfg.Password,
+		clientCfg.TLS,
 	)
 	if err != nil {
 		fmt.Printf("can't create client: %s\n", err)
 		return
 	}
-	firstBlock, ok := inputIntWithDefault("lower height: ", 1)
+	firstBlock, ok := inputIntWithDefault("lower height", 1)
 	if !ok {
 		return
 	}
-	if err := watchSecretToken(tr, wd, cl, uint64(firstBlock)); err != nil {
+	blockTpl, err := template.New("main").
+		Parse(blockInspectionTemplates[len(blockInspectionTemplates)-1])
+	if err != nil {
+		fmt.Printf("can't parse template: %s\n", err)
+		return
+	}
+	foundTpl, err := template.New("main").Parse("found token: {{ .Hex }}\n")
+	if err != nil {
+		fmt.Printf("can't parse template: %s\n", err)
+		return
+	}
+	err = watchSecretToken(tr, wd, cl, uint64(firstBlock), os.Stdout, blockTpl, foundTpl)
+	if err != nil {
 		fmt.Printf("error watching for the secret token: %s\n", err)
+		return
+	}
+	if err := saveTrade(tn, tr); err != nil {
+		fmt.Printf("can't save trade: %s\n", err)
 	}
 }
 
@@ -1053,7 +1088,7 @@ func actionRedeem(cmd *cobra.Command) {
 		cfg.Address,
 		cfg.Username,
 		cfg.Password,
-		&cfg.TLS,
+		cfg.TLS,
 		uint64(fee),
 		fixedFee,
 	)
@@ -1087,7 +1122,7 @@ func actionRecover(cmd *cobra.Command) {
 		cfg.Address,
 		cfg.Username,
 		cfg.Password,
-		&cfg.TLS,
+		cfg.TLS,
 	)
 	if err != nil {
 		fmt.Printf("can't create client: %s\n", err)

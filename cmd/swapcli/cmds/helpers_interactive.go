@@ -422,7 +422,7 @@ func inputTradeName(cmd *cobra.Command, pr string, mustExist bool) (string, erro
 
 func inputIntWithDefault(pr string, def int) (int, bool) {
 	for {
-		v := inputText(fmt.Sprintf("%s (%v): ", pr, def))
+		v := inputText(fmt.Sprintf("%s (%v)", pr, def))
 		if v == "" {
 			return def, true
 		} else if v == ".." {
@@ -440,7 +440,7 @@ func inputIntWithDefault(pr string, def int) (int, bool) {
 
 func inputAmount(pr string) (types.Amount, bool) {
 	for {
-		if v := inputText("trader amount"); v != "" {
+		if v := inputText(pr); v != "" {
 			if v == "" {
 				fmt.Println("aborted")
 				return "", false

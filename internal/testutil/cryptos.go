@@ -35,7 +35,8 @@ var Cryptos = []*Crypto{
 	{
 		Name:  "bitcoin",
 		Chain: params.RegressionNet,
-		Client: cryptocore.NewClientBTC(
+		Client: MustNewClient(
+			cryptocore.NewClientBTC,
 			envOr("GO_TEST_BTC", "bitcoin-core-regtest.docker:4444"),
 			"admin",
 			"pass",
@@ -48,7 +49,8 @@ var Cryptos = []*Crypto{
 	{
 		Name:  "litecoin",
 		Chain: params.RegressionNet,
-		Client: cryptocore.NewClientLTC(
+		Client: MustNewClient(
+			cryptocore.NewClientLTC,
 			envOr("GO_TEST_LTC", "litecoin-regtest.docker:4444"),
 			"admin",
 			"pass",
@@ -62,7 +64,8 @@ var Cryptos = []*Crypto{
 	{
 		Name:  "dogecoin",
 		Chain: params.RegressionNet,
-		Client: cryptocore.NewClientDOGE(
+		Client: MustNewClient(
+			cryptocore.NewClientDOGE,
 			envOr("GO_TEST_DOGE", "dogecoin-regtest.docker:4444"),
 			"admin",
 			"pass",
@@ -76,7 +79,8 @@ var Cryptos = []*Crypto{
 	{
 		Name:  "bitcoin-cash",
 		Chain: params.RegressionNet,
-		Client: cryptocore.NewClientBCH(
+		Client: MustNewClient(
+			cryptocore.NewClientBCH,
 			envOr("GO_TEST_BCH", "bitcoin-cash-regtest.docker:4444"),
 			"admin",
 			"pass",
@@ -90,7 +94,8 @@ var Cryptos = []*Crypto{
 	{
 		Name:  "decred",
 		Chain: params.SimNet,
-		Client: cryptocore.NewClientDCR(
+		Client: MustNewClient(
+			cryptocore.NewClientDCR,
 			envOr("GO_TEST_DCR", "decred-wallet-simnet.docker:4444"),
 			"admin",
 			"pass",
@@ -101,6 +106,14 @@ var Cryptos = []*Crypto{
 		ConfirmBlocks: 20,
 		FeePerByte:    10,
 	},
+}
+
+func MustNewClient(newClFn func(addr, user, pass string, tlsConf *cryptocore.TLSConfig) (cryptocore.Client, error), addr, user, pass string, tlsConf *cryptocore.TLSConfig) cryptocore.Client {
+	c, err := newClFn(addr, user, pass, tlsConf)
+	if err != nil {
+		panic(err)
+	}
+	return c
 }
 
 func MustParseCrypto(t *testing.T, c string) *cryptos.Crypto {

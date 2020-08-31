@@ -37,7 +37,7 @@ var Cryptos = []*Crypto{
 		Chain: params.RegressionNet,
 		Client: MustNewClient(
 			cryptocore.NewClientBTC,
-			envOr("GO_TEST_BTC", "bitcoin-core-regtest.docker:4444"),
+			envOr("GO_TEST_BTC", "bitcoin-core-localnet.docker:4444"),
 			"admin",
 			"pass",
 			nil),
@@ -51,7 +51,7 @@ var Cryptos = []*Crypto{
 		Chain: params.RegressionNet,
 		Client: MustNewClient(
 			cryptocore.NewClientLTC,
-			envOr("GO_TEST_LTC", "litecoin-regtest.docker:4444"),
+			envOr("GO_TEST_LTC", "litecoin-localnet.docker:4444"),
 			"admin",
 			"pass",
 			nil,
@@ -66,7 +66,7 @@ var Cryptos = []*Crypto{
 		Chain: params.RegressionNet,
 		Client: MustNewClient(
 			cryptocore.NewClientDOGE,
-			envOr("GO_TEST_DOGE", "dogecoin-regtest.docker:4444"),
+			envOr("GO_TEST_DOGE", "dogecoin-localnet.docker:4444"),
 			"admin",
 			"pass",
 			nil,
@@ -81,7 +81,7 @@ var Cryptos = []*Crypto{
 		Chain: params.RegressionNet,
 		Client: MustNewClient(
 			cryptocore.NewClientBCH,
-			envOr("GO_TEST_BCH", "bitcoin-cash-regtest.docker:4444"),
+			envOr("GO_TEST_BCH", "bitcoin-cash-localnet.docker:4444"),
 			"admin",
 			"pass",
 			nil,
@@ -96,7 +96,7 @@ var Cryptos = []*Crypto{
 		Chain: params.SimNet,
 		Client: MustNewClient(
 			cryptocore.NewClientDCR,
-			envOr("GO_TEST_DCR", "decred-wallet-simnet.docker:4444"),
+			envOr("GO_TEST_DCR", "decred-wallet-localnet.docker:4444"),
 			"admin",
 			"pass",
 			&cryptocore.TLSConfig{SkipVerify: true},

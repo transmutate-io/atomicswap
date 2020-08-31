@@ -3,8 +3,10 @@ module github.com/transmutate-io/atomicswap
 go 1.14
 
 require (
+	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/btcsuite/btcd v0.20.1-beta
 	github.com/btcsuite/btcutil v0.0.0-20190425235716-9e5f4b9a998d
+	github.com/c-bata/go-prompt v0.2.3
 	github.com/davecgh/go-spew v1.1.1
 	github.com/decred/dcrd/chaincfg v1.5.1
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
@@ -22,7 +24,9 @@ require (
 	github.com/decred/dcrd/wire v1.3.0
 	github.com/gcash/bchd v0.15.2
 	github.com/gcash/bchutil v0.0.0-20191012211144-98e73ec336ba
+	github.com/mattn/go-runewidth v0.0.9 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
+	github.com/pkg/term v0.0.0-20200520122047-c3ffed290a03 // indirect
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.3
 	github.com/stretchr/testify v1.5.1
@@ -32,4 +36,3 @@ require (
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	gopkg.in/yaml.v2 v2.2.4
 )
-

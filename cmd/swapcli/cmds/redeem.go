@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"text/template"
 
 	"github.com/spf13/cobra"
 	"github.com/transmutate-io/atomicswap/networks"
@@ -19,12 +20,12 @@ var (
 		Short:   "redeem commands",
 		Aliases: []string{"r", "red"},
 	}
-	listRedeeamableCmd = &cobra.Command{
+	listRedeemableCmd = &cobra.Command{
 		Use:     "list",
-		Short:   "list redeeamable trades",
+		Short:   "list redeemable trades",
 		Aliases: []string{"l", "ls"},
 		Args:    cobra.NoArgs,
-		Run:     cmdListRedeeamable,
+		Run:     cmdListRedeemable,
 	}
 	redeemToAddressCmd = &cobra.Command{
 		Use:     "toaddress <name> <address>",
@@ -37,7 +38,7 @@ var (
 
 func init() {
 	addFlags(flagMap{
-		listRedeeamableCmd.Flags(): []flagFunc{
+		listRedeemableCmd.Flags(): []flagFunc{
 			addFlagVerbose,
 			addFlagFormat,
 			addFlagOutput,
@@ -51,21 +52,25 @@ func init() {
 		},
 	})
 	addCommands(RedeemCmd, []*cobra.Command{
-		listRedeeamableCmd,
+		listRedeemableCmd,
 		redeemToAddressCmd,
 	})
 }
 
-func cmdListRedeeamable(cmd *cobra.Command, args []string) {
-	out, closeOut := openOutput(cmd.Flags())
-	defer closeOut()
-	tpl := outputTemplate(cmd.Flags(), tradeListTemplates, nil)
-	err := eachTrade(tradesDir(cmd), func(name string, tr trade.Trade) error {
+func listRedeemable(td string, out io.Writer, tpl *template.Template) error {
+	return eachTrade(td, func(name string, tr trade.Trade) error {
 		if tr.Stager().Stage() != stages.RedeemFunds {
 			return nil
 		}
 		return tpl.Execute(out, newTradeInfo(name, tr))
 	})
+}
+
+func cmdListRedeemable(cmd *cobra.Command, args []string) {
+	out, closeOut := mustOpenOutput(cmd.Flags())
+	defer closeOut()
+	tpl := mustOutputTemplate(cmd.Flags(), tradeListTemplates, nil)
+	err := listRedeemable(tradesDir(cmd), out, tpl)
 	if err != nil {
 		errorExit(ecCantListTrades, err)
 	}
@@ -76,11 +81,11 @@ func newRedeemHandler(
 	feeFixed bool,
 	fee uint64,
 	out io.Writer,
-	verbose int,
+	verboseRaw bool,
 	cl cryptocore.Client,
 ) func(trade.Trade) error {
 	return func(tr trade.Trade) error {
-		addrScript, err := networks.AllByName[tr.TraderInfo().Crypto.Name][flagCryptoChain(tr.TraderInfo().Crypto)].
+		addrScript, err := networks.AllByName[tr.TraderInfo().Crypto.Name][mustFlagCryptoChain(tr.TraderInfo().Crypto)].
 			AddressToScript(addr)
 		if err != nil {
 			return err
@@ -99,7 +104,7 @@ func newRedeemHandler(
 		if err != nil {
 			return err
 		}
-		if verbose > 0 {
+		if verboseRaw {
 			fmt.Fprintf(out, "raw transaction: %s\n", hex.EncodeToString(b))
 		}
 
@@ -112,26 +117,48 @@ func newRedeemHandler(
 	}
 }
 
-func cmdRedeemToAddress(cmd *cobra.Command, args []string) {
-	tr := openTrade(cmd, args[0])
-	out, closeOut := openOutput(cmd.Flags())
-	defer closeOut()
-	fs := cmd.Flags()
+func redeemToAddress(
+	tr trade.Trade,
+	out io.Writer,
+	destAddr string,
+	addr string,
+	username string,
+	password string,
+	tlsConf *cryptocore.TLSConfig,
+	fee uint64,
+	fixedFee bool,
+) error {
+	cl, err := newClient(tr.TraderInfo().Crypto, addr, username, password, tlsConf)
+	if err != nil {
+		return err
+	}
 	th := trade.NewHandler(trade.StageHandlerMap{
-		stages.RedeemFunds: newRedeemHandler(
-			args[1],
-			flagFeeFixed(fs),
-			flagFee(fs),
-			out,
-			verboseLevel(fs, 1),
-			newClient(fs, tr.TraderInfo().Crypto),
-		),
+		stages.RedeemFunds: newRedeemHandler(destAddr, fixedFee, fee, out, true, cl),
 	})
 	for _, i := range th.Unhandled(tr.Stager().Stages()...) {
 		th.InstallStageHandler(i, trade.NoOpHandler)
 	}
-	if err := th.HandleTrade(tr); err != nil {
+	return th.HandleTrade(tr)
+}
+
+func cmdRedeemToAddress(cmd *cobra.Command, args []string) {
+	tr := mustOpenTrade(cmd, args[0])
+	out, closeOut := mustOpenOutput(cmd.Flags())
+	defer closeOut()
+	fs := cmd.Flags()
+	err := redeemToAddress(
+		tr,
+		out,
+		args[1],
+		mustFlagRPCAddress(fs),
+		mustFlagRPCUsername(fs),
+		mustFlagRPCPassword(fs),
+		mustFlagRPCTLSConfig(fs),
+		flagFee(fs),
+		flagFeeFixed(fs),
+	)
+	if err != nil {
 		errorExit(ecCantRedeem, err)
 	}
-	saveTrade(cmd, args[0], tr)
+	mustSaveTrade(cmd, args[0], tr)
 }

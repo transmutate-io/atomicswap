@@ -1,11 +1,14 @@
 package cmds
 
 import (
+	"io"
 	"os"
 	"path/filepath"
-	"strings"
+	"text/template"
+	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/transmutate-io/atomicswap/cryptos"
 	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
 	"github.com/transmutate-io/cryptocore/types"
@@ -32,6 +35,13 @@ var (
 		Args:    cobra.NoArgs,
 		Run:     cmdListTrades,
 	}
+	renameTradeCmd = &cobra.Command{
+		Use:     "rename <old_name> <new_name>",
+		Short:   "rename trade",
+		Aliases: []string{"ren", "r"},
+		Args:    cobra.ExactArgs(2),
+		Run:     cmdRenameTrade,
+	}
 	deleteTradeCmd = &cobra.Command{
 		Use:     "delete <name>",
 		Short:   "delete a trade",
@@ -52,13 +62,6 @@ var (
 		Args:    cobra.NoArgs,
 		Run:     cmdImportTrades,
 	}
-	renameTradeCmd = &cobra.Command{
-		Use:     "rename <old_name> <new_name>",
-		Short:   "rename trade",
-		Aliases: []string{"ren", "r"},
-		Args:    cobra.ExactArgs(2),
-		Run:     cmdRenameTrade,
-	}
 )
 
 func init() {
@@ -70,51 +73,65 @@ func init() {
 		},
 		exportTradesCmd.Flags(): []flagFunc{
 			addFlagAll,
+			addFlagOutput,
 		},
 		importTradesCmd.Flags(): []flagFunc{
 			addFlagInput,
-		},
-		exportTradesCmd.Flags(): []flagFunc{
-			addFlagOutput,
 		},
 	})
 	addCommands(TradeCmd, []*cobra.Command{
 		newTradeCmd,
 		listTradesCmd,
+		renameTradeCmd,
 		deleteTradeCmd,
 		exportTradesCmd,
 		importTradesCmd,
 	})
 }
 
-func cmdNewTrade(cmd *cobra.Command, args []string) {
+func newTrade(ownAmount types.Amount, ownCrypto *cryptos.Crypto, traderAmount types.Amount, traderCrypto *cryptos.Crypto, dur time.Duration) (trade.Trade, error) {
 	tr, err := trade.NewOnChainBuy(
-		types.Amount(args[1]), parseCrypto(args[2]),
-		types.Amount(args[3]), parseCrypto(args[4]),
-		parseDuration(args[5]),
+		ownAmount, ownCrypto,
+		traderAmount, traderCrypto,
+		dur,
 	)
 	if err != nil {
-		errorExit(ecCantCreateTrade, err)
+		return nil, err
 	}
 	th := trade.NewHandler(trade.DefaultStageHandlers)
 	th.InstallStageHandler(stages.SendProposal, trade.InterruptHandler)
 	for _, i := range th.Unhandled(tr.Stager().Stages()...) {
 		th.InstallStageHandler(i, trade.NoOpHandler)
 	}
-	if err = th.HandleTrade(tr); err != nil && err != trade.ErrInterruptTrade {
+	if err = th.HandleTrade(tr); err != nil {
+		return nil, err
+	}
+	return tr, nil
+}
+
+func cmdNewTrade(cmd *cobra.Command, args []string) {
+	tr, err := newTrade(
+		types.Amount(args[1]), mustParseCrypto(args[2]),
+		types.Amount(args[3]), mustParseCrypto(args[4]),
+		mustParseDuration(args[5]),
+	)
+	if err != nil {
 		errorExit(ecCantCreateTrade, err)
 	}
-	saveTrade(cmd, args[0], tr)
+	mustSaveTrade(cmd, args[0], tr)
+}
+
+func listTrades(td string, out io.Writer, tpl *template.Template) error {
+	return eachTrade(td, func(name string, tr trade.Trade) error {
+		return tpl.Execute(out, newTradeInfo(name, tr))
+	})
 }
 
 func cmdListTrades(cmd *cobra.Command, args []string) {
-	tpl := outputTemplate(cmd.Flags(), tradeListTemplates, nil)
-	out, closeOut := openOutput(cmd.Flags())
+	tpl := mustOutputTemplate(cmd.Flags(), tradeListTemplates, nil)
+	out, closeOut := mustOpenOutput(cmd.Flags())
 	defer closeOut()
-	err := eachTrade(tradesDir(cmd), func(name string, tr trade.Trade) error {
-		return tpl.Execute(out, newTradeInfo(name, tr))
-	})
-	if err != nil {
+	if err := listTrades(tradesDir(cmd), out, tpl); err != nil {
 		errorExit(ecCantListTrades, err)
 	}
 }
@@ -126,30 +143,44 @@ func cmdDeleteTrade(cmd *cobra.Command, args []string) {
 	}
 }
 
-func cmdExportTrades(cmd *cobra.Command, args []string) {
-	names := make(map[string]struct{}, len(args))
-	for _, i := range args {
-		names[i] = struct{}{}
-	}
+type tradeSelectFunc = func(name string, tr trade.Trade) bool
+
+func exportTrades(td string, tradeSelect tradeSelectFunc) (map[string]trade.Trade, error) {
 	trades := make(map[string]trade.Trade, 16)
-	err := eachTrade(tradesDir(cmd), func(name string, tr trade.Trade) error {
-		if _, exp := names[name]; exp || flagAll(cmd.Flags()) {
-			delete(names, name)
-			trades[strings.Join(filepath.SplitList(name), "/")] = tr
+	err := eachTrade(td, func(name string, tr trade.Trade) error {
+		if tradeSelect(name, tr) {
+			trades[name] = tr
 		}
 		return nil
 	})
 	if err != nil {
+		return nil, err
+	}
+	return trades, nil
+}
+
+func cmdExportTrades(cmd *cobra.Command, args []string) {
+	var ts tradeSelectFunc
+	if mustFlagAll(cmd.Flags()) {
+		ts = func(name string, tr trade.Trade) bool { return true }
+	} else {
+		names := make(map[string]struct{}, len(args))
+		for _, i := range args {
+			names[i] = struct{}{}
+		}
+		ts = func(name string, tr trade.Trade) bool {
+			_, ok := names[name]
+			return ok
+		}
+	}
+	trades, err := exportTrades(tradesDir(cmd), ts)
+	if err != nil {
 		errorExit(ecCantExportTrades, err)
 	}
-	n := make([]string, 0, len(names))
-	for i := range names {
-		n = append(n, i)
+	if len(trades) == 0 {
+		errorExit(ecCantExportTrades, "no trades selected")
 	}
-	if len(names) > 0 {
-		errorExit(ecCantExportTrades, strings.Join(n, ", "))
-	}
-	out, closeOut := openOutput(cmd.Flags())
+	out, closeOut := mustOpenOutput(cmd.Flags())
 	defer closeOut()
 	if err = yaml.NewEncoder(out).Encode(trades); err != nil {
 		errorExit(ecCantExportTrades, err)
@@ -157,21 +188,27 @@ func cmdExportTrades(cmd *cobra.Command, args []string) {
 }
 
 func cmdImportTrades(cmd *cobra.Command, args []string) {
-	in, closeIn := openInput(cmd.Flags())
+	in, closeIn := mustOpenInput(cmd.Flags())
 	defer closeIn()
 	trades := make(map[string]*trade.OnChainTrade, 16)
 	if err := yaml.NewDecoder(in).Decode(trades); err != nil {
 		errorExit(ecCantImportTrades, err)
 	}
 	for n, tr := range trades {
-		n = filepath.Join(strings.Split(n, "/")...)
-		saveTrade(cmd, n, tr)
+		mustSaveTrade(cmd, filepath.FromSlash(n), tr)
 	}
 }
 
+func renameFile(oldPath string, newPath string) error {
+	d, _ := filepath.Split(newPath)
+	if err := os.MkdirAll(d, 0755); err != nil {
+		return err
+	}
+	return os.Rename(oldPath, newPath)
+}
+
 func cmdRenameTrade(cmd *cobra.Command, args []string) {
-	err := os.Rename(tradePath(cmd, args[0]), tradePath(cmd, args[1]))
-	if err != nil {
+	if err := renameFile(tradePath(cmd, args[0]), tradePath(cmd, args[1])); err != nil {
 		errorExit(ecCantRenameTrade, err)
 	}
 }

@@ -25,6 +25,7 @@ const (
 	ecCantCreateTrade
 	ecCantDeleteTrade
 	ecCantExportLockSet
+	ecCantShowLockSetInfo
 	ecCantExportProposal
 	ecCantExportTrades
 	ecCantGetFlag
@@ -32,6 +33,7 @@ const (
 	ecCantListLockSets
 	ecCantListProposals
 	ecCantListTrades
+	ecCantLoadConfig
 	ecCantOpenLockSet
 	ecCantOpenOutput
 	ecCantOpenTrade
@@ -58,6 +60,7 @@ var ecMessages = map[int]string{
 	ecCantCreateTrade:      "can't create trade: %s\n",
 	ecCantDeleteTrade:      "can't delete trade: %s\n",
 	ecCantExportLockSet:    "can't export lock set: %s\n",
+	ecCantShowLockSetInfo:  "can't show lockset info: %s\n",
 	ecCantExportProposal:   "can't export proposal: %s\n",
 	ecCantExportTrades:     "can't export trades: %s\n",
 	ecCantGetFlag:          "can't get flag: %s\n",
@@ -65,6 +68,7 @@ var ecMessages = map[int]string{
 	ecCantListLockSets:     "can't list locksets: %s\n",
 	ecCantListProposals:    "can't list proposals: %s\n",
 	ecCantListTrades:       "can't list trades: %s\n",
+	ecCantLoadConfig:       "can't load config: %s\n",
 	ecCantOpenLockSet:      "can't open lock set: %s\n",
 	ecCantOpenOutput:       "can't create output file: %s\n",
 	ecCantOpenTrade:        "can't open trade \"%s\": %s\n",
@@ -98,7 +102,7 @@ func errorExit(code int, a ...interface{}) {
 }
 
 func dataDir(cmd *cobra.Command) string {
-	return filepath.Clean(flagString(cmd.Root().PersistentFlags(), "data"))
+	return filepath.Clean(mustFlagString(cmd.Root().PersistentFlags(), "data"))
 }
 
 func tradesDir(cmd *cobra.Command) string {
@@ -116,18 +120,22 @@ func createFile(p string) (*os.File, error) {
 	return os.Create(p)
 }
 
-func parseCrypto(c string) *cryptos.Crypto {
+func parseCrypto(c string) (*cryptos.Crypto, error) {
 	if r, err := cryptos.ParseShort(c); err == nil {
-		return r
+		return r, nil
 	}
-	r, err := cryptos.Parse(c)
+	return cryptos.Parse(c)
+}
+
+func mustParseCrypto(c string) *cryptos.Crypto {
+	r, err := parseCrypto(c)
 	if err != nil {
 		errorExit(ecUnknownCrypto, c)
 	}
 	return r
 }
 
-func parseDuration(d string) time.Duration {
+func mustParseDuration(d string) time.Duration {
 	r, err := time.ParseDuration(d)
 	if err != nil {
 		errorExit(ecInvalidDuration, d)
@@ -136,7 +144,6 @@ func parseDuration(d string) time.Duration {
 }
 
 func eachTrade(td string, f func(string, trade.Trade) error) error {
-	tdPrefix := td + string([]rune{filepath.Separator})
 	return filepath.Walk(td, func(path string, info os.FileInfo, err error) error {
 		if info == nil || info.IsDir() {
 			return nil
@@ -150,7 +157,7 @@ func eachTrade(td string, f func(string, trade.Trade) error) error {
 		if err = yaml.NewDecoder(tf).Decode(tr); err != nil {
 			return err
 		}
-		return f(strings.TrimPrefix(path, tdPrefix), tr)
+		return f(filepath.ToSlash(trimPath(path, td)), tr)
 	})
 }
 
@@ -172,26 +179,41 @@ func eachLockSet(td string, f func(string, trade.Trade) error) error {
 	})
 }
 
-func openTrade(cmd *cobra.Command, name string) trade.Trade {
-	f, err := os.Open(tradePath(cmd, name))
+func openTrade(tp string) (trade.Trade, error) {
+	f, err := os.Open(tp)
 	if err != nil {
-		errorExit(ecCantOpenTrade, name, err)
+		return nil, err
 	}
 	defer f.Close()
 	r := &trade.OnChainTrade{}
 	if err = yaml.NewDecoder(f).Decode(r); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+func mustOpenTrade(cmd *cobra.Command, name string) trade.Trade {
+	r, err := openTrade(tradePath(cmd, name))
+	if err != nil {
 		errorExit(ecCantOpenTrade, name, err)
 	}
 	return r
 }
 
-func saveTrade(cmd *cobra.Command, name string, tr trade.Trade) {
-	f, err := createFile(tradePath(cmd, name))
+func saveTrade(tp string, tr trade.Trade) error {
+	f, err := createFile(tp)
 	if err != nil {
-		errorExit(ecCantSaveTrade, err)
+		return err
 	}
 	defer f.Close()
 	if err = yaml.NewEncoder(f).Encode(tr); err != nil {
+		return err
+	}
+	return nil
+}
+
+func mustSaveTrade(cmd *cobra.Command, name string, tr trade.Trade) {
+	if err := saveTrade(tradePath(cmd, name), tr); err != nil {
 		errorExit(ecCantSaveTrade, err)
 	}
 }
@@ -216,32 +238,55 @@ func watchDataPath(cmd *cobra.Command, name string) string {
 	return filepath.Join(watchDataDir(cmd), name)
 }
 
-func openWatchData(cmd *cobra.Command, name string) *watchData {
+func openWatchData(wdPath string) (*watchData, error) {
 	r := &watchData{
 		Own:    &blockWatchData{Top: 0, Bottom: 0},
 		Trader: &blockWatchData{Top: 0, Bottom: 0},
 	}
-	f, err := os.Open(watchDataPath(cmd, name))
+	f, err := os.Open(wdPath)
 	if err != nil {
 		if e, ok := err.(*os.PathError); ok && e.Err == syscall.ENOENT {
-			return r
+			return r, nil
 		}
-		errorExit(ecCantOpenWatchData, err)
+		return nil, err
 	}
 	defer f.Close()
 	if err = yaml.NewDecoder(f).Decode(r); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+func mustOpenWatchData(cmd *cobra.Command, name string) *watchData {
+	r, err := openWatchData(watchDataPath(cmd, name))
+	if err != nil {
 		errorExit(ecCantOpenWatchData, err)
 	}
 	return r
 }
 
-func saveWatchData(cmd *cobra.Command, name string, wd *watchData) {
-	f, err := createFile(watchDataPath(cmd, name))
+func saveWatchData(wdPath string, wd *watchData) error {
+	f, err := createFile(wdPath)
 	if err != nil {
-		errorExit(ecCantSaveWatchData, err)
+		return err
 	}
 	defer f.Close()
-	if err = yaml.NewEncoder(f).Encode(wd); err != nil {
+	return yaml.NewEncoder(f).Encode(wd)
+}
+
+func mustSaveWatchData(cmd *cobra.Command, name string, wd *watchData) {
+	if err := saveWatchData(watchDataPath(cmd, name), wd); err != nil {
 		errorExit(ecCantSaveWatchData, err)
 	}
+}
+
+func consoleConfigDir(cmd *cobra.Command) string { return filepath.Join(dataDir(cmd), "config") }
+
+const DEFAULT_CONSOLE_CONFIG_NAME = "console_defaults.yaml"
+
+func consoleConfigPath(cmd *cobra.Command, name string) string {
+	if name == "" {
+		name = DEFAULT_CONSOLE_CONFIG_NAME
+	}
+	return filepath.Join(consoleConfigDir(cmd), name)
 }

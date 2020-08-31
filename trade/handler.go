@@ -74,6 +74,9 @@ func (sh *Handler) HandleTrade(t Trade) error {
 	}
 	for {
 		if err := sh.HandleStage(stager.Stage(), t); err != nil {
+			if err == ErrInterruptTrade {
+				return nil
+			}
 			return err
 		}
 		if s := stager.NextStage(); s == stages.Done {

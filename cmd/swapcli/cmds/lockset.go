@@ -1,6 +1,7 @@
 package cmds
 
 import (
+	"io"
 	"text/template"
 	"time"
 
@@ -75,73 +76,101 @@ func init() {
 	})
 }
 
-func cmdListLockSets(cmd *cobra.Command, args []string) {
-	tpl := outputTemplate(cmd.Flags(), tradeListTemplates, nil)
-	out, closeOut := openOutput(cmd.Flags())
-	defer closeOut()
-	err := eachLockSet(tradesDir(cmd), func(name string, tr trade.Trade) error {
+func listLockSets(td string, out io.Writer, tpl *template.Template) error {
+	return eachLockSet(td, func(name string, tr trade.Trade) error {
 		return tpl.Execute(out, newTradeInfo(name, tr))
 	})
-	if err != nil {
+}
+
+func cmdListLockSets(cmd *cobra.Command, args []string) {
+	tpl := mustOutputTemplate(cmd.Flags(), tradeListTemplates, nil)
+	out, closeOut := mustOpenOutput(cmd.Flags())
+	defer closeOut()
+	if err := listLockSets(tradesDir(cmd), out, tpl); err != nil {
 		errorExit(ecCantListLockSets, err)
 	}
 }
 
-func cmdExportLockSet(cmd *cobra.Command, args []string) {
-	tr := openTrade(cmd, args[0])
+func exportLockSet(tp string, out io.Writer) error {
+	tr, err := openTrade(tp)
+	if err != nil {
+		return err
+	}
 	str, err := tr.Seller()
 	if err != nil {
-		errorExit(ecCantExportLockSet, err)
+		return err
 	}
 	ls := str.Locks()
-	out, outClose := openOutput(cmd.Flags())
+	return yaml.NewEncoder(out).Encode(ls)
+}
+
+func cmdExportLockSet(cmd *cobra.Command, args []string) {
+	out, outClose := mustOpenOutput(cmd.Flags())
 	defer outClose()
-	if err := yaml.NewEncoder(out).Encode(ls); err != nil {
+	if err := exportLockSet(tradePath(cmd, args[0]), out); err != nil {
 		errorExit(ecCantExportLockSet, err)
 	}
 }
 
-func cmdAcceptLockSet(cmd *cobra.Command, args []string) {
-	tr := openTrade(cmd, args[0])
+func acceptLockSet(tr trade.Trade, lsIn io.Reader) error {
 	th := trade.NewHandler(trade.DefaultStageHandlers)
 	th.InstallStageHandlers(trade.StageHandlerMap{
 		stages.ReceiveProposalResponse: func(t trade.Trade) error {
-			in, inClose := openInput(cmd.Flags())
-			defer inClose()
 			btr, err := tr.Buyer()
 			if err != nil {
 				return err
 			}
-			return btr.SetLocks(openLockSet(in, tr.OwnInfo().Crypto, tr.TraderInfo().Crypto))
+			return btr.SetLocks(openLockSet(lsIn, tr.OwnInfo().Crypto, tr.TraderInfo().Crypto))
 		},
 		stages.LockFunds: trade.InterruptHandler,
 	})
 	for _, i := range th.Unhandled(tr.Stager().Stages()...) {
 		th.InstallStageHandler(i, trade.NoOpHandler)
 	}
-	if err := th.HandleTrade(tr); err != nil && err != trade.ErrInterruptTrade {
+	return th.HandleTrade(tr)
+}
+
+func cmdAcceptLockSet(cmd *cobra.Command, args []string) {
+	tr := mustOpenTrade(cmd, args[0])
+	in, inClose := mustOpenInput(cmd.Flags())
+	defer inClose()
+	if err := acceptLockSet(tr, in); err != nil {
 		errorExit(ecCantAcceptLockSet, err)
 	}
-	saveTrade(cmd, args[0], tr)
+	mustSaveTrade(cmd, args[0], tr)
+}
+
+func showLockSetInfo(tp string, lsIn io.Reader, out io.Writer, tpl *template.Template) error {
+	tr, err := openTrade(tp)
+	if err != nil {
+		return err
+	}
+	if _, err := tr.Buyer(); err != nil {
+		return err
+	}
+	ls := openLockSet(lsIn, tr.OwnInfo().Crypto, tr.TraderInfo().Crypto)
+	ownLockInfo, err := newLockInfo(ls.Buyer, tr.OwnInfo().Crypto)
+	if err != nil {
+		return err
+	}
+	traderLockInfo, err := newLockInfo(ls.Seller, tr.TraderInfo().Crypto)
+	if err != nil {
+		return err
+	}
+	return tpl.Execute(out, newLockSetInfo(tr, ownLockInfo, traderLockInfo))
+}
+
+func newLockSetTemplate() *template.Template {
+	return template.New("main").Funcs(template.FuncMap{"now": time.Now})
 }
 
 func cmdShowLockSetInfo(cmd *cobra.Command, args []string) {
-	tr := openTrade(cmd, args[0])
-	if _, err := tr.Buyer(); err != nil {
-		errorExit(ecCantOpenTrade, err)
-	}
-	in, inClose := openInput(cmd.Flags())
+	in, inClose := mustOpenInput(cmd.Flags())
 	defer inClose()
-	ls := openLockSet(in, tr.OwnInfo().Crypto, tr.TraderInfo().Crypto)
-	out, outClose := openOutput(cmd.Flags())
+	out, outClose := mustOpenOutput(cmd.Flags())
 	defer outClose()
-	tpl := outputTemplate(cmd.Flags(), lockSetInfoTemplates, template.FuncMap{"now": time.Now})
-	err := tpl.Execute(out, newLockSetInfo(
-		tr,
-		newLockInfo(cmd, ls.Buyer, tr.OwnInfo().Crypto),
-		newLockInfo(cmd, ls.Seller, tr.TraderInfo().Crypto),
-	))
-	if err != nil {
-		errorExit(ecBadTemplate, err)
+	tpl := mustOutputTemplate(cmd.Flags(), lockSetInfoTemplates, template.FuncMap{"now": time.Now})
+	if err := showLockSetInfo(tradePath(cmd, args[0]), in, out, tpl); err != nil {
+		errorExit(ecCantShowLockSetInfo, err)
 	}
 }

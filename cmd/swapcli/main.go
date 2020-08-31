@@ -33,6 +33,7 @@ func init() {
 		cmds.WatchCmd,
 		cmds.RedeemCmd,
 		cmds.RecoverCmd,
+		cmds.InteractiveConsoleCmd,
 	} {
 		rootCmd.AddCommand(i)
 	}

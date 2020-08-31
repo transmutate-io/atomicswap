@@ -287,6 +287,8 @@ func generateTimeLock(c *cryptos.Crypto, lockTime time.Time, tokenHash []byte, r
 
 // AcceptBuyProposal implement SellerTrade
 func (bt *baseTrade) AcceptBuyProposal(prop *BuyProposal) error {
+	// set duration
+	bt.Duration = prop.Seller.LockDuration
 	// set token hash
 	bt.TokenHash = prop.TokenHash
 	// own info

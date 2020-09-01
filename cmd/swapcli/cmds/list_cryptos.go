@@ -8,6 +8,10 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/transmutate-io/atomicswap/cryptos"
+	"github.com/transmutate-io/atomicswap/internal/cmdutil"
+	"github.com/transmutate-io/atomicswap/internal/flagutil"
+	"github.com/transmutate-io/atomicswap/internal/flagutil/exitcodes"
+	"github.com/transmutate-io/atomicswap/internal/tplutil"
 )
 
 var (
@@ -21,11 +25,11 @@ var (
 )
 
 func init() {
-	addFlags(flagMap{
-		ListCryptosCmd.Flags(): []flagFunc{
-			addFlagVerbose,
-			addFlagFormat,
-			addFlagOutput,
+	flagutil.AddFlags(flagutil.FlagFuncMap{
+		ListCryptosCmd.Flags(): []flagutil.FlagFunc{
+			flagutil.AddVerbose,
+			flagutil.AddFormat,
+			flagutil.AddOutput,
 		},
 	})
 }
@@ -49,10 +53,10 @@ func listCryptos(out io.Writer, tpl *template.Template) error {
 }
 
 func cmdListCryptos(cmd *cobra.Command, args []string) {
-	out, closeOut := mustOpenOutput(cmd.Flags())
+	out, closeOut := flagutil.MustOpenOutput(cmd.Flags())
 	defer closeOut()
-	tpl := mustOutputTemplate(cmd.Flags(), cryptosListTemplates, nil)
+	tpl := tplutil.MustOpenTemplate(cmd.Flags(), cryptosListTemplates, nil)
 	if err := listCryptos(out, tpl); err != nil {
-		errorExit(ecBadTemplate, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 }

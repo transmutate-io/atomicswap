@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
+	"github.com/transmutate-io/atomicswap/internal/cmdutil"
+	"github.com/transmutate-io/atomicswap/internal/flagutil"
+	"github.com/transmutate-io/atomicswap/internal/flagutil/exitcodes"
 )
 
 var (
@@ -24,12 +27,12 @@ func init() {
 		Args:    cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdAutoComplete(cmd, args, func(w io.Writer) error {
-				return cmd.Root().GenFishCompletion(w, mustFlagBool(cmd.Flags(), "desc"))
+				return cmd.Root().GenFishCompletion(w, flagutil.MustBool(cmd.Flags(), "desc"))
 			})
 		},
 	}
 	fishCommand.Flags().BoolP("desc", "d", false, "include descriptions")
-	addCommands(AutoCompleteCmd, []*cobra.Command{
+	cmdutil.AddCommands(AutoCompleteCmd, []*cobra.Command{
 		{
 			Use:     "auto",
 			Short:   "autocomplete script (try to guess the shell)",
@@ -82,14 +85,14 @@ func cmdAutoComplete(cmd *cobra.Command, args []string, gen func(io.Writer) erro
 			gen = cmd.Root().GenZshCompletion
 		default:
 			if os.Getenv("ComSpec") == "" {
-				errorExit(ecUnknownShell, "")
+				cmdutil.ErrorExit(exitcodes.UnknownShell, "")
 			}
 			gen = cmd.Root().GenPowerShellCompletion
 		}
 	}
-	out, closeOut := mustOpenOutput(cmd.Flags())
+	out, closeOut := flagutil.MustOpenOutput(cmd.Flags())
 	defer closeOut()
 	if err := gen(out); err != nil {
-		errorExit(ecUnknownShell, err)
+		cmdutil.ErrorExit(exitcodes.UnknownShell, err)
 	}
 }

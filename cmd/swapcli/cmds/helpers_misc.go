@@ -1,108 +1,25 @@
 package cmds
 
 import (
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/transmutate-io/atomicswap/cryptos"
+	"github.com/transmutate-io/atomicswap/internal/cmdutil"
+	"github.com/transmutate-io/atomicswap/internal/flagutil"
+	"github.com/transmutate-io/atomicswap/internal/flagutil/exitcodes"
 	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
 	"gopkg.in/yaml.v2"
 )
 
-const (
-	ecOK = iota * -1
-	ecBadTemplate
-	ecCantAcceptLockSet
-	ecCantCalculateAddress
-	ecCantCreateTrade
-	ecCantDeleteTrade
-	ecCantExportLockSet
-	ecCantShowLockSetInfo
-	ecCantExportProposal
-	ecCantExportTrades
-	ecCantGetFlag
-	ecCantImportTrades
-	ecCantListLockSets
-	ecCantListProposals
-	ecCantListTrades
-	ecCantLoadConfig
-	ecCantOpenLockSet
-	ecCantOpenOutput
-	ecCantOpenTrade
-	ecCantOpenWatchData
-	ecCantRecover
-	ecCantRedeem
-	ecCantRenameTrade
-	ecCantSaveTrade
-	ecCantSaveWatchData
-	ecFailedToWatch
-	ecInvalidDuration
-	ecInvalidLockData
-	ecNoInput
-	ecNotABuyer
-	ecOnlyOneNetwork
-	ecUnknownCrypto
-	ecUnknownShell
-)
-
-var ecMessages = map[int]string{
-	ecBadTemplate:          "bad template: %s\n",
-	ecCantAcceptLockSet:    "can't accept lock set: %s\n",
-	ecCantCalculateAddress: "can't calculate address: %s\n",
-	ecCantCreateTrade:      "can't create trade: %s\n",
-	ecCantDeleteTrade:      "can't delete trade: %s\n",
-	ecCantExportLockSet:    "can't export lock set: %s\n",
-	ecCantShowLockSetInfo:  "can't show lockset info: %s\n",
-	ecCantExportProposal:   "can't export proposal: %s\n",
-	ecCantExportTrades:     "can't export trades: %s\n",
-	ecCantGetFlag:          "can't get flag: %s\n",
-	ecCantImportTrades:     "can't import trades: %s\n",
-	ecCantListLockSets:     "can't list locksets: %s\n",
-	ecCantListProposals:    "can't list proposals: %s\n",
-	ecCantListTrades:       "can't list trades: %s\n",
-	ecCantLoadConfig:       "can't load config: %s\n",
-	ecCantOpenLockSet:      "can't open lock set: %s\n",
-	ecCantOpenOutput:       "can't create output file: %s\n",
-	ecCantOpenTrade:        "can't open trade \"%s\": %s\n",
-	ecCantOpenWatchData:    "can't open watch data: %s\n",
-	ecCantRecover:          "can't recover funds: %s\n",
-	ecCantRedeem:           "can't redeem: %s\n",
-	ecCantRenameTrade:      "can't rename trade: %s\n",
-	ecCantSaveTrade:        "can't save trade: %s\n",
-	ecCantSaveWatchData:    "can't save watch data: %s\n",
-	ecFailedToWatch:        "failed to watch blockchain: %s\n",
-	ecInvalidDuration:      "invalid duration: \"%s\"\n",
-	ecInvalidLockData:      "invalid lock data: %s\n",
-	ecNoInput:              "can't get input: %s\n",
-	ecNotABuyer:            "not a buyer\n",
-	ecOnlyOneNetwork:       "pick only one network\n",
-	ecUnknownCrypto:        "unknown crypto: \"%s\"\n",
-	ecUnknownShell:         "can't generate completion file: %s\n",
-}
-
-func errorExit(code int, a ...interface{}) {
-	f, ok := ecMessages[code]
-	if !ok {
-		t := make([]string, 0, len(a))
-		for i := 0; i < len(a); i++ {
-			t = append(t, "%#v")
-		}
-		f = "args: " + strings.Join(t, " ") + "\n"
-	}
-	fmt.Fprintf(os.Stderr, f, a...)
-	os.Exit(code)
-}
-
 func dataDir(cmd *cobra.Command) string {
-	return filepath.Clean(mustFlagString(cmd.Root().PersistentFlags(), "data"))
+	return filepath.Clean(flagutil.MustString(cmd.Root().PersistentFlags(), "data"))
 }
 
 func tradesDir(cmd *cobra.Command) string {
@@ -120,6 +37,14 @@ func createFile(p string) (*os.File, error) {
 	return os.Create(p)
 }
 
+func mustCreateFile(p string) *os.File {
+	r, err := createFile(p)
+	if err != nil {
+		cmdutil.ErrorExit(exitcodes.CantCreateFile, err)
+	}
+	return r
+}
+
 func parseCrypto(c string) (*cryptos.Crypto, error) {
 	if r, err := cryptos.ParseShort(c); err == nil {
 		return r, nil
@@ -130,7 +55,7 @@ func parseCrypto(c string) (*cryptos.Crypto, error) {
 func mustParseCrypto(c string) *cryptos.Crypto {
 	r, err := parseCrypto(c)
 	if err != nil {
-		errorExit(ecUnknownCrypto, c)
+		cmdutil.ErrorExit(exitcodes.UnknownCrypto, c)
 	}
 	return r
 }
@@ -138,7 +63,7 @@ func mustParseCrypto(c string) *cryptos.Crypto {
 func mustParseDuration(d string) time.Duration {
 	r, err := time.ParseDuration(d)
 	if err != nil {
-		errorExit(ecInvalidDuration, d)
+		cmdutil.ErrorExit(exitcodes.InvalidDuration, d)
 	}
 	return r
 }
@@ -157,7 +82,7 @@ func eachTrade(td string, f func(string, trade.Trade) error) error {
 		if err = yaml.NewDecoder(tf).Decode(tr); err != nil {
 			return err
 		}
-		return f(filepath.ToSlash(trimPath(path, td)), tr)
+		return f(filepath.ToSlash(cmdutil.TrimPath(path, td)), tr)
 	})
 }
 
@@ -179,7 +104,7 @@ func eachLockSet(td string, f func(string, trade.Trade) error) error {
 	})
 }
 
-func openTrade(tp string) (trade.Trade, error) {
+func openTradeFile(tp string) (trade.Trade, error) {
 	f, err := os.Open(tp)
 	if err != nil {
 		return nil, err
@@ -193,9 +118,9 @@ func openTrade(tp string) (trade.Trade, error) {
 }
 
 func mustOpenTrade(cmd *cobra.Command, name string) trade.Trade {
-	r, err := openTrade(tradePath(cmd, name))
+	r, err := openTradeFile(tradePath(cmd, name))
 	if err != nil {
-		errorExit(ecCantOpenTrade, name, err)
+		cmdutil.ErrorExit(exitcodes.CantOpenTrade, name, err)
 	}
 	return r
 }
@@ -214,18 +139,18 @@ func saveTrade(tp string, tr trade.Trade) error {
 
 func mustSaveTrade(cmd *cobra.Command, name string, tr trade.Trade) {
 	if err := saveTrade(tradePath(cmd, name), tr); err != nil {
-		errorExit(ecCantSaveTrade, err)
+		cmdutil.ErrorExit(exitcodes.CantSaveTrade, err)
 	}
 }
 
 func openLockSet(r io.Reader, ownCrypto, traderCrypto *cryptos.Crypto) *trade.BuyProposalResponse {
 	b, err := ioutil.ReadAll(r)
 	if err != nil {
-		errorExit(ecCantOpenLockSet, err)
+		cmdutil.ErrorExit(exitcodes.CantOpenLockSet, err)
 	}
 	ls, err := trade.UnamrshalBuyProposalResponse(ownCrypto, traderCrypto, b)
 	if err != nil {
-		errorExit(ecCantOpenLockSet, err)
+		cmdutil.ErrorExit(exitcodes.CantOpenLockSet, err)
 	}
 	return ls
 }
@@ -260,7 +185,7 @@ func openWatchData(wdPath string) (*watchData, error) {
 func mustOpenWatchData(cmd *cobra.Command, name string) *watchData {
 	r, err := openWatchData(watchDataPath(cmd, name))
 	if err != nil {
-		errorExit(ecCantOpenWatchData, err)
+		cmdutil.ErrorExit(exitcodes.CantOpenWatchData, err)
 	}
 	return r
 }
@@ -276,7 +201,7 @@ func saveWatchData(wdPath string, wd *watchData) error {
 
 func mustSaveWatchData(cmd *cobra.Command, name string, wd *watchData) {
 	if err := saveWatchData(watchDataPath(cmd, name), wd); err != nil {
-		errorExit(ecCantSaveWatchData, err)
+		cmdutil.ErrorExit(exitcodes.CantSaveWatchData, err)
 	}
 }
 

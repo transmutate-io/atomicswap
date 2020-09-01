@@ -7,6 +7,10 @@ import (
 	"text/template"
 
 	"github.com/spf13/cobra"
+	"github.com/transmutate-io/atomicswap/internal/cmdutil"
+	"github.com/transmutate-io/atomicswap/internal/flagutil"
+	"github.com/transmutate-io/atomicswap/internal/flagutil/exitcodes"
+	"github.com/transmutate-io/atomicswap/internal/tplutil"
 	"github.com/transmutate-io/atomicswap/roles"
 	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
@@ -43,20 +47,20 @@ var (
 )
 
 func init() {
-	addFlags(flagMap{
-		listProposalsCmd.Flags(): []flagFunc{
-			addFlagFormat,
-			addFlagVerbose,
-			addFlagOutput,
+	flagutil.AddFlags(flagutil.FlagFuncMap{
+		listProposalsCmd.Flags(): []flagutil.FlagFunc{
+			flagutil.AddFormat,
+			flagutil.AddVerbose,
+			flagutil.AddOutput,
 		},
-		acceptProposalCmd.Flags(): []flagFunc{
-			addFlagInput,
+		acceptProposalCmd.Flags(): []flagutil.FlagFunc{
+			flagutil.AddInput,
 		},
-		exportProposalCmd.Flags(): []flagFunc{
-			addFlagOutput,
+		exportProposalCmd.Flags(): []flagutil.FlagFunc{
+			flagutil.AddOutput,
 		},
 	})
-	addCommands(ProposalCmd, []*cobra.Command{
+	cmdutil.AddCommands(ProposalCmd, []*cobra.Command{
 		listProposalsCmd,
 		exportProposalCmd,
 		acceptProposalCmd,
@@ -70,17 +74,17 @@ func listProposals(td string, out io.Writer, tpl *template.Template) error {
 }
 
 func cmdListProposals(cmd *cobra.Command, args []string) {
-	tpl := mustOutputTemplate(cmd.Flags(), tradeListTemplates, nil)
-	out, closeOut := mustOpenOutput(cmd.Flags())
+	tpl := tplutil.MustOpenTemplate(cmd.Flags(), tradeListTemplates, nil)
+	out, closeOut := flagutil.MustOpenOutput(cmd.Flags())
 	defer closeOut()
 	if err := listProposals(tradesDir(cmd), out, tpl); err != nil {
-		errorExit(ecCantListProposals, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 }
 
 func exportProposal(tr trade.Trade, out io.Writer) error {
 	if tr.Role() != roles.Buyer {
-		errorExit(ecNotABuyer)
+		cmdutil.ErrorExit(exitcodes.NotABuyer)
 	}
 	btr, err := tr.Buyer()
 	if err != nil {
@@ -94,10 +98,10 @@ func exportProposal(tr trade.Trade, out io.Writer) error {
 }
 
 func cmdExportProposal(cmd *cobra.Command, args []string) {
-	out, closeOut := mustOpenOutput(cmd.Flags())
+	out, closeOut := flagutil.MustOpenOutput(cmd.Flags())
 	defer closeOut()
 	if err := exportProposal(mustOpenTrade(cmd, args[0]), out); err != nil {
-		errorExit(ecCantExportProposal, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 }
 
@@ -124,39 +128,17 @@ func acceptProposal(tp string, name string, prop *trade.BuyProposal) error {
 }
 
 func cmdAcceptProposal(cmd *cobra.Command, args []string) {
-	in, inClose := mustOpenInput(cmd.Flags())
+	in, inClose := flagutil.MustOpenInput(cmd.Flags())
 	defer inClose()
 	b, err := ioutil.ReadAll(in)
 	if err != nil {
-		errorExit(ecCantCreateTrade, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 	prop, err := trade.UnamrshalBuyProposal(b)
 	if err != nil {
-		errorExit(ecCantCreateTrade, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 	if err = acceptProposal(tradesDir(cmd), args[0], prop); err != nil {
-		errorExit(ecCantCreateTrade, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
-	// newTrade := trade.NewOnChainSell()
-	// th := trade.NewHandler(trade.DefaultStageHandlers)
-	// th.InstallStageHandlers(trade.StageHandlerMap{
-	// 	stages.ReceiveProposal: func(tr trade.Trade) error {
-	// 		str, err := tr.Seller()
-	// 		if err != nil {
-	// 			return err
-	// 		}
-	// 		if err := str.AcceptBuyProposal(prop); err != nil {
-	// 			return err
-	// 		}
-	// 		return nil
-	// 	},
-	// 	stages.SendProposalResponse: trade.InterruptHandler,
-	// })
-	// for _, i := range th.Unhandled(newTrade.Stager().Stages()...) {
-	// 	th.InstallStageHandler(i, trade.NoOpHandler)
-	// }
-	// if err := th.HandleTrade(newTrade); err != nil && err != trade.ErrInterruptTrade {
-	// 	errorExit(ecCantCreateTrade, err)
-	// }
-	// mustSaveTrade(cmd, args[0], newTrade)
 }

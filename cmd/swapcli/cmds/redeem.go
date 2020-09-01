@@ -7,6 +7,10 @@ import (
 	"text/template"
 
 	"github.com/spf13/cobra"
+	"github.com/transmutate-io/atomicswap/internal/cmdutil"
+	"github.com/transmutate-io/atomicswap/internal/flagutil"
+	"github.com/transmutate-io/atomicswap/internal/flagutil/exitcodes"
+	"github.com/transmutate-io/atomicswap/internal/tplutil"
 	"github.com/transmutate-io/atomicswap/networks"
 	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
@@ -37,21 +41,22 @@ var (
 )
 
 func init() {
-	addFlags(flagMap{
-		listRedeemableCmd.Flags(): []flagFunc{
-			addFlagVerbose,
-			addFlagFormat,
-			addFlagOutput,
+	network := &_network
+	flagutil.AddFlags(flagutil.FlagFuncMap{
+		listRedeemableCmd.Flags(): []flagutil.FlagFunc{
+			flagutil.AddVerbose,
+			flagutil.AddFormat,
+			flagutil.AddOutput,
 		},
-		redeemToAddressCmd.Flags(): []flagFunc{
-			addFlagCryptoChain,
-			addFlagFee,
-			addFlagsRPC,
-			addFlagOutput,
-			addFlagVerbose,
+		redeemToAddressCmd.Flags(): []flagutil.FlagFunc{
+			network.AddFlag,
+			_fee.AddFlag,
+			flagutil.AddRPC,
+			flagutil.AddOutput,
+			flagutil.AddVerbose,
 		},
 	})
-	addCommands(RedeemCmd, []*cobra.Command{
+	cmdutil.AddCommands(RedeemCmd, []*cobra.Command{
 		listRedeemableCmd,
 		redeemToAddressCmd,
 	})
@@ -67,12 +72,12 @@ func listRedeemable(td string, out io.Writer, tpl *template.Template) error {
 }
 
 func cmdListRedeemable(cmd *cobra.Command, args []string) {
-	out, closeOut := mustOpenOutput(cmd.Flags())
+	out, closeOut := flagutil.MustOpenOutput(cmd.Flags())
 	defer closeOut()
-	tpl := mustOutputTemplate(cmd.Flags(), tradeListTemplates, nil)
+	tpl := tplutil.MustOpenTemplate(cmd.Flags(), tradeListTemplates, nil)
 	err := listRedeemable(tradesDir(cmd), out, tpl)
 	if err != nil {
-		errorExit(ecCantListTrades, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 }
 
@@ -85,7 +90,8 @@ func newRedeemHandler(
 	cl cryptocore.Client,
 ) func(trade.Trade) error {
 	return func(tr trade.Trade) error {
-		addrScript, err := networks.AllByName[tr.TraderInfo().Crypto.Name][mustFlagCryptoChain(tr.TraderInfo().Crypto)].
+		addrScript, err := networks.
+			AllByName[tr.TraderInfo().Crypto.Name][_network.MustNetwork(tr.TraderInfo().Crypto.Name)].
 			AddressToScript(addr)
 		if err != nil {
 			return err
@@ -143,22 +149,22 @@ func redeemToAddress(
 
 func cmdRedeemToAddress(cmd *cobra.Command, args []string) {
 	tr := mustOpenTrade(cmd, args[0])
-	out, closeOut := mustOpenOutput(cmd.Flags())
+	out, closeOut := flagutil.MustOpenOutput(cmd.Flags())
 	defer closeOut()
 	fs := cmd.Flags()
 	err := redeemToAddress(
 		tr,
 		out,
 		args[1],
-		mustFlagRPCAddress(fs),
-		mustFlagRPCUsername(fs),
-		mustFlagRPCPassword(fs),
-		mustFlagRPCTLSConfig(fs),
-		flagFee(fs),
-		flagFeeFixed(fs),
+		flagutil.MustRPCAddress(fs),
+		flagutil.MustRPCUsername(fs),
+		flagutil.MustRPCPassword(fs),
+		flagutil.MustRPCTLSConfig(fs),
+		_fee.Value,
+		_fee.Fixed,
 	)
 	if err != nil {
-		errorExit(ecCantRedeem, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 	mustSaveTrade(cmd, args[0], tr)
 }

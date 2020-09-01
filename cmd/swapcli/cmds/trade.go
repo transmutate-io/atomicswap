@@ -9,6 +9,10 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/transmutate-io/atomicswap/cryptos"
+	"github.com/transmutate-io/atomicswap/internal/cmdutil"
+	"github.com/transmutate-io/atomicswap/internal/flagutil"
+	"github.com/transmutate-io/atomicswap/internal/flagutil/exitcodes"
+	"github.com/transmutate-io/atomicswap/internal/tplutil"
 	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
 	"github.com/transmutate-io/cryptocore/types"
@@ -65,21 +69,21 @@ var (
 )
 
 func init() {
-	addFlags(flagMap{
-		listTradesCmd.Flags(): []flagFunc{
-			addFlagVerbose,
-			addFlagFormat,
-			addFlagOutput,
+	flagutil.AddFlags(flagutil.FlagFuncMap{
+		listTradesCmd.Flags(): []flagutil.FlagFunc{
+			flagutil.AddVerbose,
+			flagutil.AddFormat,
+			flagutil.AddOutput,
 		},
-		exportTradesCmd.Flags(): []flagFunc{
-			addFlagAll,
-			addFlagOutput,
+		exportTradesCmd.Flags(): []flagutil.FlagFunc{
+			flagutil.AddAll,
+			flagutil.AddOutput,
 		},
-		importTradesCmd.Flags(): []flagFunc{
-			addFlagInput,
+		importTradesCmd.Flags(): []flagutil.FlagFunc{
+			flagutil.AddInput,
 		},
 	})
-	addCommands(TradeCmd, []*cobra.Command{
+	cmdutil.AddCommands(TradeCmd, []*cobra.Command{
 		newTradeCmd,
 		listTradesCmd,
 		renameTradeCmd,
@@ -116,7 +120,7 @@ func cmdNewTrade(cmd *cobra.Command, args []string) {
 		mustParseDuration(args[5]),
 	)
 	if err != nil {
-		errorExit(ecCantCreateTrade, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 	mustSaveTrade(cmd, args[0], tr)
 }
@@ -128,18 +132,18 @@ func listTrades(td string, out io.Writer, tpl *template.Template) error {
 }
 
 func cmdListTrades(cmd *cobra.Command, args []string) {
-	tpl := mustOutputTemplate(cmd.Flags(), tradeListTemplates, nil)
-	out, closeOut := mustOpenOutput(cmd.Flags())
+	tpl := tplutil.MustOpenTemplate(cmd.Flags(), tradeListTemplates, nil)
+	out, closeOut := flagutil.MustOpenOutput(cmd.Flags())
 	defer closeOut()
 	if err := listTrades(tradesDir(cmd), out, tpl); err != nil {
-		errorExit(ecCantListTrades, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 }
 
 func cmdDeleteTrade(cmd *cobra.Command, args []string) {
 	err := os.Remove(tradePath(cmd, args[0]))
 	if err != nil {
-		errorExit(ecCantDeleteTrade, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 }
 
@@ -161,7 +165,7 @@ func exportTrades(td string, tradeSelect tradeSelectFunc) (map[string]trade.Trad
 
 func cmdExportTrades(cmd *cobra.Command, args []string) {
 	var ts tradeSelectFunc
-	if mustFlagAll(cmd.Flags()) {
+	if flagutil.MustAll(cmd.Flags()) {
 		ts = func(name string, tr trade.Trade) bool { return true }
 	} else {
 		names := make(map[string]struct{}, len(args))
@@ -175,24 +179,24 @@ func cmdExportTrades(cmd *cobra.Command, args []string) {
 	}
 	trades, err := exportTrades(tradesDir(cmd), ts)
 	if err != nil {
-		errorExit(ecCantExportTrades, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 	if len(trades) == 0 {
-		errorExit(ecCantExportTrades, "no trades selected")
+		cmdutil.ErrorExit(exitcodes.ExecutionError, "no trades selected")
 	}
-	out, closeOut := mustOpenOutput(cmd.Flags())
+	out, closeOut := flagutil.MustOpenOutput(cmd.Flags())
 	defer closeOut()
 	if err = yaml.NewEncoder(out).Encode(trades); err != nil {
-		errorExit(ecCantExportTrades, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 }
 
 func cmdImportTrades(cmd *cobra.Command, args []string) {
-	in, closeIn := mustOpenInput(cmd.Flags())
+	in, closeIn := flagutil.MustOpenInput(cmd.Flags())
 	defer closeIn()
 	trades := make(map[string]*trade.OnChainTrade, 16)
 	if err := yaml.NewDecoder(in).Decode(trades); err != nil {
-		errorExit(ecCantImportTrades, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 	for n, tr := range trades {
 		mustSaveTrade(cmd, filepath.FromSlash(n), tr)
@@ -209,6 +213,6 @@ func renameFile(oldPath string, newPath string) error {
 
 func cmdRenameTrade(cmd *cobra.Command, args []string) {
 	if err := renameFile(tradePath(cmd, args[0]), tradePath(cmd, args[1])); err != nil {
-		errorExit(ecCantRenameTrade, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 }

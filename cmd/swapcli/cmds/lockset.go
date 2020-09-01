@@ -6,6 +6,10 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/transmutate-io/atomicswap/internal/cmdutil"
+	"github.com/transmutate-io/atomicswap/internal/flagutil"
+	"github.com/transmutate-io/atomicswap/internal/flagutil/exitcodes"
+	"github.com/transmutate-io/atomicswap/internal/tplutil"
 	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
 	"gopkg.in/yaml.v2"
@@ -47,28 +51,31 @@ var (
 	}
 )
 
+var _network = flagutil.NetworkFlag("mainnet")
+
 func init() {
-	addFlags(flagMap{
-		listLockSetsCmd.Flags(): []flagFunc{
-			addFlagVerbose,
-			addFlagFormat,
-			addFlagOutput,
+	network := &_network
+	flagutil.AddFlags(flagutil.FlagFuncMap{
+		listLockSetsCmd.Flags(): []flagutil.FlagFunc{
+			flagutil.AddVerbose,
+			flagutil.AddFormat,
+			flagutil.AddOutput,
 		},
-		showLockSetInfoCmd.Flags(): []flagFunc{
-			addFlagVerbose,
-			addFlagFormat,
-			addFlagOutput,
-			addFlagCryptoChain,
-			addFlagInput,
+		showLockSetInfoCmd.Flags(): []flagutil.FlagFunc{
+			flagutil.AddVerbose,
+			flagutil.AddFormat,
+			flagutil.AddOutput,
+			network.AddFlag,
+			flagutil.AddInput,
 		},
-		acceptLockSetCmd.Flags(): []flagFunc{
-			addFlagInput,
+		acceptLockSetCmd.Flags(): []flagutil.FlagFunc{
+			flagutil.AddInput,
 		},
-		exportLockSetCmd.Flags(): []flagFunc{
-			addFlagOutput,
+		exportLockSetCmd.Flags(): []flagutil.FlagFunc{
+			flagutil.AddOutput,
 		},
 	})
-	addCommands(LockSetCmd, []*cobra.Command{
+	cmdutil.AddCommands(LockSetCmd, []*cobra.Command{
 		listLockSetsCmd,
 		exportLockSetCmd,
 		acceptLockSetCmd,
@@ -83,16 +90,16 @@ func listLockSets(td string, out io.Writer, tpl *template.Template) error {
 }
 
 func cmdListLockSets(cmd *cobra.Command, args []string) {
-	tpl := mustOutputTemplate(cmd.Flags(), tradeListTemplates, nil)
-	out, closeOut := mustOpenOutput(cmd.Flags())
+	tpl := tplutil.MustOpenTemplate(cmd.Flags(), tradeListTemplates, nil)
+	out, closeOut := flagutil.MustOpenOutput(cmd.Flags())
 	defer closeOut()
 	if err := listLockSets(tradesDir(cmd), out, tpl); err != nil {
-		errorExit(ecCantListLockSets, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 }
 
 func exportLockSet(tp string, out io.Writer) error {
-	tr, err := openTrade(tp)
+	tr, err := openTradeFile(tp)
 	if err != nil {
 		return err
 	}
@@ -105,10 +112,10 @@ func exportLockSet(tp string, out io.Writer) error {
 }
 
 func cmdExportLockSet(cmd *cobra.Command, args []string) {
-	out, outClose := mustOpenOutput(cmd.Flags())
+	out, outClose := flagutil.MustOpenOutput(cmd.Flags())
 	defer outClose()
 	if err := exportLockSet(tradePath(cmd, args[0]), out); err != nil {
-		errorExit(ecCantExportLockSet, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 }
 
@@ -132,16 +139,16 @@ func acceptLockSet(tr trade.Trade, lsIn io.Reader) error {
 
 func cmdAcceptLockSet(cmd *cobra.Command, args []string) {
 	tr := mustOpenTrade(cmd, args[0])
-	in, inClose := mustOpenInput(cmd.Flags())
+	in, inClose := flagutil.MustOpenInput(cmd.Flags())
 	defer inClose()
 	if err := acceptLockSet(tr, in); err != nil {
-		errorExit(ecCantAcceptLockSet, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 	mustSaveTrade(cmd, args[0], tr)
 }
 
 func showLockSetInfo(tp string, lsIn io.Reader, out io.Writer, tpl *template.Template) error {
-	tr, err := openTrade(tp)
+	tr, err := openTradeFile(tp)
 	if err != nil {
 		return err
 	}
@@ -165,12 +172,12 @@ func newLockSetTemplate() *template.Template {
 }
 
 func cmdShowLockSetInfo(cmd *cobra.Command, args []string) {
-	in, inClose := mustOpenInput(cmd.Flags())
+	in, inClose := flagutil.MustOpenInput(cmd.Flags())
 	defer inClose()
-	out, outClose := mustOpenOutput(cmd.Flags())
+	out, outClose := flagutil.MustOpenOutput(cmd.Flags())
 	defer outClose()
-	tpl := mustOutputTemplate(cmd.Flags(), lockSetInfoTemplates, template.FuncMap{"now": time.Now})
+	tpl := tplutil.MustOpenTemplate(cmd.Flags(), lockSetInfoTemplates, template.FuncMap{"now": time.Now})
 	if err := showLockSetInfo(tradePath(cmd, args[0]), in, out, tpl); err != nil {
-		errorExit(ecCantShowLockSetInfo, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 }

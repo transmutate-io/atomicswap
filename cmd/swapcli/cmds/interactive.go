@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"syscall"
 	"text/template"
@@ -16,6 +15,10 @@ import (
 	"github.com/c-bata/go-prompt"
 	"github.com/spf13/cobra"
 	"github.com/transmutate-io/atomicswap/cryptos"
+	"github.com/transmutate-io/atomicswap/internal/cmdutil"
+	"github.com/transmutate-io/atomicswap/internal/flagutil"
+	"github.com/transmutate-io/atomicswap/internal/flagutil/exitcodes"
+	"github.com/transmutate-io/atomicswap/internal/uiutil"
 	"github.com/transmutate-io/atomicswap/roles"
 	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
@@ -32,7 +35,12 @@ var InteractiveConsoleCmd = &cobra.Command{
 }
 
 func init() {
-	addFlagCryptoChain(InteractiveConsoleCmd.Flags())
+	network := &_network
+	flagutil.AddFlags(flagutil.FlagFuncMap{
+		InteractiveConsoleCmd.Flags(): []flagutil.FlagFunc{
+			network.AddFlag,
+		},
+	})
 	for c := range cryptos.Cryptos {
 		interactiveActionsHandlers["config/clients/"+c+"/address"] = newActionConfigClientAddress(c)
 		interactiveActionsHandlers["config/clients/"+c+"/username"] = newActionConfigClientUsername(c)
@@ -48,9 +56,25 @@ func init() {
 
 func cmdInteractiveConsole(cmd *cobra.Command, args []string) {
 	if err := loadConfigFile(cmd, ""); err != nil {
-		errorExit(ecCantLoadConfig, err)
+		cmdutil.ErrorExit(exitcodes.CantLoadConfig, err)
 	}
-	rootNode := newRootNode()
+	entries := append(make([]*uiutil.MenuCompleter, 0, 8), &uiutil.MenuCompleter{
+		Suggestion: &prompt.Suggest{
+			Text:        "cryptos",
+			Description: "list available cryptos",
+		},
+	})
+	for _, i := range []*cobra.Command{
+		TradeCmd,
+		ProposalCmd,
+		LockSetCmd,
+		WatchCmd,
+		RedeemCmd,
+		RecoverCmd,
+	} {
+		entries = append(entries, uiutil.NewMenuCompleter(i, nil))
+	}
+	rootNode := uiutil.NewRootNode(entries)
 	node := rootNode
 	inputOpts := prompt.OptionAddKeyBind(
 		prompt.KeyBind{
@@ -62,40 +86,40 @@ func cmdInteractiveConsole(cmd *cobra.Command, args []string) {
 	)
 Outer:
 	for {
-		command := prompt.Input(node.prompt(">"), node.completer, inputOpts)
+		command := prompt.Input(node.Prompt(">"), node.Completer, inputOpts)
 		switch c := strings.TrimSpace(command); c {
-		case exitCommand.suggestion.Text:
+		case uiutil.ExitCommand.Suggestion.Text:
 			break Outer
-		case helpCommand.suggestion.Text:
+		case uiutil.HelpCommand.Suggestion.Text:
 			var menuName string
 			if node == rootNode {
 				menuName = "main"
 			} else {
-				menuName = node.name()
+				menuName = node.Name()
 			}
 			fmt.Printf("\navailable commands (%s menu):\n", menuName)
 			var maxNameLen int
-			for _, i := range node.sub {
-				if sz := len(i.suggestion.Text); sz > maxNameLen {
+			for _, i := range node.Sub {
+				if sz := len(i.Suggestion.Text); sz > maxNameLen {
 					maxNameLen = sz
 				}
 			}
-			for _, i := range node.sub {
-				name := i.suggestion.Text + strings.Repeat(" ", maxNameLen-len(i.suggestion.Text))
-				fmt.Printf("  %s    %s\n", name, i.suggestion.Description)
+			for _, i := range node.Sub {
+				name := i.Suggestion.Text + strings.Repeat(" ", maxNameLen-len(i.Suggestion.Text))
+				fmt.Printf("  %s    %s\n", name, i.Suggestion.Description)
 			}
 			fmt.Println()
-		case upCommand.suggestion.Text:
+		case uiutil.UpCommand.Suggestion.Text:
 			if node == rootNode {
 				fmt.Println("already at the top")
 			} else {
-				node = node.parent
+				node = node.Parent
 			}
 		case "":
 		default:
-			for _, i := range node.sub {
-				if i.suggestion != nil && i.suggestion.Text == c {
-					iaFunc, ok := interactiveActionsHandlers[i.name()]
+			for _, i := range node.Sub {
+				if i.Suggestion != nil && i.Suggestion.Text == c {
+					iaFunc, ok := interactiveActionsHandlers[i.Name()]
 					if ok {
 						iaFunc(cmd)
 					} else {
@@ -137,50 +161,6 @@ var interactiveActionsHandlers = map[string]func(cmd *cobra.Command){
 	"recover/toaddress": actionRecover,
 }
 
-func init() {
-	configClientsCommand := &commandCompleter{
-		parent: configCommand,
-		suggestion: &prompt.Suggest{
-			Text:        "clients",
-			Description: "configure cryptocurrency clients",
-		},
-	}
-	cc := make([]string, 0, len(cryptos.Cryptos))
-	for c := range cryptos.Cryptos {
-		cc = append(cc, c)
-	}
-	sort.Strings(cc)
-	for _, c := range cc {
-		configClientsCommand.sub = append(configClientsCommand.sub, newClientConfigMenu(c, configClientsCommand))
-	}
-	configClientsCommand.sub = append(configClientsCommand.sub, tailCommands...)
-	configCommand.sub = append(configCommand.sub,
-		configClientsCommand,
-		&commandCompleter{
-			parent: configCommand,
-			suggestion: &prompt.Suggest{
-				Text:        "save",
-				Description: "save configuration",
-			},
-		},
-		&commandCompleter{
-			parent: configCommand,
-			suggestion: &prompt.Suggest{
-				Text:        "load",
-				Description: "load configuration",
-			},
-		},
-		&commandCompleter{
-			parent: configCommand,
-			suggestion: &prompt.Suggest{
-				Text:        "show",
-				Description: "show the current configuration",
-			},
-		},
-	)
-	configCommand.sub = append(configCommand.sub, tailCommands...)
-}
-
 func actionListCryptos(cmd *cobra.Command) {
 	tpl, err := template.New("main").Parse("{{ .Name }} ({{ .Short }})\n")
 	if err != nil {
@@ -210,8 +190,8 @@ func actionNewTrade(cmd *cobra.Command) {
 	if tradeName == "" {
 		return
 	}
-	tradeName = trimPath(tradeName, tradesDir(cmd))
-	ownAmount, ok := inputAmount("own amount")
+	tradeName = cmdutil.TrimPath(tradeName, tradesDir(cmd))
+	ownAmount, ok := uiutil.InputAmount("own amount")
 	if !ok {
 		return
 	}
@@ -228,7 +208,7 @@ func actionNewTrade(cmd *cobra.Command) {
 		fmt.Printf("\n  .. to abort\n\n")
 	}
 	for {
-		c, ok := inputMultiChoice("own crypto", cryptosSuggestions[0].Text, cryptosSuggestions, helpFunc)
+		c, ok := uiutil.InputMultiChoice("own crypto", cryptosSuggestions[0].Text, cryptosSuggestions, helpFunc)
 		if !ok {
 			return
 		}
@@ -240,7 +220,7 @@ func actionNewTrade(cmd *cobra.Command) {
 		ownCrypto = own
 		break
 	}
-	traderAmount, ok := inputAmount("trader amount")
+	traderAmount, ok := uiutil.InputAmount("trader amount")
 	if !ok {
 		return
 	}
@@ -251,7 +231,7 @@ func actionNewTrade(cmd *cobra.Command) {
 		}
 	}
 	for {
-		c, ok := inputMultiChoice("trader crypto", cryptosSuggestions[0].Text, cryptosSuggestions, helpFunc)
+		c, ok := uiutil.InputMultiChoice("trader crypto", cryptosSuggestions[0].Text, cryptosSuggestions, helpFunc)
 		if !ok {
 			return
 		}
@@ -264,7 +244,7 @@ func actionNewTrade(cmd *cobra.Command) {
 		break
 	}
 	for {
-		v := inputText("duration")
+		v := uiutil.InputText("duration")
 		if v == "" {
 			fmt.Println("aborted")
 			return
@@ -356,7 +336,7 @@ func actionExportTrades(cmd *cobra.Command) {
 		if tn == "" {
 			break
 		}
-		tn = trimPath(tn, td)
+		tn = cmdutil.TrimPath(tn, td)
 		if _, ok := tradesNames[tn]; ok {
 			delete(tradesNames, tn)
 		} else {
@@ -375,7 +355,7 @@ func actionExportTrades(cmd *cobra.Command) {
 		fmt.Printf("can't export trades: %s\n", err)
 		return
 	}
-	outFn, err := inputFilename("output file (blank to stdout): ", ".", false)
+	outFn, err := uiutil.InputFilename("output file (blank to stdout): ", ".", false)
 	if err != nil {
 		fmt.Printf("can't open output file: %s\n", err)
 		return
@@ -398,7 +378,7 @@ func actionExportTrades(cmd *cobra.Command) {
 }
 
 func actionImportTrades(cmd *cobra.Command) {
-	inFn, err := inputFilename("input file: ", ".", true)
+	inFn, err := uiutil.InputFilename("input file: ", ".", true)
 	if err != nil {
 		fmt.Printf("can't open input file: %s\n", err)
 		return
@@ -453,7 +433,7 @@ type consoleCommand = func(*cobra.Command)
 func newActionConfigClientAddress(name string) consoleCommand {
 	return func(cmd *cobra.Command) {
 		cfg := mainConfig.client(name)
-		cfg.Address = inputTextWithDefault("new address", cfg.Address)
+		cfg.Address = uiutil.InputTextWithDefault("new address", cfg.Address)
 		mainConfig[name] = cfg
 	}
 }
@@ -461,7 +441,7 @@ func newActionConfigClientAddress(name string) consoleCommand {
 func newActionConfigClientUsername(name string) consoleCommand {
 	return func(cmd *cobra.Command) {
 		cfg := mainConfig.client(name)
-		cfg.Username = inputTextWithDefault("new username", cfg.Username)
+		cfg.Username = uiutil.InputTextWithDefault("new username", cfg.Username)
 		mainConfig[name] = cfg
 	}
 }
@@ -469,7 +449,7 @@ func newActionConfigClientUsername(name string) consoleCommand {
 func newActionConfigClientPassword(name string) consoleCommand {
 	return func(cmd *cobra.Command) {
 		cfg := mainConfig.client(name)
-		cfg.Password = inputTextWithDefault("new password", cfg.Password)
+		cfg.Password = uiutil.InputTextWithDefault("new password", cfg.Password)
 		mainConfig[name] = cfg
 	}
 }
@@ -489,7 +469,7 @@ func newActionConfigClientShow(name string) consoleCommand {
 func newActionConfigClientTLSCaCert(name string) consoleCommand {
 	return func(cmd *cobra.Command) {
 		cfg := mainConfig.client(name)
-		fn, err := inputFilename("CA certificate file: ", ".", true)
+		fn, err := uiutil.InputFilename("CA certificate file: ", ".", true)
 		if err != nil {
 			fmt.Printf("can't find file: %s\n", err)
 			return
@@ -505,7 +485,7 @@ func newActionConfigClientTLSCaCert(name string) consoleCommand {
 func newActionConfigClientTLSCert(name string) consoleCommand {
 	return func(cmd *cobra.Command) {
 		cfg := mainConfig.client(name)
-		fn, err := inputFilename("Client certificate file: ", ".", true)
+		fn, err := uiutil.InputFilename("Client certificate file: ", ".", true)
 		if err != nil {
 			fmt.Printf("can't find file: %s\n", err)
 			return
@@ -521,7 +501,7 @@ func newActionConfigClientTLSCert(name string) consoleCommand {
 func newActionConfigClientTLSKey(name string) consoleCommand {
 	return func(cmd *cobra.Command) {
 		cfg := mainConfig.client(name)
-		fn, err := inputFilename("Client key file: ", ".", true)
+		fn, err := uiutil.InputFilename("Client key file: ", ".", true)
 		if err != nil {
 			fmt.Printf("can't find file: %s\n", err)
 			return
@@ -537,7 +517,7 @@ func newActionConfigClientTLSKey(name string) consoleCommand {
 func newActionConfigClientTLSSkipVerify(name string) consoleCommand {
 	return func(cmd *cobra.Command) {
 		cfg := mainConfig.client(name)
-		skip, ok := inputYesNo("skip certificate verification", false)
+		skip, ok := uiutil.InputYesNo("skip certificate verification", false)
 		if !ok {
 			return
 		}
@@ -579,7 +559,7 @@ func loadConfigFile(cmd *cobra.Command, name string) error {
 }
 
 func actionLoadConfig(cmd *cobra.Command) {
-	name, err := inputSandboxedFilename("file to load: ", consoleConfigDir(cmd), true)
+	name, err := uiutil.InputSandboxedFilename("file to load: ", consoleConfigDir(cmd), true)
 	if err != nil {
 		fmt.Printf("can't load config file: %s\n", err)
 	}
@@ -604,7 +584,7 @@ func saveConfigFile(cmd *cobra.Command, name string) error {
 }
 
 func actionSaveConfig(cmd *cobra.Command) {
-	name, err := inputSandboxedFilename("save to file: ", consoleConfigDir(cmd), false)
+	name, err := uiutil.InputSandboxedFilename("save to file: ", consoleConfigDir(cmd), false)
 	if err != nil {
 		fmt.Printf("can't save config file: %s\n", err)
 	}
@@ -650,7 +630,7 @@ func actionExportProposal(cmd *cobra.Command) {
 		fmt.Printf("can't open trade: %s\n", err)
 		return
 	}
-	outFn, err := inputFilename("output file (blank for stdout): ", ".", false)
+	outFn, err := uiutil.InputFilename("output file (blank for stdout): ", ".", false)
 	if err != nil {
 		fmt.Printf("can't open output file: %s\n", err)
 		return
@@ -686,7 +666,7 @@ func actionAcceptProposal(cmd *cobra.Command) {
 	if tn == "" {
 		return
 	}
-	propFn, err := inputFilename("proposal: ", ".", true)
+	propFn, err := uiutil.InputFilename("proposal: ", ".", true)
 	if err != nil {
 		fmt.Printf("can't open proposal: %s\n", err)
 		return
@@ -729,7 +709,7 @@ func actionExportLockSet(cmd *cobra.Command) {
 	if tn == "" {
 		return
 	}
-	outFn, err := inputFilename("export to: ", ".", false)
+	outFn, err := uiutil.InputFilename("export to: ", ".", false)
 	if err != nil {
 		fmt.Printf("can't read filename: %s\n", err)
 		return
@@ -758,7 +738,7 @@ func actionAcceptLockSet(cmd *cobra.Command) {
 	if tp == "" && tr == nil {
 		return
 	}
-	inFn, err := inputFilename("lockset file: ", ".", true)
+	inFn, err := uiutil.InputFilename("lockset file: ", ".", true)
 	if err != nil {
 		fmt.Printf("can't find lockset file: %s\n", err)
 		return
@@ -784,7 +764,7 @@ func actionAcceptLockSet(cmd *cobra.Command) {
 		return
 	}
 	fmt.Printf("\n")
-	accepted, ok := inputYesNo("accept locks", false)
+	accepted, ok := uiutil.InputYesNo("accept locks", false)
 	if !ok {
 		return
 	}
@@ -810,7 +790,7 @@ func actionLockSetInfo(cmd *cobra.Command) {
 	if tp == "" {
 		return
 	}
-	inFn, err := inputFilename("lockset file: ", ".", true)
+	inFn, err := uiutil.InputFilename("lockset file: ", ".", true)
 	if err != nil {
 		fmt.Printf("can't find lockset file: %s\n", err)
 		return
@@ -847,7 +827,7 @@ func actionListWatchable(cmd *cobra.Command) {
 }
 
 func tradePathToWatchData(cmd *cobra.Command, tp string) string {
-	return watchDataPath(cmd, trimPath(tp, tradesDir(cmd)))
+	return watchDataPath(cmd, cmdutil.TrimPath(tp, tradesDir(cmd)))
 }
 
 func actionWatch(
@@ -891,11 +871,11 @@ func actionWatch(
 	if err != nil {
 		return err
 	}
-	firstBlock, ok := inputIntWithDefault("lower height", 1)
+	firstBlock, ok := uiutil.InputIntWithDefault("lower height", 1)
 	if !ok {
 		return nil
 	}
-	confirmations, ok := inputIntWithDefault("confirmations", 1)
+	confirmations, ok := uiutil.InputIntWithDefault("confirmations", 1)
 	if !ok {
 		return nil
 	}
@@ -991,7 +971,7 @@ func actionWatchSecret(cmd *cobra.Command) {
 		fmt.Printf("can't create client: %s\n", err)
 		return
 	}
-	firstBlock, ok := inputIntWithDefault("lower height", 1)
+	firstBlock, ok := uiutil.InputIntWithDefault("lower height", 1)
 	if !ok {
 		return
 	}
@@ -1039,16 +1019,16 @@ func inputRedeemRecoverData(cmd *cobra.Command, pr string) (trade.Trade, string,
 	if tn == "" && tr == nil {
 		return nil, "", 0, false, false
 	}
-	destAddr := inputText(fmt.Sprintf("destination address (%s)", tr.TraderInfo().Crypto.Name))
+	destAddr := uiutil.InputText(fmt.Sprintf("destination address (%s)", tr.TraderInfo().Crypto.Name))
 	if destAddr == "" {
 		fmt.Println("aborted")
 		return nil, "", 0, false, false
 	}
 	choices := []prompt.Suggest{
-		{Text: "fixed", Description: "fixed fee"},
 		{Text: "byte", Description: "per byte fee"},
+		{Text: "fixed", Description: "fixed fee"},
 	}
-	ft, ok := inputMultiChoice("fee type", choices[0].Text, choices, func(c []prompt.Suggest) {
+	ft, ok := uiutil.InputMultiChoice("fee type", choices[0].Text, choices, func(c []prompt.Suggest) {
 		fmt.Printf("\nfee types:\n\n")
 		for _, i := range c {
 			fmt.Printf("  %s - %s\n", i.Text, i.Description)
@@ -1064,7 +1044,7 @@ func inputRedeemRecoverData(cmd *cobra.Command, pr string) (trade.Trade, string,
 	} else {
 		intPr = "fee per byte"
 	}
-	fee, ok := inputIntWithDefault(intPr, 1)
+	fee, ok := uiutil.InputIntWithDefault(intPr, 1)
 	if !ok {
 		return nil, "", 0, false, false
 	}

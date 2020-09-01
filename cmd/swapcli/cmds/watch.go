@@ -10,6 +10,10 @@ import (
 	"text/template"
 
 	"github.com/spf13/cobra"
+	"github.com/transmutate-io/atomicswap/internal/cmdutil"
+	"github.com/transmutate-io/atomicswap/internal/flagutil"
+	"github.com/transmutate-io/atomicswap/internal/flagutil/exitcodes"
+	"github.com/transmutate-io/atomicswap/internal/tplutil"
 	"github.com/transmutate-io/atomicswap/roles"
 	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
@@ -53,43 +57,44 @@ var (
 )
 
 func init() {
-	addFlags(flagMap{
-		listWatchableCmd.Flags(): []flagFunc{
-			addFlagFormat,
-			addFlagVerbose,
-			addFlagOutput,
+	network := &_network
+	flagutil.AddFlags(flagutil.FlagFuncMap{
+		listWatchableCmd.Flags(): []flagutil.FlagFunc{
+			flagutil.AddFormat,
+			flagutil.AddVerbose,
+			flagutil.AddOutput,
 		},
-		watchOwnDepositCmd.Flags(): []flagFunc{
-			addFlagsRPC,
-			addFlagFirstBlock,
-			addFlagFormat,
-			addFlagVerbose,
-			addFlagOutput,
-			addFlagCryptoChain,
-			addFlagIgnoreTarget,
-			addFlagConfirmations,
+		watchOwnDepositCmd.Flags(): []flagutil.FlagFunc{
+			flagutil.AddRPC,
+			flagutil.AddFirstBlock,
+			flagutil.AddFormat,
+			flagutil.AddVerbose,
+			flagutil.AddOutput,
+			network.AddFlag,
+			flagutil.AddIgnoreTarget,
+			flagutil.AddConfirmations,
 		},
-		watchTraderDepositCmd.Flags(): []flagFunc{
-			addFlagsRPC,
-			addFlagFirstBlock,
-			addFlagFormat,
-			addFlagVerbose,
-			addFlagOutput,
-			addFlagCryptoChain,
-			addFlagIgnoreTarget,
-			addFlagConfirmations,
+		watchTraderDepositCmd.Flags(): []flagutil.FlagFunc{
+			flagutil.AddRPC,
+			flagutil.AddFirstBlock,
+			flagutil.AddFormat,
+			flagutil.AddVerbose,
+			flagutil.AddOutput,
+			network.AddFlag,
+			flagutil.AddIgnoreTarget,
+			flagutil.AddConfirmations,
 		},
-		watchSecretTokenCmd.Flags(): []flagFunc{
-			addFlagsRPC,
-			addFlagFirstBlock,
-			addFlagFormat,
-			addFlagVerbose,
-			addFlagOutput,
-			addFlagCryptoChain,
-			addFlagIgnoreTarget,
+		watchSecretTokenCmd.Flags(): []flagutil.FlagFunc{
+			flagutil.AddRPC,
+			flagutil.AddFirstBlock,
+			flagutil.AddFormat,
+			flagutil.AddVerbose,
+			flagutil.AddOutput,
+			network.AddFlag,
+			flagutil.AddIgnoreTarget,
 		},
 	})
-	addCommands(WatchCmd, []*cobra.Command{
+	cmdutil.AddCommands(WatchCmd, []*cobra.Command{
 		listWatchableCmd,
 		watchOwnDepositCmd,
 		watchTraderDepositCmd,
@@ -113,11 +118,11 @@ func listWatchable(td string, out io.Writer, tpl *template.Template) error {
 }
 
 func cmdListWatchable(cmd *cobra.Command, args []string) {
-	out, closeOut := mustOpenOutput(cmd.Flags())
+	out, closeOut := flagutil.MustOpenOutput(cmd.Flags())
 	defer closeOut()
-	tpl := mustOutputTemplate(cmd.Flags(), watchableTradesTemplates, nil)
+	tpl := tplutil.MustOpenTemplate(cmd.Flags(), watchableTradesTemplates, nil)
 	if err := listWatchable(tradesDir(cmd), out, tpl); err != nil {
-		errorExit(ecFailedToWatch, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 }
 
@@ -151,7 +156,7 @@ func newDepositWatcher(
 		sig := make(chan os.Signal, 0)
 		signal.Notify(sig, os.Interrupt, os.Kill)
 		targetAmount := cryptoInfo.Amount.UInt64(cryptoInfo.Crypto.Decimals)
-		depositAddr, err := funds.Lock().Address(mustFlagCryptoChain(cryptoInfo.Crypto))
+		depositAddr, err := funds.Lock().Address(_network.MustNetwork(cryptoInfo.Crypto.Name))
 		if err != nil {
 			return err
 		}
@@ -306,24 +311,24 @@ func cmdWatchDeposit(
 	tr := mustOpenTrade(cmd, tradeName)
 	wd := mustOpenWatchData(cmd, tradeName)
 	fs := cmd.Flags()
-	out, closeOut := mustOpenOutput(fs)
+	out, closeOut := flagutil.MustOpenOutput(fs)
 	defer closeOut()
 	err := watchDeposit(
 		tr,
 		wd,
 		out,
-		mustOutputTemplate(fs, depositChunkLogTemplates, nil),
-		mustOutputTemplate(fs, blockInspectionTemplates, nil),
+		tplutil.MustOpenTemplate(fs, depositChunkLogTemplates, nil),
+		tplutil.MustOpenTemplate(fs, blockInspectionTemplates, nil),
 		mustNewclient(
 			selectCryptoInfo(tr).Crypto,
-			mustFlagRPCAddress(fs),
-			mustFlagRPCUsername(fs),
-			mustFlagRPCPassword(fs),
-			mustFlagRPCTLSConfig(fs),
+			flagutil.MustRPCAddress(fs),
+			flagutil.MustRPCUsername(fs),
+			flagutil.MustRPCPassword(fs),
+			flagutil.MustRPCTLSConfig(fs),
 		),
-		flagFirstBlock(fs),
-		mustFlagIgnoreTarget(fs),
-		mustFlagConfirmations(fs),
+		flagutil.MustFirstBlock(fs),
+		flagutil.MustIgnoreTarget(fs),
+		flagutil.MustConfirmations(fs),
 		watchStage,
 		selectCryptoInfo,
 		selectWatchData,
@@ -333,7 +338,7 @@ func cmdWatchDeposit(
 		func(nwd *watchData) { saveWatchData(watchDataPath(cmd, tradeName), nwd) },
 	)
 	if err != nil {
-		errorExit(ecFailedToWatch, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 	mustSaveTrade(cmd, tradeName, tr)
 }
@@ -425,21 +430,21 @@ func cmdWatchSecretToken(cmd *cobra.Command, args []string) {
 	fs := cmd.Flags()
 	cl := mustNewclient(
 		tr.OwnInfo().Crypto,
-		mustFlagRPCAddress(fs),
-		mustFlagRPCUsername(fs),
-		mustFlagRPCPassword(fs),
-		mustFlagRPCTLSConfig(fs),
+		flagutil.MustRPCAddress(fs),
+		flagutil.MustRPCUsername(fs),
+		flagutil.MustRPCPassword(fs),
+		flagutil.MustRPCTLSConfig(fs),
 	)
-	out, outClose := mustOpenOutput(fs)
+	out, outClose := flagutil.MustOpenOutput(fs)
 	defer outClose()
-	blockTpl := mustOutputTemplate(fs, blockInspectionTemplates, nil)
+	blockTpl := tplutil.MustOpenTemplate(fs, blockInspectionTemplates, nil)
 	foundTpl, err := template.New("main").Parse("found token: {{ .Hex }}\n")
 	if err != nil {
-		errorExit(ecBadTemplate, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 	wd := mustOpenWatchData(cmd, args[0])
-	if err := watchSecretToken(tr, wd, cl, flagFirstBlock(fs), out, blockTpl, foundTpl); err != nil {
-		errorExit(ecFailedToWatch, err)
+	if err := watchSecretToken(tr, wd, cl, flagutil.MustFirstBlock(fs), out, blockTpl, foundTpl); err != nil {
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 	mustSaveTrade(cmd, args[0], tr)
 }

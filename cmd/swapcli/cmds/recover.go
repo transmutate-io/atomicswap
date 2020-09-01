@@ -7,6 +7,10 @@ import (
 	"text/template"
 
 	"github.com/spf13/cobra"
+	"github.com/transmutate-io/atomicswap/internal/cmdutil"
+	"github.com/transmutate-io/atomicswap/internal/flagutil"
+	"github.com/transmutate-io/atomicswap/internal/flagutil/exitcodes"
+	"github.com/transmutate-io/atomicswap/internal/tplutil"
 	"github.com/transmutate-io/atomicswap/networks"
 	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
@@ -36,22 +40,25 @@ var (
 	}
 )
 
+var _fee = &flagutil.FeeFlag{}
+
 func init() {
-	addFlags(flagMap{
-		listRecoverableCmd.Flags(): []flagFunc{
-			addFlagVerbose,
-			addFlagFormat,
-			addFlagOutput,
+	network := &_network
+	flagutil.AddFlags(flagutil.FlagFuncMap{
+		listRecoverableCmd.Flags(): []flagutil.FlagFunc{
+			flagutil.AddVerbose,
+			flagutil.AddFormat,
+			flagutil.AddOutput,
 		},
-		recoverToAddressCmd.Flags(): []flagFunc{
-			addFlagCryptoChain,
-			addFlagFee,
-			addFlagsRPC,
-			addFlagOutput,
-			addFlagVerbose,
+		recoverToAddressCmd.Flags(): []flagutil.FlagFunc{
+			network.AddFlag,
+			_fee.AddFlag,
+			flagutil.AddRPC,
+			flagutil.AddOutput,
+			flagutil.AddVerbose,
 		},
 	})
-	addCommands(RecoverCmd, []*cobra.Command{
+	cmdutil.AddCommands(RecoverCmd, []*cobra.Command{
 		listRecoverableCmd,
 		recoverToAddressCmd,
 	})
@@ -73,16 +80,17 @@ func listRecoverable(td string, out io.Writer, tpl *template.Template) error {
 
 func cmdListRecoverable(cmd *cobra.Command, args []string) {
 	fs := cmd.Flags()
-	out, closeOut := mustOpenOutput(fs)
+	out, closeOut := flagutil.MustOpenOutput(fs)
 	defer closeOut()
-	tpl := mustOutputTemplate(fs, tradeListTemplates, nil)
+	tpl := tplutil.MustOpenTemplate(fs, tradeListTemplates, nil)
 	if err := listRecoverable(tradesDir(cmd), out, tpl); err != nil {
-		errorExit(ecCantListTrades)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 }
 
 func recoverFunds(tr trade.Trade, cl cryptocore.Client, cryptoInfo *trade.TraderInfo, addr string, feeFixed bool, fee uint64, out io.Writer, verboseRaw bool) error {
-	addrScript, err := networks.AllByName[cryptoInfo.Crypto.Name][mustFlagCryptoChain(cryptoInfo.Crypto)].
+	addrScript, err := networks.
+		AllByName[cryptoInfo.Crypto.Name][_network.MustNetwork(cryptoInfo.Crypto.Name)].
 		AddressToScript(addr)
 	if err != nil {
 		return err
@@ -114,30 +122,30 @@ func recoverFunds(tr trade.Trade, cl cryptocore.Client, cryptoInfo *trade.Trader
 
 func cmdRecoverToAddress(cmd *cobra.Command, args []string) {
 	tr := mustOpenTrade(cmd, args[0])
-	out, closeOut := mustOpenOutput(cmd.Flags())
+	out, closeOut := flagutil.MustOpenOutput(cmd.Flags())
 	defer closeOut()
 	fs := cmd.Flags()
 	var verboseRaw bool
-	if mustVerboseLevel(fs, 1) > 0 {
+	if flagutil.MustVerboseLevel(fs, 1) > 0 {
 		verboseRaw = true
 	}
 	err := recoverFunds(
 		tr,
 		mustNewclient(
 			tr.OwnInfo().Crypto,
-			mustFlagRPCAddress(fs),
-			mustFlagRPCUsername(fs),
-			mustFlagRPCPassword(fs),
-			mustFlagRPCTLSConfig(fs),
+			flagutil.MustRPCAddress(fs),
+			flagutil.MustRPCUsername(fs),
+			flagutil.MustRPCPassword(fs),
+			flagutil.MustRPCTLSConfig(fs),
 		),
 		tr.OwnInfo(),
 		args[1],
-		flagFeeFixed(fs),
-		flagFee(fs),
+		_fee.Fixed,
+		_fee.Value,
 		out,
 		verboseRaw,
 	)
 	if err != nil {
-		errorExit(ecCantRecover, err)
+		cmdutil.ErrorExit(exitcodes.ExecutionError, err)
 	}
 }

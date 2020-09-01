@@ -9,6 +9,8 @@ import (
 
 	"github.com/transmutate-io/atomicswap/cryptos"
 	"github.com/transmutate-io/atomicswap/hash"
+	"github.com/transmutate-io/atomicswap/internal/cmdutil"
+	"github.com/transmutate-io/atomicswap/internal/flagutil/exitcodes"
 	"github.com/transmutate-io/atomicswap/script"
 	"github.com/transmutate-io/atomicswap/trade"
 	"github.com/transmutate-io/cryptocore"
@@ -50,7 +52,7 @@ func mustNewclient(
 ) cryptocore.Client {
 	r, err := newClient(c, address, username, password, tlsConf)
 	if err != nil {
-		errorExit(ecUnknownCrypto, c.Name)
+		cmdutil.ErrorExit(exitcodes.UnknownCrypto, c.Name)
 	}
 	return r
 }

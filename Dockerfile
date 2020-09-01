@@ -1,4 +1,4 @@
-FROM golang:1.14.3-alpine3.11 AS build
+FROM golang:1.15.0-alpine3.12 AS build
 
 RUN mkdir -p /src/atomicswap
 

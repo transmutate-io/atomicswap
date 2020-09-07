@@ -319,7 +319,7 @@ func cmdWatchDeposit(
 		out,
 		tplutil.MustOpenTemplate(fs, depositChunkLogTemplates, nil),
 		tplutil.MustOpenTemplate(fs, blockInspectionTemplates, nil),
-		mustNewclient(
+		mustNewClient(
 			selectCryptoInfo(tr).Crypto,
 			flagutil.MustRPCAddress(fs),
 			flagutil.MustRPCUsername(fs),
@@ -428,7 +428,7 @@ func watchSecretToken(tr trade.Trade, wd *watchData, cl cryptocore.Client, first
 func cmdWatchSecretToken(cmd *cobra.Command, args []string) {
 	tr := mustOpenTrade(cmd, args[0])
 	fs := cmd.Flags()
-	cl := mustNewclient(
+	cl := mustNewClient(
 		tr.OwnInfo().Crypto,
 		flagutil.MustRPCAddress(fs),
 		flagutil.MustRPCUsername(fs),

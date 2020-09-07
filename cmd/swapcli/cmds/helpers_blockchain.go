@@ -43,7 +43,7 @@ func newClient(
 	return nc(address, username, password, tlsConf)
 }
 
-func mustNewclient(
+func mustNewClient(
 	c *cryptos.Crypto,
 	address string,
 	username string,

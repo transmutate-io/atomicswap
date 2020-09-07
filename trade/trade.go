@@ -12,7 +12,6 @@ import (
 	"github.com/transmutate-io/atomicswap/key"
 	"github.com/transmutate-io/atomicswap/roles"
 	"github.com/transmutate-io/atomicswap/script"
-	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/tx"
 	"github.com/transmutate-io/cryptocore/types"
 	"github.com/transmutate-io/reflection"
@@ -32,7 +31,7 @@ type (
 		// GenerateBuyProposal generates a buy proposal
 		GenerateBuyProposal() (*BuyProposal, error)
 		// SetLocks sets the locks for the trade
-		SetLocks(locks *BuyProposalResponse) error
+		SetLocks(locks *Locks) error
 	}
 
 	// SellerTrade represents a seller trade
@@ -40,7 +39,7 @@ type (
 		// AcceptBuyProposal accepts a buy proposal
 		AcceptBuyProposal(prop *BuyProposal) error
 		// Locks returns the locks for the trade
-		Locks() *BuyProposalResponse
+		Locks() *Locks
 	}
 
 	// Trade represents a trade
@@ -65,8 +64,6 @@ type (
 		RedeemableFunds() FundsData
 		// RecoverableFunds returns the FundsData for the recoverable funds
 		RecoverableFunds() FundsData
-		// Stager returns the trade *stages.Stager
-		Stager() *stages.Stager
 		// GenerateKeys generates both redeem and recovery keys
 		GenerateKeys() error
 		// SetToken sets the trade token (and token hash)
@@ -97,10 +94,9 @@ type baseTrade struct {
 	RecoveryKey      key.Private       `yaml:"recover_key,omitempty"`
 	RedeemableFunds  FundsData         `yaml:"redeemable_funds,omitempty"`
 	RecoverableFunds FundsData         `yaml:"recoverable_funds,omitempty"`
-	Stager           *stages.Stager    `yaml:"stages,omitempty"`
 }
 
-func newBuyerBaseTrade(dur time.Duration, st []stages.Stage, ownAmount types.Amount, ownCrypto *cryptos.Crypto, traderAmount types.Amount, traderCrypto *cryptos.Crypto) (*baseTrade, error) {
+func newBuyerBaseTrade(dur time.Duration, ownAmount types.Amount, ownCrypto *cryptos.Crypto, traderAmount types.Amount, traderCrypto *cryptos.Crypto) (*baseTrade, error) {
 	ownFundsData, err := newFundsData(ownCrypto)
 	if err != nil {
 		return nil, err
@@ -109,10 +105,9 @@ func newBuyerBaseTrade(dur time.Duration, st []stages.Stage, ownAmount types.Amo
 	if err != nil {
 		return nil, err
 	}
-	return &baseTrade{
+	r := &baseTrade{
 		Role:     roles.Buyer,
 		Duration: duration.Duration(dur),
-		Stager:   stages.NewStager(st...),
 		OwnInfo: &TraderInfo{
 			Amount: ownAmount,
 			Crypto: ownCrypto,
@@ -123,14 +118,14 @@ func newBuyerBaseTrade(dur time.Duration, st []stages.Stage, ownAmount types.Amo
 		},
 		RecoverableFunds: ownFundsData,
 		RedeemableFunds:  traderFundData,
-	}, nil
-}
-
-func newSellerBaseTrade(st []stages.Stage) *baseTrade {
-	return &baseTrade{
-		Role:   roles.Seller,
-		Stager: stages.NewStager(st...),
 	}
+	if err = r.GenerateKeys(); err != nil {
+		return nil, err
+	}
+	if _, err = r.GenerateToken(); err != nil {
+		return nil, err
+	}
+	return r, nil
 }
 
 // UnmarshalYAML implements yaml.Unmarshaler
@@ -171,7 +166,6 @@ func (bt *baseTrade) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	} else {
 		td = reflection.NewStructBuilder().
 			WithField("Role", roles.Role(0), `yaml:"role,omitempty"`).
-			WithField("Stager", &stages.Stager{}, `yaml:"stages,omitempty"`).
 			BuildPointer()
 	}
 	// unmarshal
@@ -352,7 +346,7 @@ var (
 )
 
 // SetLocks implement BuyerTrade
-func (bt *baseTrade) SetLocks(locks *BuyProposalResponse) error {
+func (bt *baseTrade) SetLocks(locks *Locks) error {
 	bd, err := locks.Buyer.LockData()
 	if err != nil {
 		return err
@@ -379,8 +373,8 @@ func (bt *baseTrade) SetLocks(locks *BuyProposalResponse) error {
 }
 
 // Locks implement SellerTrade
-func (bt *baseTrade) Locks() *BuyProposalResponse {
-	return &BuyProposalResponse{
+func (bt *baseTrade) Locks() *Locks {
+	return &Locks{
 		Buyer:  bt.RedeemableFunds.Lock(),
 		Seller: bt.RecoverableFunds.Lock(),
 	}

@@ -142,10 +142,6 @@ func SetupMinerAddress(tc *Crypto) error {
 	return nil
 }
 
-func MustSetupMinerAddress(t *testing.T, tc *Crypto) {
-	require.NoError(t, SetupMinerAddress(tc), "can't setup miner address")
-}
-
 func EnsureBalance(tc *Crypto, bal types.Amount) error {
 	crypto, err := cryptos.Parse(tc.Name)
 	if err != nil {
@@ -215,12 +211,6 @@ func FindIdx(tc *Crypto, txid []byte, addr string) (tx.Output, error) {
 	return nil, errors.New("not found")
 }
 
-func MustFindIdx(t *testing.T, tc *Crypto, txid []byte, addr string) tx.Output {
-	r, err := FindIdx(tc, txid, addr)
-	require.NoError(t, err, "can't find index")
-	return r
-}
-
 func FindIdxs(tc *Crypto, txids [][]byte, addr string) ([]tx.Output, error) {
 	r := make([]tx.Output, 0, len(txids))
 	for _, i := range txids {
@@ -239,24 +229,24 @@ func MustFindIdxs(t *testing.T, tc *Crypto, txids [][]byte, addr string) []tx.Ou
 	return r
 }
 
-func RetrySendRawTransaction(tc *Crypto, tx []byte) (r []byte, err error) {
+func RetrySendRawTransaction(tc *Crypto, tx []byte, nBlocks int) (r []byte, err error) {
 	for {
 		if r, err = tc.Client.SendRawTransaction((tx)); err != nil {
 			if err != cryptocore.ErrNonFinal {
 				return
 			}
-			if _, err = GenerateBlocks(tc, 1); err != nil {
+			if _, err = GenerateBlocks(tc, nBlocks); err != nil {
 				return
 			}
 		}
 		break
 	}
-	_, err = GenerateBlocks(tc, tc.ConfirmBlocks)
+	_, err = GenerateBlocks(tc, nBlocks)
 	return
 }
 
-func MustRetrySendRawTransaction(t *testing.T, tc *Crypto, tx []byte) []byte {
-	r, err := RetrySendRawTransaction(tc, tx)
+func MustRetrySendRawTransaction(t *testing.T, tc *Crypto, tx []byte, nBlocks int) []byte {
+	r, err := RetrySendRawTransaction(tc, tx, nBlocks)
 	require.NoError(t, err, "can't retry sending raw transaction")
 	return r
 }

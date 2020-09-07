@@ -7,14 +7,13 @@ import (
 	"github.com/transmutate-io/atomicswap/duration"
 	"github.com/transmutate-io/atomicswap/key"
 	"github.com/transmutate-io/atomicswap/roles"
-	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/cryptocore/types"
 )
 
 type OnChainTrade struct{ *baseTrade }
 
-// NewOnChainBuy returns a new buyer on-chain trade
-func NewOnChainBuy(
+// NewOnChainTrade returns a new on-chain buyer trade
+func NewOnChainTrade(
 	ownAmount types.Amount,
 	ownCrypto *cryptos.Crypto,
 	traderAmount types.Amount,
@@ -23,7 +22,6 @@ func NewOnChainBuy(
 ) (Trade, error) {
 	bt, err := newBuyerBaseTrade(
 		dur,
-		onChainTradeStages[roles.Buyer],
 		ownAmount,
 		ownCrypto,
 		traderAmount,
@@ -35,9 +33,13 @@ func NewOnChainBuy(
 	return &OnChainTrade{baseTrade: bt}, nil
 }
 
-// NewOnChainSell returns a new seller on-chain trade
-func NewOnChainSell() Trade {
-	return &OnChainTrade{baseTrade: newSellerBaseTrade(onChainTradeStages[roles.Seller])}
+// AcceptProposal accepts a proposal and returns a new on-chain seller trade
+func AcceptProposal(prop *BuyProposal) (Trade, error) {
+	r := &OnChainTrade{baseTrade: &baseTrade{Role: roles.Seller}}
+	if err := r.AcceptBuyProposal(prop); err != nil {
+		return nil, err
+	}
+	return r, nil
 }
 
 func (t *OnChainTrade) Role() roles.Role { return t.baseTrade.Role }
@@ -59,8 +61,6 @@ func (t *OnChainTrade) RecoveryKey() key.Private { return t.baseTrade.RecoveryKe
 func (t *OnChainTrade) RedeemableFunds() FundsData { return t.baseTrade.RedeemableFunds }
 
 func (t *OnChainTrade) RecoverableFunds() FundsData { return t.baseTrade.RecoverableFunds }
-
-func (t *OnChainTrade) Stager() *stages.Stager { return t.baseTrade.Stager }
 
 func (t *OnChainTrade) MarshalYAML() (interface{}, error) { return t.baseTrade, nil }
 

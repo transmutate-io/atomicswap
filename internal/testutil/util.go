@@ -35,11 +35,11 @@ func MustReadRandom(t *testing.T, n int) []byte {
 	return r
 }
 
-func MustNewEngine(t *testing.T, c *cryptos.Crypto) *script.Engine {
-	r, err := script.NewEngine(c)
-	require.NoError(t, err, "can't create scripting engine")
-	return r
-}
+// func MustNewEngine(t *testing.T, c *cryptos.Crypto) *script.Engine {
+// 	r, err := script.NewEngine(c)
+// 	require.NoError(t, err, "can't create scripting engine")
+// 	return r
+// }
 
 func MustNewGenerator(t *testing.T, c *cryptos.Crypto) script.Generator {
 	r, err := script.NewGenerator(c)

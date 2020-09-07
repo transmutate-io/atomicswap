@@ -101,7 +101,7 @@ func testP2PKH(t *testing.T, tc *testutil.Crypto) {
 		txids = append(txids, txid)
 	}
 	if tc.ConfirmBlocks > 0 {
-		testutil.MustGenerateBlocks(t, tc, tc.ConfirmBlocks)
+		testutil.MustGenerateBlocks(t, tc, 1)
 	}
 	t.Logf("sent to address %s\n", addr1)
 	// find txs
@@ -139,7 +139,7 @@ func testP2PKH(t *testing.T, tc *testutil.Crypto) {
 	require.NoError(t, err, "can't serialize")
 	t.Logf("tx: %s\n", hex.EncodeToString(b))
 	// send
-	txid := testutil.MustRetrySendRawTransaction(t, tc, b)
+	txid := testutil.MustRetrySendRawTransaction(t, tc, b, 1)
 	t.Logf("txid: %s\n", hex.EncodeToString(txid))
 }
 
@@ -171,7 +171,7 @@ func testP2SH(t *testing.T, tc *testutil.Crypto) {
 		txids = append(txids, txid)
 	}
 	if tc.ConfirmBlocks > 0 {
-		testutil.MustGenerateBlocks(t, tc, tc.ConfirmBlocks)
+		testutil.MustGenerateBlocks(t, tc, 1)
 	}
 	t.Logf("sent to address %s\n", depositAddr)
 	// find txs
@@ -202,7 +202,7 @@ func testP2SH(t *testing.T, tc *testutil.Crypto) {
 	require.NoError(t, err, "can't serialize")
 	t.Logf("tx: %s\n", hex.EncodeToString(b))
 	// send
-	txid := testutil.MustRetrySendRawTransaction(t, tc, b)
+	txid := testutil.MustRetrySendRawTransaction(t, tc, b, 1)
 	t.Logf("txid: %s\n", hex.EncodeToString(txid))
 }
 

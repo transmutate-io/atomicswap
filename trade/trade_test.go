@@ -12,7 +12,6 @@ import (
 	"github.com/transmutate-io/atomicswap/key"
 	"github.com/transmutate-io/atomicswap/script"
 	"github.com/transmutate-io/cryptocore/types"
-	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v2"
 )
 
@@ -86,78 +85,6 @@ func newBuyerTrade(own, trader *testutil.Crypto, dur time.Duration) (Trade, erro
 	r, err := NewOnChainTrade(types.Amount("1"), ownCrypto, types.Amount("1"), traderCrypto, dur)
 	if err != nil {
 		return nil, err
-	}
-	return r, nil
-}
-
-var errTimedOut = errors.New("timed out")
-
-func trySend(c chan interface{}, b interface{}) error {
-	timer := time.NewTimer(30 * time.Second)
-	defer timer.Stop()
-	select {
-	case c <- b:
-		return nil
-	case <-timer.C:
-		return errTimedOut
-	}
-}
-
-func tryReceive(c chan interface{}) (interface{}, error) {
-	timer := time.NewTimer(time.Minute)
-	defer timer.Stop()
-	select {
-	case b := <-c:
-		return b, nil
-	case <-timer.C:
-		return nil, errTimedOut
-	}
-}
-
-func tryReceiveBuyProposal(a2b chan interface{}) (*BuyProposal, error) {
-	v, err := tryReceive(a2b)
-	if err != nil {
-		return nil, err
-	}
-	r, ok := v.(*BuyProposal)
-	if !ok {
-		return nil, errors.New("not a buy proposal")
-	}
-	return r, nil
-}
-
-func tryReceiveLocks(a2b chan interface{}) (*Locks, error) {
-	v, err := tryReceive(a2b)
-	if err != nil {
-		return nil, err
-	}
-	r, ok := v.(*Locks)
-	if !ok {
-		return nil, errors.New("not a lockset")
-	}
-	return r, nil
-}
-
-func tryReceiveOutputs(a2b chan interface{}) ([]*Output, error) {
-	v, err := tryReceive(a2b)
-	if err != nil {
-		return nil, err
-	}
-	r, ok := v.([]*Output)
-	if !ok {
-		return nil, errors.New("not an *Output slice")
-	}
-	return r, nil
-}
-
-func tryReceiveBytes(a2b chan interface{}) (types.Bytes, error) {
-	v, err := tryReceive(a2b)
-	if err != nil {
-		return nil, err
-	}
-	r, ok := v.(types.Bytes)
-	if !ok {
-		return nil, errors.New("not an *Output slice")
 	}
 	return r, nil
 }
@@ -236,7 +163,7 @@ func redeemFunds(t *testing.T, tr Trade, c *testutil.Crypto) error {
 		return err
 	}
 	t.Logf("generate redeem transaction: %s\n", hex.EncodeToString(b))
-	if b, err = testutil.RetrySendRawTransaction(c, b); err != nil {
+	if b, err = testutil.SendRawTransaction(t, c, b, 1); err != nil {
 		return err
 	}
 	t.Logf("redeemed funds: %s\n", hex.EncodeToString(b))
@@ -244,124 +171,45 @@ func redeemFunds(t *testing.T, tr Trade, c *testutil.Crypto) error {
 	return err
 }
 
-func initBuyerTrade(t *testing.T, a2b chan interface{}, tr Trade, c *testutil.Crypto) error {
-	// generate proposal and send
-	btr, err := tr.Buyer()
-	if err != nil {
-		return err
-	}
-	prop, err := btr.GenerateBuyProposal()
-	if err != nil {
-		return err
-	}
-	if err = trySend(a2b, prop); err != nil {
-		return err
-	}
-	// receive locks and accept
-	ls, err := tryReceiveLocks(a2b)
-	if err != nil {
-		return err
-	}
-	if err = btr.SetLocks(ls); err != nil {
-		return err
-	}
-	// lock funds and send info
-	outputs, err := lockFunds(t, tr, c)
-	if err != nil {
-		return err
-	}
-	if err = trySend(a2b, outputs); err != nil {
-		return err
-	}
-	// receive redeemable outputs
-	if outputs, err = tryReceiveOutputs(a2b); err != nil {
-		return err
-	}
-	funds := tr.RedeemableFunds()
-	for _, i := range outputs {
-		funds.AddFunds(i)
-	}
-	return nil
-}
-
-func initSellerTrade(t *testing.T, a2b chan interface{}, c *testutil.Crypto) (Trade, error) {
-	// receive proposal
-	prop, err := tryReceiveBuyProposal(a2b)
-	if err != nil {
-		return nil, err
-	}
-	// accept
-	tr, err := AcceptProposal(prop)
-	if err != nil {
-		return nil, err
-	}
-	// generate locks and send
-	str, err := tr.Seller()
-	if err != nil {
-		return nil, err
-	}
-	if err = trySend(a2b, str.Locks()); err != nil {
-		return nil, err
-	}
-	// receive outputs
-	outputs, err := tryReceiveOutputs(a2b)
-	if err != nil {
-		return nil, err
-	}
-	funds := tr.RedeemableFunds()
-	for _, i := range outputs {
-		funds.AddFunds(i)
-	}
-	// lock funds
-	if outputs, err = lockFunds(t, tr, c); err != nil {
-		return nil, err
-	}
-	if err = trySend(a2b, outputs); err != nil {
-		return nil, err
-	}
-	// receive token
-	token, err := tryReceiveBytes(a2b)
-	if err != nil {
-		return nil, err
-	}
-	tr.SetToken(token)
-	return tr, nil
-}
-
 func testOnChainRedeem(t *testing.T, buyerCrypto, sellerCrypto *testutil.Crypto, dur time.Duration) func(*testing.T) {
 	return func(t *testing.T) {
-		a2b := make(chan interface{}, 0)
-		eg := &errgroup.Group{}
-		// bob, buyer, btc
-		eg.Go(func() error {
-			// new trade
-			tr, err := newBuyerTrade(buyerCrypto, sellerCrypto, dur)
-			if err != nil {
-				return err
-			}
-			if err = initBuyerTrade(t, a2b, tr, buyerCrypto); err != nil {
-				return err
-			}
-			// redeem
-			if err = redeemFunds(t, tr, sellerCrypto); err != nil {
-				return err
-			}
-			return trySend(a2b, tr.Token())
-		})
-		// alice, seller, alt
-		eg.Go(func() error {
-			tr, err := initSellerTrade(t, a2b, sellerCrypto)
-			if err != nil {
-				return err
-			}
-			// redeem
-			if err = redeemFunds(t, tr, buyerCrypto); err != nil {
-				return err
-			}
-			return nil
-		})
-		err := eg.Wait()
-		require.NoError(t, err, "unexpected error")
+		// create buyer trade
+		buyerTrade, err := newBuyerTrade(buyerCrypto, sellerCrypto, dur)
+		require.NoError(t, err, "can't create buyer trade")
+		// the buyer generates a buy proposal
+		btr, err := buyerTrade.Buyer()
+		require.NoError(t, err)
+		prop, err := btr.GenerateBuyProposal()
+		require.NoError(t, err, "can't generate buy proposal")
+		// the seller accepts the proposal and the seller trade is created
+		sellerTrade, err := AcceptProposal(prop)
+		require.NoError(t, err, "can't accept proposal")
+		// the seller generates a pair of locks and the buyer accepts them
+		str, err := sellerTrade.Seller()
+		require.NoError(t, err, "can't generate locks")
+		err = btr.SetLocks(str.Locks())
+		require.NoError(t, err, "can't accept locks")
+		// the buyer locks his funds
+		outputs, err := lockFunds(t, buyerTrade, buyerCrypto)
+		require.NoError(t, err, "buyer can't lock funds")
+		funds := sellerTrade.RedeemableFunds()
+		for _, i := range outputs {
+			funds.AddFunds(i)
+		}
+		// the seller locks his funds
+		outputs, err = lockFunds(t, sellerTrade, sellerCrypto)
+		require.NoError(t, err, "seller can't lock funds")
+		funds = buyerTrade.RedeemableFunds()
+		for _, i := range outputs {
+			funds.AddFunds(i)
+		}
+		// the buyer redeems the funds, revealing the token
+		err = redeemFunds(t, buyerTrade, sellerCrypto)
+		require.NoError(t, err, "buyer can't redeem funds")
+		sellerTrade.SetToken(buyerTrade.Token())
+		// the seller redeems the funds, using the token
+		err = redeemFunds(t, sellerTrade, buyerCrypto)
+		require.NoError(t, err, "seller can't redeem funds")
 	}
 }
 
@@ -378,30 +226,36 @@ func TestOnChainRedeem(t *testing.T) {
 
 func newTestOnChainRecover(buyerCrypto, sellerCrypto *testutil.Crypto, dur time.Duration) func(*testing.T) {
 	return func(t *testing.T) {
-		a2b := make(chan interface{}, 0)
-		eg := &errgroup.Group{}
-		// bob, buyer, btc
-		eg.Go(func() error {
-			// new trade
-			tr, err := newBuyerTrade(buyerCrypto, sellerCrypto, dur)
-			if err != nil {
-				return err
-			}
-			if err = initBuyerTrade(t, a2b, tr, buyerCrypto); err != nil {
-				return err
-			}
-			return recoverFunds(t, tr, buyerCrypto)
-		})
-		// alice, seller, alt
-		eg.Go(func() error {
-			tr, err := initSellerTrade(t, a2b, sellerCrypto)
-			if err != nil {
-				return err
-			}
-			return recoverFunds(t, tr, sellerCrypto)
-		})
-		err := eg.Wait()
-		require.NoError(t, err, "unexpected error")
+		// create buyer trade
+		buyerTrade, err := newBuyerTrade(buyerCrypto, sellerCrypto, dur)
+		require.NoError(t, err, "can't create buyer trade")
+		// the buyer generates a buy proposal
+		btr, err := buyerTrade.Buyer()
+		require.NoError(t, err)
+		prop, err := btr.GenerateBuyProposal()
+		require.NoError(t, err, "can't generate buy proposal")
+		// the seller accepts the proposal and the seller trade is created
+		sellerTrade, err := AcceptProposal(prop)
+		require.NoError(t, err, "can't accept proposal")
+		// the seller generates a pair of locks and the buyer accepts them
+		str, err := sellerTrade.Seller()
+		require.NoError(t, err, "can't generate locks")
+		err = btr.SetLocks(str.Locks())
+		require.NoError(t, err, "can't accept locks")
+		// the buyer locks his funds
+		_, err = lockFunds(t, buyerTrade, buyerCrypto)
+		require.NoError(t, err, "buyer can't lock funds")
+		// the seller locks his funds
+		_, err = lockFunds(t, sellerTrade, sellerCrypto)
+		require.NoError(t, err, "seller can't lock funds")
+		// wait for the lock to expire
+		time.Sleep(dur)
+		// the buyer recovers his funds
+		err = recoverFunds(t, buyerTrade, buyerCrypto)
+		require.NoError(t, err, "the buyer can't recover funds")
+		// the seller recovers his funds
+		err = recoverFunds(t, sellerTrade, sellerCrypto)
+		require.NoError(t, err, "the seller can't recover funds")
 	}
 }
 
@@ -432,7 +286,7 @@ func recoverFunds(t *testing.T, tr Trade, tc *testutil.Crypto) error {
 		return err
 	}
 	t.Logf("tx: %s\n", hex.EncodeToString(b))
-	txid, err := testutil.RetrySendRawTransaction(tc, b)
+	txid, err := testutil.SendRawTransaction(t, tc, b, 1)
 	if err != nil {
 		return err
 	}

@@ -229,24 +229,13 @@ func MustFindIdxs(t *testing.T, tc *Crypto, txids [][]byte, addr string) []tx.Ou
 	return r
 }
 
-func RetrySendRawTransaction(tc *Crypto, tx []byte, nBlocks int) (r []byte, err error) {
-	for {
-		if r, err = tc.Client.SendRawTransaction((tx)); err != nil {
-			if err != cryptocore.ErrNonFinal {
-				return
-			}
-			if _, err = GenerateBlocks(tc, nBlocks); err != nil {
-				return
-			}
-		}
-		break
+func SendRawTransaction(t *testing.T, tc *Crypto, b []byte, nBlocks int) ([]byte, error) {
+	r, err := tc.Client.SendRawTransaction(b)
+	if err != nil {
+		return nil, err
 	}
-	_, err = GenerateBlocks(tc, nBlocks)
-	return
-}
-
-func MustRetrySendRawTransaction(t *testing.T, tc *Crypto, tx []byte, nBlocks int) []byte {
-	r, err := RetrySendRawTransaction(tc, tx, nBlocks)
-	require.NoError(t, err, "can't retry sending raw transaction")
-	return r
+	if _, err = tc.Client.GenerateBlocks(nBlocks); err != nil {
+		return nil, err
+	}
+	return r, nil
 }

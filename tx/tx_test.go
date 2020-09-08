@@ -139,7 +139,8 @@ func testP2PKH(t *testing.T, tc *testutil.Crypto) {
 	require.NoError(t, err, "can't serialize")
 	t.Logf("tx: %s\n", hex.EncodeToString(b))
 	// send
-	txid := testutil.MustRetrySendRawTransaction(t, tc, b, 1)
+	txid, err := testutil.SendRawTransaction(t, tc, b, 1)
+	require.NoError(t, err, "can't send raw transaction")
 	t.Logf("txid: %s\n", hex.EncodeToString(txid))
 }
 
@@ -202,7 +203,8 @@ func testP2SH(t *testing.T, tc *testutil.Crypto) {
 	require.NoError(t, err, "can't serialize")
 	t.Logf("tx: %s\n", hex.EncodeToString(b))
 	// send
-	txid := testutil.MustRetrySendRawTransaction(t, tc, b, 1)
+	txid, err := testutil.SendRawTransaction(t, tc, b, 1)
+	require.NoError(t, err, "can't send raw transaction")
 	t.Logf("txid: %s\n", hex.EncodeToString(txid))
 }
 

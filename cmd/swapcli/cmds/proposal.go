@@ -12,7 +12,6 @@ import (
 	"github.com/transmutate-io/atomicswap/internal/flagutil/exitcodes"
 	"github.com/transmutate-io/atomicswap/internal/tplutil"
 	"github.com/transmutate-io/atomicswap/roles"
-	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
 	"gopkg.in/yaml.v2"
 )
@@ -106,22 +105,8 @@ func cmdExportProposal(cmd *cobra.Command, args []string) {
 }
 
 func acceptProposal(tp string, name string, prop *trade.BuyProposal) error {
-	newTrade := trade.NewOnChainSell()
-	th := trade.NewHandler(trade.DefaultStageHandlers)
-	th.InstallStageHandlers(trade.StageHandlerMap{
-		stages.ReceiveProposal: func(tr trade.Trade) error {
-			str, err := tr.Seller()
-			if err != nil {
-				return err
-			}
-			return str.AcceptBuyProposal(prop)
-		},
-		stages.SendProposalResponse: trade.InterruptHandler,
-	})
-	for _, i := range th.Unhandled(newTrade.Stager().Stages()...) {
-		th.InstallStageHandler(i, trade.NoOpHandler)
-	}
-	if err := th.HandleTrade(newTrade); err != nil {
+	newTrade, err := trade.AcceptProposal(prop)
+	if err != nil {
 		return err
 	}
 	return saveTrade(filepath.Join(tp, filepath.FromSlash(name)), newTrade)

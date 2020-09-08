@@ -12,7 +12,6 @@ import (
 	"github.com/transmutate-io/atomicswap/internal/flagutil/exitcodes"
 	"github.com/transmutate-io/atomicswap/internal/tplutil"
 	"github.com/transmutate-io/atomicswap/networks"
-	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
 	"github.com/transmutate-io/atomicswap/tx"
 	"github.com/transmutate-io/cryptocore"
@@ -66,11 +65,6 @@ func init() {
 
 func listRecoverable(td string, out io.Writer, tpl *template.Template) error {
 	return eachTrade(td, func(name string, tr trade.Trade) error {
-		for _, i := range tr.Stager().Stages() {
-			if i == stages.LockFunds {
-				return nil
-			}
-		}
 		if _, ok := tr.RecoverableFunds().Funds().([]*trade.Output); !ok {
 			return nil
 		}

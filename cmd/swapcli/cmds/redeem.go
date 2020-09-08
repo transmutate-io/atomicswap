@@ -12,7 +12,6 @@ import (
 	"github.com/transmutate-io/atomicswap/internal/flagutil/exitcodes"
 	"github.com/transmutate-io/atomicswap/internal/tplutil"
 	"github.com/transmutate-io/atomicswap/networks"
-	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
 	"github.com/transmutate-io/atomicswap/tx"
 	"github.com/transmutate-io/cryptocore"
@@ -64,9 +63,6 @@ func init() {
 
 func listRedeemable(td string, out io.Writer, tpl *template.Template) error {
 	return eachTrade(td, func(name string, tr trade.Trade) error {
-		if tr.Stager().Stage() != stages.RedeemFunds {
-			return nil
-		}
 		return tpl.Execute(out, newTradeInfo(name, tr))
 	})
 }
@@ -81,48 +77,6 @@ func cmdListRedeemable(cmd *cobra.Command, args []string) {
 	}
 }
 
-func newRedeemHandler(
-	addr string,
-	feeFixed bool,
-	fee uint64,
-	out io.Writer,
-	verboseRaw bool,
-	cl cryptocore.Client,
-) func(trade.Trade) error {
-	return func(tr trade.Trade) error {
-		addrScript, err := networks.
-			AllByName[tr.TraderInfo().Crypto.Name][_network.MustNetwork(tr.TraderInfo().Crypto.Name)].
-			AddressToScript(addr)
-		if err != nil {
-			return err
-		}
-		var redeemFunc func([]byte, uint64) (tx.Tx, error)
-		if feeFixed {
-			redeemFunc = tr.RedeemTxFixedFee
-		} else {
-			redeemFunc = tr.RedeemTx
-		}
-		tx, err := redeemFunc(addrScript, fee)
-		if err != nil {
-			return err
-		}
-		b, err := tx.Serialize()
-		if err != nil {
-			return err
-		}
-		if verboseRaw {
-			fmt.Fprintf(out, "raw transaction: %s\n", hex.EncodeToString(b))
-		}
-
-		txID, err := cl.SendRawTransaction(b)
-		if err != nil {
-			return err
-		}
-		fmt.Fprintf(out, "funds redeemed (tx id): %s\n", txID.Hex())
-		return nil
-	}
-}
-
 func redeemToAddress(
 	tr trade.Trade,
 	out io.Writer,
@@ -133,18 +87,42 @@ func redeemToAddress(
 	tlsConf *cryptocore.TLSConfig,
 	fee uint64,
 	fixedFee bool,
+	verboseRaw bool,
 ) error {
 	cl, err := newClient(tr.TraderInfo().Crypto, addr, username, password, tlsConf)
 	if err != nil {
 		return err
 	}
-	th := trade.NewHandler(trade.StageHandlerMap{
-		stages.RedeemFunds: newRedeemHandler(destAddr, fixedFee, fee, out, true, cl),
-	})
-	for _, i := range th.Unhandled(tr.Stager().Stages()...) {
-		th.InstallStageHandler(i, trade.NoOpHandler)
+	addrScript, err := networks.
+		AllByName[tr.TraderInfo().Crypto.Name][_network.MustNetwork(tr.TraderInfo().Crypto.Name)].
+		AddressToScript(destAddr)
+	if err != nil {
+		return err
 	}
-	return th.HandleTrade(tr)
+	var redeemFunc func([]byte, uint64) (tx.Tx, error)
+	if fixedFee {
+		redeemFunc = tr.RedeemTxFixedFee
+	} else {
+		redeemFunc = tr.RedeemTx
+	}
+	tx, err := redeemFunc(addrScript, fee)
+	if err != nil {
+		return err
+	}
+	b, err := tx.Serialize()
+	if err != nil {
+		return err
+	}
+	if verboseRaw {
+		fmt.Fprintf(out, "raw transaction: %s\n", hex.EncodeToString(b))
+	}
+
+	txID, err := cl.SendRawTransaction(b)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "funds redeemed (tx id): %s\n", txID.Hex())
+	return nil
 }
 
 func cmdRedeemToAddress(cmd *cobra.Command, args []string) {
@@ -162,6 +140,7 @@ func cmdRedeemToAddress(cmd *cobra.Command, args []string) {
 		flagutil.MustRPCTLSConfig(fs),
 		_fee.Value,
 		_fee.Fixed,
+		true,
 	)
 	if err != nil {
 		cmdutil.ErrorExit(exitcodes.ExecutionError, err)

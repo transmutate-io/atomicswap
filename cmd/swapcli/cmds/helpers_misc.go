@@ -13,7 +13,6 @@ import (
 	"github.com/transmutate-io/atomicswap/internal/cmdutil"
 	"github.com/transmutate-io/atomicswap/internal/flagutil"
 	"github.com/transmutate-io/atomicswap/internal/flagutil/exitcodes"
-	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
 	"gopkg.in/yaml.v2"
 )
@@ -88,18 +87,6 @@ func eachTrade(td string, f func(string, trade.Trade) error) error {
 
 func eachProposal(td string, f func(string, trade.Trade) error) error {
 	return eachTrade(td, func(name string, tr trade.Trade) error {
-		if tr.Stager().Stage() != stages.SendProposal {
-			return nil
-		}
-		return f(name, tr)
-	})
-}
-
-func eachLockSet(td string, f func(string, trade.Trade) error) error {
-	return eachTrade(td, func(name string, tr trade.Trade) error {
-		if tr.Stager().Stage() != stages.SendProposalResponse {
-			return nil
-		}
 		return f(name, tr)
 	})
 }
@@ -143,12 +130,12 @@ func mustSaveTrade(cmd *cobra.Command, name string, tr trade.Trade) {
 	}
 }
 
-func openLockSet(r io.Reader, ownCrypto, traderCrypto *cryptos.Crypto) *trade.BuyProposalResponse {
+func openLockSet(r io.Reader, ownCrypto, traderCrypto *cryptos.Crypto) *trade.Locks {
 	b, err := ioutil.ReadAll(r)
 	if err != nil {
 		cmdutil.ErrorExit(exitcodes.CantOpenLockSet, err)
 	}
-	ls, err := trade.UnamrshalBuyProposalResponse(ownCrypto, traderCrypto, b)
+	ls, err := trade.UnamrshalLocks(ownCrypto, traderCrypto, b)
 	if err != nil {
 		cmdutil.ErrorExit(exitcodes.CantOpenLockSet, err)
 	}

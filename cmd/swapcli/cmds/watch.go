@@ -14,8 +14,6 @@ import (
 	"github.com/transmutate-io/atomicswap/internal/flagutil"
 	"github.com/transmutate-io/atomicswap/internal/flagutil/exitcodes"
 	"github.com/transmutate-io/atomicswap/internal/tplutil"
-	"github.com/transmutate-io/atomicswap/roles"
-	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
 	"github.com/transmutate-io/cryptocore"
 	"github.com/transmutate-io/cryptocore/types"
@@ -104,15 +102,6 @@ func init() {
 
 func listWatchable(td string, out io.Writer, tpl *template.Template) error {
 	return eachTrade(td, func(name string, tr trade.Trade) error {
-		switch tr.Stager().Stage() {
-		case stages.SendProposalResponse,
-			stages.LockFunds,
-			stages.WaitLockedFunds,
-			stages.WaitFundsRedeemed,
-			stages.RedeemFunds:
-		default:
-			return nil
-		}
 		return tpl.Execute(out, newTradeInfo(name, tr))
 	})
 }
@@ -137,125 +126,6 @@ func containsString(s []string, v string) bool {
 
 func outputID(tx []byte, n uint64) string { return fmt.Sprintf("%s:%d", hex.EncodeToString(tx), n) }
 
-func newDepositWatcher(
-	out io.Writer,
-	outputTpl *template.Template,
-	blockTpl *template.Template,
-	cl cryptocore.Client,
-	firstBlock uint64,
-	cryptoInfo *trade.TraderInfo,
-	funds trade.FundsData,
-	ignoreTarget bool,
-	minConfirmations uint64,
-	wd *watchData,
-	bwd *blockWatchData,
-	tradeSave func(trade.Trade),
-	wdSave func(*watchData),
-) func(trade.Trade) error {
-	return func(tr trade.Trade) error {
-		sig := make(chan os.Signal, 0)
-		signal.Notify(sig, os.Interrupt, os.Kill)
-		targetAmount := cryptoInfo.Amount.UInt64(cryptoInfo.Crypto.Decimals)
-		depositAddr, err := funds.Lock().Address(_network.MustNetwork(cryptoInfo.Crypto.Name))
-		if err != nil {
-			return err
-		}
-		fmt.Printf("watching deposit address: %s\n", depositAddr)
-		outputs, ok := funds.Funds().([]*trade.Output)
-		if !ok {
-			return errors.New("not implemented")
-		}
-		outMap := make(map[string]uint64, len(outputs))
-		totalAmount := uint64(0)
-		for _, i := range outputs {
-			txID := outputID(i.TxID, uint64(i.N))
-			outMap[txID] = i.Amount
-			totalAmount += i.Amount
-			err := outputTpl.Execute(out, newOutputInfo(
-				"known output",
-				txID,
-				cryptoInfo.Crypto,
-				types.NewAmount(i.Amount, uint64(cryptoInfo.Crypto.Decimals)),
-				types.NewAmount(totalAmount, uint64(cryptoInfo.Crypto.Decimals)),
-				cryptoInfo.Amount,
-			))
-			if err != nil {
-				return err
-			}
-		}
-		if !ignoreTarget && totalAmount >= targetAmount {
-			return nil
-		}
-		bdc, errc, closeIter := iterateBlocks(cl, bwd, firstBlock)
-		defer closeIter()
-		var tradeChanged bool
-		for {
-			select {
-			case err := <-errc:
-				return err
-			case <-sig:
-				return trade.ErrInterruptTrade
-			case bd := <-bdc:
-				if err := blockTpl.Execute(out, newBlockInfo(bd.height, len(bd.txs))); err != nil {
-					return err
-				}
-				for _, i := range bd.txs {
-					txUtxo, ok := i.UTXO()
-					if !ok {
-						return errors.New("not implemented")
-					}
-					for _, j := range txUtxo.Outputs() {
-						if !containsString(j.LockScript().Addresses(), depositAddr) {
-							continue
-						}
-						outID := outputID(i.ID(), uint64(j.N()))
-						if _, ok := outMap[outID]; ok {
-							continue
-						}
-						amount := j.Value().UInt64(cryptoInfo.Crypto.Decimals)
-						funds.AddFunds(&trade.Output{
-							TxID:   i.ID(),
-							N:      uint32(j.N()),
-							Amount: amount,
-						})
-						outMap[outID] = amount
-						totalAmount += amount
-						err = outputTpl.Execute(out, newOutputInfo(
-							"new output found",
-							outID,
-							cryptoInfo.Crypto,
-							j.Value(),
-							types.NewAmount(totalAmount, uint64(cryptoInfo.Crypto.Decimals)),
-							cryptoInfo.Amount,
-						))
-						if err != nil {
-							return err
-						}
-						tradeChanged = true
-						if !ignoreTarget && totalAmount >= targetAmount {
-							break
-						}
-					}
-				}
-				if bd.height > bwd.Top {
-					bwd.Top = bd.height
-				}
-				if bwd.Bottom == 0 || bd.height < bwd.Bottom {
-					bwd.Bottom = bd.height
-				}
-				wdSave(wd)
-				if tradeChanged {
-					tradeSave(tr)
-					tradeChanged = false
-				}
-				if !ignoreTarget && totalAmount >= targetAmount {
-					return nil
-				}
-			}
-		}
-	}
-}
-
 func watchDeposit(
 	tr trade.Trade,
 	wd *watchData,
@@ -266,53 +136,127 @@ func watchDeposit(
 	firstBlock uint64,
 	ignoreTarget bool,
 	confirmations uint64,
-	watchStage stages.Stage,
-	selectCryptoInfo func(trade.Trade) *trade.TraderInfo,
-	selectWatchData func(*watchData) *blockWatchData,
-	selectFunds func(trade.Trade) trade.FundsData,
-	selectInterruptStage func(trade.Trade) stages.Stage,
+	cryptoInfo *trade.TraderInfo,
+	bwd *blockWatchData,
+	funds trade.FundsData,
 	tradeSave func(trade.Trade),
 	wdSave func(*watchData),
 ) error {
-	cryptoInfo := selectCryptoInfo(tr)
-	th := trade.NewHandler(trade.StageHandlerMap{
-		watchStage: newDepositWatcher(
-			out,
-			depositTpl,
-			blockTpl,
-			cl,
-			firstBlock,
-			cryptoInfo,
-			selectFunds(tr),
-			ignoreTarget,
-			confirmations,
-			wd,
-			selectWatchData(wd),
-			tradeSave,
-			wdSave,
-		),
-		selectInterruptStage(tr): trade.InterruptHandler,
-	})
-	for _, i := range th.Unhandled(tr.Stager().Stages()...) {
-		th.InstallStageHandler(i, trade.NoOpHandler)
+	sig := make(chan os.Signal, 0)
+	signal.Notify(sig, os.Interrupt, os.Kill)
+	targetAmount := cryptoInfo.Amount.UInt64(cryptoInfo.Crypto.Decimals)
+	depositAddr, err := funds.Lock().Address(_network.MustNetwork(cryptoInfo.Crypto.Name))
+	if err != nil {
+		return err
 	}
-	return th.HandleTrade(tr)
+	fmt.Printf("watching deposit address: %s\n", depositAddr)
+	outputs, ok := funds.Funds().([]*trade.Output)
+	if !ok {
+		return errors.New("not implemented")
+	}
+	outMap := make(map[string]uint64, len(outputs))
+	totalAmount := uint64(0)
+	for _, i := range outputs {
+		txID := outputID(i.TxID, uint64(i.N))
+		outMap[txID] = i.Amount
+		totalAmount += i.Amount
+		err := depositTpl.Execute(out, newOutputInfo(
+			"known output",
+			txID,
+			cryptoInfo.Crypto,
+			types.NewAmount(i.Amount, uint64(cryptoInfo.Crypto.Decimals)),
+			types.NewAmount(totalAmount, uint64(cryptoInfo.Crypto.Decimals)),
+			cryptoInfo.Amount,
+		))
+		if err != nil {
+			return err
+		}
+	}
+	if !ignoreTarget && totalAmount >= targetAmount {
+		return nil
+	}
+	bdc, errc, closeIter := iterateBlocks(cl, bwd, firstBlock)
+	defer closeIter()
+	var tradeChanged bool
+	for {
+		select {
+		case err := <-errc:
+			return err
+		case <-sig:
+			return nil
+		case bd := <-bdc:
+			if err := blockTpl.Execute(out, newBlockInfo(bd.height, len(bd.txs))); err != nil {
+				return err
+			}
+			for _, i := range bd.txs {
+				txUtxo, ok := i.UTXO()
+				if !ok {
+					return errors.New("not implemented")
+				}
+				for _, j := range txUtxo.Outputs() {
+					if !containsString(j.LockScript().Addresses(), depositAddr) {
+						continue
+					}
+					outID := outputID(i.ID(), uint64(j.N()))
+					if _, ok := outMap[outID]; ok {
+						continue
+					}
+					amount := j.Value().UInt64(cryptoInfo.Crypto.Decimals)
+					funds.AddFunds(&trade.Output{
+						TxID:   i.ID(),
+						N:      uint32(j.N()),
+						Amount: amount,
+					})
+					outMap[outID] = amount
+					totalAmount += amount
+					err = depositTpl.Execute(out, newOutputInfo(
+						"new output found",
+						outID,
+						cryptoInfo.Crypto,
+						j.Value(),
+						types.NewAmount(totalAmount, uint64(cryptoInfo.Crypto.Decimals)),
+						cryptoInfo.Amount,
+					))
+					if err != nil {
+						return err
+					}
+					tradeChanged = true
+					if !ignoreTarget && totalAmount >= targetAmount {
+						break
+					}
+				}
+			}
+			if bd.height > bwd.Top {
+				bwd.Top = bd.height
+			}
+			if bwd.Bottom == 0 || bd.height < bwd.Bottom {
+				bwd.Bottom = bd.height
+			}
+			wdSave(wd)
+			if tradeChanged {
+				tradeSave(tr)
+				tradeChanged = false
+			}
+			if !ignoreTarget && totalAmount >= targetAmount {
+				return nil
+			}
+		}
+	}
 }
 
 func cmdWatchDeposit(
 	cmd *cobra.Command,
 	tradeName string,
-	watchStage stages.Stage,
 	selectCryptoInfo func(trade.Trade) *trade.TraderInfo,
 	selectWatchData func(*watchData) *blockWatchData,
 	selectFunds func(trade.Trade) trade.FundsData,
-	selectInterruptStage func(trade.Trade) stages.Stage,
 ) {
 	tr := mustOpenTrade(cmd, tradeName)
 	wd := mustOpenWatchData(cmd, tradeName)
 	fs := cmd.Flags()
 	out, closeOut := flagutil.MustOpenOutput(fs)
 	defer closeOut()
+	cryptoInfo := selectCryptoInfo(tr)
 	err := watchDeposit(
 		tr,
 		wd,
@@ -320,7 +264,7 @@ func cmdWatchDeposit(
 		tplutil.MustOpenTemplate(fs, depositChunkLogTemplates, nil),
 		tplutil.MustOpenTemplate(fs, blockInspectionTemplates, nil),
 		mustNewClient(
-			selectCryptoInfo(tr).Crypto,
+			cryptoInfo.Crypto,
 			flagutil.MustRPCAddress(fs),
 			flagutil.MustRPCUsername(fs),
 			flagutil.MustRPCPassword(fs),
@@ -329,11 +273,9 @@ func cmdWatchDeposit(
 		flagutil.MustFirstBlock(fs),
 		flagutil.MustIgnoreTarget(fs),
 		flagutil.MustConfirmations(fs),
-		watchStage,
-		selectCryptoInfo,
-		selectWatchData,
-		selectFunds,
-		selectInterruptStage,
+		cryptoInfo,
+		selectWatchData(wd),
+		selectFunds(tr),
 		func(t trade.Trade) { mustSaveTrade(cmd, tradeName, t) },
 		func(nwd *watchData) { saveWatchData(watchDataPath(cmd, tradeName), nwd) },
 	)
@@ -347,16 +289,9 @@ func cmdWatchOwnDeposit(cmd *cobra.Command, args []string) {
 	cmdWatchDeposit(
 		cmd,
 		args[0],
-		stages.LockFunds,
 		func(tr trade.Trade) *trade.TraderInfo { return tr.OwnInfo() },
 		func(wd *watchData) *blockWatchData { return wd.Own },
 		func(tr trade.Trade) trade.FundsData { return tr.RecoverableFunds() },
-		func(tr trade.Trade) stages.Stage {
-			if tr.Role() == roles.Buyer {
-				return stages.WaitLockedFunds
-			}
-			return stages.WaitFundsRedeemed
-		},
 	)
 }
 
@@ -364,16 +299,9 @@ func cmdWatchTraderDeposit(cmd *cobra.Command, args []string) {
 	cmdWatchDeposit(
 		cmd,
 		args[0],
-		stages.WaitLockedFunds,
 		func(tr trade.Trade) *trade.TraderInfo { return tr.TraderInfo() },
 		func(wd *watchData) *blockWatchData { return wd.Trader },
 		func(tr trade.Trade) trade.FundsData { return tr.RedeemableFunds() },
-		func(tr trade.Trade) stages.Stage {
-			if tr.Role() == roles.Buyer {
-				return stages.RedeemFunds
-			}
-			return stages.LockFunds
-		},
 	)
 }
 
@@ -386,7 +314,7 @@ func newSecretTokenWatcher(cl cryptocore.Client, firstBlock uint64, wd *watchDat
 		for {
 			select {
 			case <-sig:
-				return trade.ErrInterruptTrade
+				return nil
 			case err := <-errc:
 				return err
 			case db := <-bdc:
@@ -414,15 +342,37 @@ func newSecretTokenWatcher(cl cryptocore.Client, firstBlock uint64, wd *watchDat
 }
 
 func watchSecretToken(tr trade.Trade, wd *watchData, cl cryptocore.Client, firstBlock uint64, out io.Writer, blockTpl *template.Template, foundTpl *template.Template) error {
-	th := trade.NewHandler(nil)
-	th.InstallStageHandlers(trade.StageHandlerMap{
-		stages.WaitFundsRedeemed: newSecretTokenWatcher(cl, firstBlock, wd, out, blockTpl, foundTpl),
-		stages.RedeemFunds:       trade.InterruptHandler,
-	})
-	for _, i := range th.Unhandled(tr.Stager().Stages()...) {
-		th.InstallStageHandler(i, trade.NoOpHandler)
+	sig := make(chan os.Signal, 0)
+	signal.Notify(sig, os.Interrupt, os.Kill)
+	bdc, errc, closeIter := iterateBlocks(cl, wd.Own, firstBlock)
+	defer closeIter()
+	for {
+		select {
+		case <-sig:
+			return nil
+		case err := <-errc:
+			return err
+		case db := <-bdc:
+			if err := blockTpl.Execute(out, newBlockInfo(db.height, len(db.txs))); err != nil {
+				return err
+			}
+			for _, i := range db.txs {
+				token, err := extractToken(
+					tr.OwnInfo().Crypto,
+					i,
+					tr.RecoverableFunds().Lock(),
+				)
+				if err != nil {
+					return err
+				}
+				if token == nil {
+					continue
+				}
+				tr.SetToken(token)
+				return foundTpl.Execute(out, token)
+			}
+		}
 	}
-	return th.HandleTrade(tr)
 }
 
 func cmdWatchSecretToken(cmd *cobra.Command, args []string) {

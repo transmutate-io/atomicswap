@@ -19,8 +19,6 @@ import (
 	"github.com/transmutate-io/atomicswap/internal/flagutil"
 	"github.com/transmutate-io/atomicswap/internal/flagutil/exitcodes"
 	"github.com/transmutate-io/atomicswap/internal/uiutil"
-	"github.com/transmutate-io/atomicswap/roles"
-	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
 	"github.com/transmutate-io/cryptocore"
 	"gopkg.in/yaml.v2"
@@ -257,7 +255,7 @@ func actionNewTrade(cmd *cobra.Command) {
 		}
 		break
 	}
-	tr, err := newTrade(ownAmount, ownCrypto, traderAmount, traderCrypto, dur)
+	tr, err := trade.NewOnChainTrade(ownAmount, ownCrypto, traderAmount, traderCrypto, dur)
 	if err != nil {
 		fmt.Printf("can't create a new trade: %s\n", err)
 		return
@@ -832,11 +830,9 @@ func tradePathToWatchData(cmd *cobra.Command, tp string) string {
 
 func actionWatch(
 	cmd *cobra.Command,
-	watchStage stages.Stage,
 	selectCryptoInfo func(trade.Trade) *trade.TraderInfo,
 	selectWatchData func(*watchData) *blockWatchData,
 	selectFunds func(trade.Trade) trade.FundsData,
-	selectInterruptStage func(trade.Trade) stages.Stage,
 ) error {
 	tn, tr, err := openTradeFromInput(cmd, "trade to watch: ")
 	if err != nil {
@@ -889,11 +885,9 @@ func actionWatch(
 		uint64(firstBlock),
 		false,
 		uint64(confirmations),
-		watchStage,
-		selectCryptoInfo,
-		selectWatchData,
-		selectFunds,
-		selectInterruptStage,
+		cryptoInfo,
+		selectWatchData(wd),
+		selectFunds(tr),
 		func(tr trade.Trade) {
 			if err := saveTrade(tn, tr); err != nil {
 				fmt.Printf("error saving trade: %s\n", err)
@@ -910,16 +904,9 @@ func actionWatch(
 func actionWatchOwn(cmd *cobra.Command) {
 	err := actionWatch(
 		cmd,
-		stages.LockFunds,
 		func(tr trade.Trade) *trade.TraderInfo { return tr.OwnInfo() },
 		func(wd *watchData) *blockWatchData { return wd.Own },
 		func(tr trade.Trade) trade.FundsData { return tr.RecoverableFunds() },
-		func(tr trade.Trade) stages.Stage {
-			if tr.Role() == roles.Buyer {
-				return stages.WaitLockedFunds
-			}
-			return stages.WaitFundsRedeemed
-		},
 	)
 	if err != nil {
 		fmt.Printf("can't watch deposit: %s\n", err)
@@ -929,16 +916,9 @@ func actionWatchOwn(cmd *cobra.Command) {
 func actionWatchTrader(cmd *cobra.Command) {
 	err := actionWatch(
 		cmd,
-		stages.WaitLockedFunds,
 		func(tr trade.Trade) *trade.TraderInfo { return tr.TraderInfo() },
 		func(wd *watchData) *blockWatchData { return wd.Trader },
 		func(tr trade.Trade) trade.FundsData { return tr.RedeemableFunds() },
-		func(tr trade.Trade) stages.Stage {
-			if tr.Role() == roles.Buyer {
-				return stages.RedeemFunds
-			}
-			return stages.LockFunds
-		},
 	)
 	if err != nil {
 		fmt.Printf("can't watch deposit: %s\n", err)
@@ -1071,6 +1051,7 @@ func actionRedeem(cmd *cobra.Command) {
 		cfg.TLS,
 		uint64(fee),
 		fixedFee,
+		true,
 	)
 	if err != nil {
 		fmt.Printf("can't redeem funds: %s\n", err)

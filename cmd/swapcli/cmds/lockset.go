@@ -10,7 +10,6 @@ import (
 	"github.com/transmutate-io/atomicswap/internal/flagutil"
 	"github.com/transmutate-io/atomicswap/internal/flagutil/exitcodes"
 	"github.com/transmutate-io/atomicswap/internal/tplutil"
-	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
 	"gopkg.in/yaml.v2"
 )
@@ -84,7 +83,7 @@ func init() {
 }
 
 func listLockSets(td string, out io.Writer, tpl *template.Template) error {
-	return eachLockSet(td, func(name string, tr trade.Trade) error {
+	return eachTrade(td, func(name string, tr trade.Trade) error {
 		return tpl.Execute(out, newTradeInfo(name, tr))
 	})
 }
@@ -120,21 +119,11 @@ func cmdExportLockSet(cmd *cobra.Command, args []string) {
 }
 
 func acceptLockSet(tr trade.Trade, lsIn io.Reader) error {
-	th := trade.NewHandler(trade.DefaultStageHandlers)
-	th.InstallStageHandlers(trade.StageHandlerMap{
-		stages.ReceiveProposalResponse: func(t trade.Trade) error {
-			btr, err := tr.Buyer()
-			if err != nil {
-				return err
-			}
-			return btr.SetLocks(openLockSet(lsIn, tr.OwnInfo().Crypto, tr.TraderInfo().Crypto))
-		},
-		stages.LockFunds: trade.InterruptHandler,
-	})
-	for _, i := range th.Unhandled(tr.Stager().Stages()...) {
-		th.InstallStageHandler(i, trade.NoOpHandler)
+	btr, err := tr.Buyer()
+	if err != nil {
+		return err
 	}
-	return th.HandleTrade(tr)
+	return btr.SetLocks(openLockSet(lsIn, tr.OwnInfo().Crypto, tr.TraderInfo().Crypto))
 }
 
 func cmdAcceptLockSet(cmd *cobra.Command, args []string) {

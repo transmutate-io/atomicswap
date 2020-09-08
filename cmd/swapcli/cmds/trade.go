@@ -5,15 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"text/template"
-	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/transmutate-io/atomicswap/cryptos"
 	"github.com/transmutate-io/atomicswap/internal/cmdutil"
 	"github.com/transmutate-io/atomicswap/internal/flagutil"
 	"github.com/transmutate-io/atomicswap/internal/flagutil/exitcodes"
 	"github.com/transmutate-io/atomicswap/internal/tplutil"
-	"github.com/transmutate-io/atomicswap/stages"
 	"github.com/transmutate-io/atomicswap/trade"
 	"github.com/transmutate-io/cryptocore/types"
 	"gopkg.in/yaml.v2"
@@ -93,28 +90,8 @@ func init() {
 	})
 }
 
-func newTrade(ownAmount types.Amount, ownCrypto *cryptos.Crypto, traderAmount types.Amount, traderCrypto *cryptos.Crypto, dur time.Duration) (trade.Trade, error) {
-	tr, err := trade.NewOnChainBuy(
-		ownAmount, ownCrypto,
-		traderAmount, traderCrypto,
-		dur,
-	)
-	if err != nil {
-		return nil, err
-	}
-	th := trade.NewHandler(trade.DefaultStageHandlers)
-	th.InstallStageHandler(stages.SendProposal, trade.InterruptHandler)
-	for _, i := range th.Unhandled(tr.Stager().Stages()...) {
-		th.InstallStageHandler(i, trade.NoOpHandler)
-	}
-	if err = th.HandleTrade(tr); err != nil {
-		return nil, err
-	}
-	return tr, nil
-}
-
 func cmdNewTrade(cmd *cobra.Command, args []string) {
-	tr, err := newTrade(
+	tr, err := trade.NewOnChainTrade(
 		types.Amount(args[1]), mustParseCrypto(args[2]),
 		types.Amount(args[3]), mustParseCrypto(args[4]),
 		mustParseDuration(args[5]),
